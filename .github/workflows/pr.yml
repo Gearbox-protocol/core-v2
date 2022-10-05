@@ -1,0 +1,46 @@
+name: Check PR
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+env:
+  HUSKY: 0
+  CI: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup node.js
+        uses: actions/setup-node@v3
+        with:
+          cache: "yarn"
+          node-version-file: ".nvmrc"
+
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run forge tests
+        run: forge test
+
+      - name: Run forge mainnet tests
+        run: forge t  --match-contract Mainnet_ --fork-url ${{ secrets.ETH_MAINNET_PROVIDER }}
+
+      - name: Perform checks
+        run: |
+          yarn build
+          yarn prettier:ci
+          yarn lint:ci
+          yarn typecheck:ci
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
