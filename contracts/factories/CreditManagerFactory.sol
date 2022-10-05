@@ -131,7 +131,7 @@ contract CreditManagerFactory is ContractUpgrader {
             addressProvider.getContractsRegister()
         );
 
-        PriceOracle priceOracle = PriceOracle(addressProvider.getPriceOracle());
+        // PriceOracle priceOracle = PriceOracle(addressProvider.getPriceOracle());
 
         uint256 len = adapters.length;
         for (uint256 i = 0; i < len; ) {
@@ -196,8 +196,5 @@ contract CreditManagerFactory is ContractUpgrader {
         // }
     }
 
-    function _postInstall(CreditConfigurator creditConfigurator)
-        internal
-        virtual
-    {}
+    function _postInstall(CreditConfigurator) internal virtual {}
 }
