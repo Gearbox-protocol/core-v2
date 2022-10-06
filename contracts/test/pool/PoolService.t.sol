@@ -41,7 +41,10 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
 
     function setUp() public {
         tokenTestSuite = new TokensTestSuite();
-        psts = new PoolServiceTestSuite(tokenTestSuite);
+        psts = new PoolServiceTestSuite(
+            tokenTestSuite,
+            tokenTestSuite.addressOf(Tokens.DAI)
+        );
 
         poolService = psts.poolService();
         dieselToken = psts.dieselToken();

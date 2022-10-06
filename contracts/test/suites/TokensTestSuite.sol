@@ -16,10 +16,11 @@ import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 // MOCKS
 import { Tokens } from "../interfaces/Tokens.sol";
 import { ERC20Mock } from "../mocks/token/ERC20Mock.sol";
-import { cERC20Mock } from "../mocks/token/cERC20Mock.sol";
 import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
 import "../lib/constants.sol";
 import "../lib/test.sol";
+
+import { TokensTestSuiteEngine } from "./TokensTestSuiteEngine.sol";
 
 struct TestToken {
     Tokens index;
@@ -29,10 +30,7 @@ struct TestToken {
     Tokens underlying;
 }
 
-contract TokensTestSuite is DSTest, ITokenTestSuite {
-    CheatCodes evm = CheatCodes(HEVM_ADDRESS);
-
-    address public wethToken;
+contract TokensTestSuite is DSTest, TokensTestSuiteEngine {
     mapping(Tokens => address) public addressOf;
 
     mapping(Tokens => string) public symbols;
@@ -192,64 +190,16 @@ contract TokensTestSuite is DSTest, ITokenTestSuite {
         return priceFeeds;
     }
 
-    function topUpWETH() external payable {
-        IWETH(wethToken).deposit{ value: msg.value }();
-    }
-
-    function topUpWETH(address onBehalfOf, uint256 value) external override {
-        evm.prank(onBehalfOf);
-        IWETH(wethToken).deposit{ value: value }();
-    }
-
-    function mint(
-        address token,
-        address to,
-        uint256 amount
-    ) external {
-        Tokens index = tokenIndexes[token];
-        require(index != Tokens.NO_TOKEN, "No token with such address");
-        mint(index, to, amount);
-    }
-
     function mint(
         Tokens t,
         address to,
         uint256 amount
     ) public {
-        if (t == Tokens.WETH) {
-            evm.deal(address(this), amount);
-            IWETH(wethToken).deposit{ value: amount }();
-        } else {
-            ERC20Mock(addressOf[t]).mint(address(this), amount);
-        }
-
-        IERC20(addressOf[t]).transfer(to, amount);
+        mint(addressOf[t], to, amount);
     }
 
-    function balanceOf(address token, address holder)
-        public
-        view
-        returns (uint256 balance)
-    {
-        balance = IERC20(token).balanceOf(holder);
-    }
-
-    function balanceOf(Tokens t, address holder)
-        public
-        view
-        returns (uint256 balance)
-    {
-        balance = IERC20(addressOf[t]).balanceOf(holder);
-    }
-
-    function approve(
-        address token,
-        address holder,
-        address targetContract
-    ) external {
-        Tokens index = tokenIndexes[token];
-        require(index != Tokens.NO_TOKEN, "No token with such address");
-        approve(index, holder, targetContract);
+    function balanceOf(Tokens t, address holder) public view returns (uint256) {
+        return balanceOf(addressOf[t], holder);
     }
 
     function approve(
@@ -257,7 +207,7 @@ contract TokensTestSuite is DSTest, ITokenTestSuite {
         address holder,
         address targetContract
     ) public {
-        approve(t, holder, targetContract, type(uint256).max);
+        approve(addressOf[t], holder, targetContract);
     }
 
     function approve(
@@ -266,8 +216,7 @@ contract TokensTestSuite is DSTest, ITokenTestSuite {
         address targetContract,
         uint256 amount
     ) public {
-        evm.prank(holder);
-        IERC20(addressOf[t]).approve(targetContract, amount);
+        approve(addressOf[t], holder, targetContract, amount);
     }
 
     function allowance(
@@ -283,8 +232,6 @@ contract TokensTestSuite is DSTest, ITokenTestSuite {
         address from,
         uint256 amount
     ) external {
-        ERC20Mock(addressOf[t]).burn(from, amount);
+        burn(addressOf[t], from, amount);
     }
-
-    receive() external payable {}
 }

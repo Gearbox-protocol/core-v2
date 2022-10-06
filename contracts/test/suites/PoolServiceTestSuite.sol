@@ -15,8 +15,8 @@ import { LinearInterestRateModel } from "../../pool/LinearInterestRateModel.sol"
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CreditManagerMockForPoolTest } from "../mocks/pool/CreditManagerMockForPoolTest.sol";
 
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
 import "../lib/constants.sol";
+import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
 uint256 constant liquidityProviderInitBalance = 100 ether;
 uint256 constant addLiquidity = 10 ether;
@@ -38,7 +38,7 @@ contract PoolServiceTestSuite {
 
     address public treasury;
 
-    constructor(TokensTestSuite _tokenTestSuite) {
+    constructor(ITokenTestSuite _tokenTestSuite, address _underlying) {
         linearIRModel = new LinearInterestRateModel(8000, 200, 400, 7500);
 
         evm.startPrank(CONFIGURATOR);
@@ -49,9 +49,10 @@ contract PoolServiceTestSuite {
         addressProvider.setTreasuryContract(DUMB_ADDRESS2);
         treasury = DUMB_ADDRESS2;
 
-        underlying = IERC20(_tokenTestSuite.addressOf(Tokens.DAI));
+        underlying = IERC20(_underlying);
+        // underlying = IERC20(_tokenTestSuite.addressOf(Tokens.DAI));
 
-        _tokenTestSuite.mint(Tokens.DAI, USER, liquidityProviderInitBalance);
+        _tokenTestSuite.mint(_underlying, USER, liquidityProviderInitBalance);
 
         poolService = new TestPoolService(
             address(addressProvider),
