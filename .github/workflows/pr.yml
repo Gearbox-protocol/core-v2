@@ -33,14 +33,6 @@ jobs:
       - name: Run forge tests
         run: forge test
 
-      - name: Run forge mainnet tests
-        run: forge t  --match-contract Mainnet_ --fork-url ${{ secrets.ETH_MAINNET_PROVIDER }}
-
       - name: Perform checks
         run: |
-          yarn build
           yarn prettier:ci
-          yarn lint:ci
-          yarn typecheck:ci
-        env:
-          NODE_OPTIONS: "--max-old-space-size=8192"

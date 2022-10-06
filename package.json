@@ -1,8 +1,12 @@
 {
-  "name": "gearbox-core-v2",
+  "name": "@gearbox-protocol/core-v2",
   "description": "Core smart contracts of Gearbox V2",
-  "version": "1.0.0",
+  "version": "0.0.0-semantic-release",
   "homepage": "https://gearbox.fi",
+  "files": [
+    "contracts",
+    "scripts"
+  ],
   "keywords": [
     "gearbox"
   ],
@@ -11,14 +15,18 @@
     "url": "https://github.com/Gearbox-protocol/core-v2"
   },
   "license": "BUSL-1.1",
+  "private": true,
   "scripts": {
     "prepare": "husky install",
     "prettier": "prettier --write .",
     "prettier:ci": "npx prettier --check ."
   },
   "devDependencies": {
-    "@openzeppelin/contracts": "^4.4.2",
     "@chainlink/contracts": "^0.4.0",
+    "@commitlint/cli": "^17.1.2",
+    "@commitlint/config-conventional": "^17.1.0",
+    "@gearbox-protocol/prettier-config": "^1.5.0",
+    "@openzeppelin/contracts": "^4.4.2",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
     "prettier": "^2.7.1",
