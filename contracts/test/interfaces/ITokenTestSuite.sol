@@ -6,6 +6,8 @@ import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/
 import { Tokens } from "./Tokens.sol";
 
 interface ITokenTestSuite {
+    function wethToken() external view returns (address);
+
     function approve(
         address token,
         address holder,
