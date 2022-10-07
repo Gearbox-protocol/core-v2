@@ -15,7 +15,6 @@
     "url": "https://github.com/Gearbox-protocol/core-v2"
   },
   "license": "BUSL-1.1",
-  "private": true,
   "scripts": {
     "prepare": "husky install",
     "prettier": "prettier --write .",
