@@ -14,25 +14,17 @@ import { CheatCodes, HEVM_ADDRESS } from "../lib/cheatCodes.sol";
 import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
 // MOCKS
-import { Tokens } from "../interfaces/Tokens.sol";
 import { ERC20Mock } from "../mocks/token/ERC20Mock.sol";
 import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
 import "../lib/constants.sol";
 import "../lib/test.sol";
 
-import { TokensTestSuiteEngine } from "./TokensTestSuiteEngine.sol";
+import { TokensTestSuiteHelper } from "../helpers/TokensTestSuiteHelper.sol";
+import { TokensData, TestToken } from "../config/TokensData.sol";
+import { Tokens } from "../config/Tokens.sol";
 
-struct TestToken {
-    Tokens index;
-    string symbol;
-    uint8 decimals;
-    int256 price;
-    Tokens underlying;
-}
-
-contract TokensTestSuite is DSTest, TokensTestSuiteEngine {
+contract TokensTestSuite is DSTest, TokensData, TokensTestSuiteHelper {
     mapping(Tokens => address) public addressOf;
-
     mapping(Tokens => string) public symbols;
     mapping(Tokens => uint256) public prices;
     mapping(Tokens => address) public priceFeedsMap;
@@ -43,116 +35,15 @@ contract TokensTestSuite is DSTest, TokensTestSuiteEngine {
     mapping(address => Tokens) public tokenIndexes;
 
     constructor() {
-        TestToken[10] memory tokensData = [
-            TestToken({
-                index: Tokens.DAI,
-                symbol: "DAI",
-                decimals: 18,
-                price: 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.USDC,
-                symbol: "USDC",
-                decimals: 6,
-                price: 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.WETH,
-                symbol: "WETH",
-                decimals: 18,
-                price: int256(DAI_WETH_RATE) * 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.LINK,
-                symbol: "LINK",
-                decimals: 18,
-                price: 15 * 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.USDT,
-                symbol: "USDT",
-                decimals: 18,
-                price: 99 * 10**7, // .99 for test purposes
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.STETH,
-                symbol: "stETH",
-                decimals: 18,
-                price: 3300 * 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.CRV,
-                symbol: "CRV",
-                decimals: 18,
-                price: 14 * 10**7,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.CVX,
-                symbol: "CVX",
-                decimals: 18,
-                price: 7 * 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.LUNA,
-                symbol: "LUNA",
-                decimals: 18,
-                price: 1,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.wstETH,
-                symbol: "wstETH",
-                decimals: 18,
-                price: 3300 * 10**8,
-                underlying: Tokens.NO_TOKEN
-            })
-        ];
+        TestToken[] memory data = tokensData();
 
-        TestToken[4] memory extraTokensData = [
-            TestToken({
-                index: Tokens.cDAI,
-                symbol: "cDAI",
-                decimals: 18,
-                price: 10**8,
-                underlying: Tokens.DAI
-            }),
-            TestToken({
-                index: Tokens.cUSDC,
-                symbol: "cUSDC",
-                decimals: 6,
-                price: 10**8,
-                underlying: Tokens.USDC
-            }),
-            TestToken({
-                index: Tokens.cUSDT,
-                symbol: "cUSDT",
-                decimals: 18,
-                price: 99 * 10**7, // .99 for test purposes
-                underlying: Tokens.USDT
-            }),
-            TestToken({
-                index: Tokens.cLINK,
-                symbol: "cLINK",
-                decimals: 18,
-                price: 15 * 10**8,
-                underlying: Tokens.LINK
-            })
-        ];
+        uint256 len = data.length;
+        tokenCount = len;
 
-        for (uint256 i = 0; i < tokensData.length; i++) {
-            addToken(tokensData[i]);
-        }
-
-        for (uint256 i = 0; i < extraTokensData.length; i++) {
-            addToken(extraTokensData[i]);
+        unchecked {
+            for (uint256 i; i < len; ++i) {
+                addToken(data[i]);
+            }
         }
     }
 

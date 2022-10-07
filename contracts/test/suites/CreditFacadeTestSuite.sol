@@ -5,8 +5,6 @@ pragma solidity ^0.8.10;
 
 import { CreditFacade } from "../../credit/CreditFacade.sol";
 import { CreditConfigurator } from "../../credit/CreditConfigurator.sol";
-
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
 import { CreditManager } from "../../credit/CreditManager.sol";
 
 import { CreditManagerFactory } from "../../factories/CreditManagerFactory.sol";
@@ -18,11 +16,15 @@ import { DegenNFT } from "../../tokens/DegenNFT.sol";
 
 import "../lib/constants.sol";
 
-import { BaseCreditTestSuite, CollateralTokensItem } from "./BaseCreditTestSuite.sol";
+import { PoolDeployer } from "./PoolDeployer.sol";
+import { ICreditConfig } from "../interfaces/ICreditConfig.sol";
+import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol
-contract CreditFacadeTestSuite is BaseCreditTestSuite {
+contract CreditFacadeTestSuite is PoolDeployer {
+    ITokenTestSuite public tokenTestSuite;
+
     CreditManager public creditManager;
     CreditFacade public creditFacade;
     CreditConfigurator public creditConfigurator;
@@ -31,23 +33,27 @@ contract CreditFacadeTestSuite is BaseCreditTestSuite {
     uint128 public minBorrowedAmount;
     uint128 public maxBorrowedAmount;
 
-    constructor(TokensTestSuite _tokenTestSuite, Tokens _underlying)
-        BaseCreditTestSuite(_tokenTestSuite, _underlying)
-    {
-        minBorrowedAmount = uint128(WAD);
-        maxBorrowedAmount = uint128(10 * _getAccountAmount());
+    uint256 public creditAccountAmount;
 
-        CreditManagerOpts memory creditOpts = CreditManagerOpts({
-            minBorrowedAmount: minBorrowedAmount,
-            maxBorrowedAmount: maxBorrowedAmount,
-            collateralTokens: _getCollateralTokens(_underlying),
-            degenNFT: address(0),
-            expirable: false
-        });
+    constructor(ICreditConfig creditConfig)
+        PoolDeployer(
+            creditConfig.tokenTestSuite(),
+            creditConfig.underlying(),
+            creditConfig.wethToken(),
+            10 * creditConfig.getAccountAmount(),
+            creditConfig.getPriceFeeds()
+        )
+    {
+        minBorrowedAmount = creditConfig.minBorrowedAmount();
+        maxBorrowedAmount = creditConfig.maxBorrowedAmount();
+
+        tokenTestSuite = creditConfig.tokenTestSuite();
+
+        creditAccountAmount = creditConfig.getAccountAmount();
 
         CreditManagerFactory cmf = new CreditManagerFactory(
             address(poolMock),
-            creditOpts,
+            creditConfig.getCreditOpts(),
             0
         );
 
@@ -62,9 +68,9 @@ contract CreditFacadeTestSuite is BaseCreditTestSuite {
         evm.label(address(creditManager), "CreditManager");
         evm.label(address(creditConfigurator), "CreditConfigurator");
 
-        // Charge USER
-        tokenTestSuite.mint(_underlying, USER, _getAccountAmount());
-        tokenTestSuite.mint(_underlying, FRIEND, _getAccountAmount());
+        tokenTestSuite.mint(underlying, USER, creditAccountAmount);
+        tokenTestSuite.mint(underlying, FRIEND, creditAccountAmount);
+
         evm.prank(USER);
         IERC20(underlying).approve(address(creditManager), type(uint256).max);
         evm.prank(FRIEND);

@@ -34,8 +34,8 @@ contract PriceFeedMock is AggregatorV3Interface, IPriceFeedType {
         decimals = _decimals;
         roundId = 80;
         answerInRound = 80;
-        startedAt = uint256(block.timestamp);
-        updatedAt = uint256(block.timestamp);
+        startedAt = uint256(block.timestamp) + 1;
+        updatedAt = uint256(block.timestamp) + 1;
     }
 
     function setParams(

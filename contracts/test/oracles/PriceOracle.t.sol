@@ -19,7 +19,8 @@ import { ERC20Mock } from "../mocks/token/ERC20Mock.sol";
 import { PriceFeedMock, FlagState } from "../mocks/oracles/PriceFeedMock.sol";
 
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../../interfaces/IErrors.sol";

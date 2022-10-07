@@ -25,7 +25,7 @@ import { PercentageMath, PERCENTAGE_FACTOR } from "../../libraries/PercentageMat
 
 import "../lib/constants.sol";
 import "../lib/test.sol";
-import { BalanceHelper } from "../suites/BalanceHelper.sol";
+import { BalanceHelper } from "../helpers/BalanceHelper.sol";
 
 // EXCEPTIONS
 
@@ -36,10 +36,13 @@ import { TargetContractMock } from "../mocks/adapters/TargetContractMock.sol";
 import { ERC20ApproveRestrictedRevert, ERC20ApproveRestrictedFalse } from "../mocks/token/ERC20ApproveRestricted.sol";
 
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
 import { CreditManagerTestSuite } from "../suites/CreditManagerTestSuite.sol";
 import { GenesisFactory } from "../../factories/GenesisFactory.sol";
 import { CreditManagerTestInternal } from "../mocks/credit/CreditManagerTestInternal.sol";
+
+import { CreditConfig } from "../config/CreditConfig.sol";
 
 /// @title AddressRepository
 /// @notice Stores addresses of deployed contracts
@@ -63,6 +66,8 @@ contract CreditManagerTest is
     ACL acl;
     address underlying;
 
+    CreditConfig creditConfig;
+
     function setUp() public {
         tokenTestSuite = new TokensTestSuite();
 
@@ -74,7 +79,8 @@ contract CreditManagerTest is
     /// HELPERS
 
     function _connectCreditManagerSuite(Tokens t, bool internalSuite) internal {
-        cms = new CreditManagerTestSuite(tokenTestSuite, t, internalSuite);
+        creditConfig = new CreditConfig(tokenTestSuite, t);
+        cms = new CreditManagerTestSuite(creditConfig, internalSuite);
 
         gp = cms.gp();
         acl = cms.acl();
@@ -106,9 +112,7 @@ contract CreditManagerTest is
     function expectTokenIsEnabled(Tokens t, bool expectedState) internal {
         address creditAccount = creditManager.getCreditAccountOrRevert(USER);
 
-        bool state = creditManager.tokenMasksMap(
-            cms.tokenTestSuite().addressOf(t)
-        ) &
+        bool state = creditManager.tokenMasksMap(tokenTestSuite.addressOf(t)) &
             creditManager.enabledTokensMap(creditAccount) !=
             0;
         assertTrue(
@@ -116,7 +120,7 @@ contract CreditManagerTest is
             string(
                 abi.encodePacked(
                     "Token ",
-                    cms.tokenTestSuite().symbols(t),
+                    tokenTestSuite.symbols(t),
                     state
                         ? " enabled as not expetcted"
                         : " not enabled as expected "
@@ -2412,7 +2416,9 @@ contract CreditManagerTest is
             cumulativeIndexNow *
             PERCENTAGE_FACTOR) / cumulativeIndexAtOpen) * (10**8)) /
             tokenTestSuite.prices(Tokens.WETH) /
-            cms.lt(Tokens.WETH);
+            creditManager.liquidationThresholds(
+                tokenTestSuite.addressOf(Tokens.WETH)
+            );
 
         tokenTestSuite.mint(Tokens.WETH, creditAccount, amountToRepayInWETH);
 
@@ -2459,7 +2465,7 @@ contract CreditManagerTest is
 
         cm.addToken(revertToken);
         cm.addToken(linkToken);
-        cm.setLiquidationThreshold(linkToken, cms.lt(Tokens.LINK));
+        cm.setLiquidationThreshold(linkToken, creditConfig.lt(Tokens.LINK));
 
         evm.stopPrank();
 
@@ -2470,7 +2476,7 @@ contract CreditManagerTest is
         uint256 amountToRepayInLINK = ((DAI_ACCOUNT_AMOUNT + WAD) *
             PERCENTAGE_FACTOR *
             (10**8)) /
-            cms.lt(Tokens.LINK) /
+            creditConfig.lt(Tokens.LINK) /
             tokenTestSuite.prices(Tokens.LINK);
 
         tokenTestSuite.mint(Tokens.LINK, creditAccount, amountToRepayInLINK);
@@ -2639,25 +2645,25 @@ contract CreditManagerTest is
 
         uint256 twvUSD = (tokenTestSuite.balanceOf(Tokens.DAI, creditAccount) *
             tokenTestSuite.prices(Tokens.DAI) *
-            cms.lt(Tokens.DAI)) / WAD;
+            creditConfig.lt(Tokens.DAI)) / WAD;
 
         twvUSD += !enableUSDC
             ? 0
             : (tokenTestSuite.balanceOf(Tokens.USDC, creditAccount) *
                 tokenTestSuite.prices(Tokens.USDC) *
-                cms.lt(Tokens.USDC)) / (10**6);
+                creditConfig.lt(Tokens.USDC)) / (10**6);
 
         twvUSD += !enableLINK
             ? 0
             : (tokenTestSuite.balanceOf(Tokens.LINK, creditAccount) *
                 tokenTestSuite.prices(Tokens.LINK) *
-                cms.lt(Tokens.LINK)) / WAD;
+                creditConfig.lt(Tokens.LINK)) / WAD;
 
         twvUSD += !enableWETH
             ? 0
             : (tokenTestSuite.balanceOf(Tokens.WETH, creditAccount) *
                 tokenTestSuite.prices(Tokens.WETH) *
-                cms.lt(Tokens.WETH)) / WAD;
+                creditConfig.lt(Tokens.WETH)) / WAD;
 
         (, , uint256 borrowedAmountWithInterestAndFees) = creditManager
             .calcCreditAccountAccruedInterest(creditAccount);

@@ -12,8 +12,8 @@ import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICred
 import { ICreditFacadeEvents, ICreditFacadeExceptions } from "../../interfaces/ICreditFacade.sol";
 
 import "../lib/constants.sol";
-import { BalanceHelper } from "../suites/BalanceHelper.sol";
-import { CreditFacadeHelper } from "../suites/CreditFacadeHelper.sol";
+import { BalanceHelper } from "../helpers/BalanceHelper.sol";
+import { CreditFacadeTestHelper } from "../helpers/CreditFacadeTestHelper.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException } from "../../interfaces/IErrors.sol";
@@ -24,8 +24,10 @@ import { AdapterMock } from "../mocks/adapters/AdapterMock.sol";
 import { TargetContractMock } from "../mocks/adapters/TargetContractMock.sol";
 
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
 import { CreditFacadeTestSuite } from "../suites/CreditFacadeTestSuite.sol";
+import { CreditConfig } from "../config/CreditConfig.sol";
 
 uint256 constant WETH_TEST_AMOUNT = 5 * WAD;
 uint16 constant REFERRAL_CODE = 23;
@@ -35,7 +37,7 @@ uint16 constant REFERRAL_CODE = 23;
 contract AbstractAdapterTest is
     DSTest,
     BalanceHelper,
-    CreditFacadeHelper,
+    CreditFacadeTestHelper,
     ICreditManagerV2Events,
     ICreditFacadeEvents,
     ICreditFacadeExceptions
@@ -52,7 +54,12 @@ contract AbstractAdapterTest is
         tokenTestSuite = new TokensTestSuite();
         tokenTestSuite.topUpWETH{ value: 100 * WAD }();
 
-        cft = new CreditFacadeTestSuite(tokenTestSuite, Tokens.DAI);
+        CreditConfig creditConfig = new CreditConfig(
+            tokenTestSuite,
+            Tokens.DAI
+        );
+
+        cft = new CreditFacadeTestSuite(creditConfig);
 
         underlying = tokenTestSuite.addressOf(Tokens.DAI);
         creditManager = cft.creditManager();

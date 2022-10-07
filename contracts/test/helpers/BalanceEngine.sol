@@ -6,42 +6,11 @@ pragma solidity ^0.8.10;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
 import "../lib/test.sol";
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol
-contract BalanceHelper is DSTest {
-    // Suites
-    TokensTestSuite internal tokenTestSuite;
-
-    function expectBalance(
-        Tokens t,
-        address holder,
-        uint256 expectedBalance
-    ) internal {
-        expectBalance(t, holder, expectedBalance, "");
-    }
-
-    function expectBalance(
-        Tokens t,
-        address holder,
-        uint256 expectedBalance,
-        string memory reason
-    ) internal {
-        require(
-            address(tokenTestSuite) != address(0),
-            "tokenTestSuite is not set"
-        );
-
-        expectBalance(
-            tokenTestSuite.addressOf(t),
-            holder,
-            expectedBalance,
-            reason
-        );
-    }
-
+contract BalanceEngine is DSTest {
     function expectBalance(
         address token,
         address holder,
@@ -72,44 +41,6 @@ contract BalanceHelper is DSTest {
             );
 
         assertGe(balance, minBalance);
-    }
-
-    function expectBalanceGe(
-        Tokens t,
-        address holder,
-        uint256 minBalance,
-        string memory reason
-    ) internal {
-        require(
-            address(tokenTestSuite) != address(0),
-            "tokenTestSuite is not set"
-        );
-
-        expectBalanceGe(
-            tokenTestSuite.addressOf(t),
-            holder,
-            minBalance,
-            reason
-        );
-    }
-
-    function expectBalanceLe(
-        Tokens t,
-        address holder,
-        uint256 maxBalance,
-        string memory reason
-    ) internal {
-        require(
-            address(tokenTestSuite) != address(0),
-            "tokenTestSuite is not set"
-        );
-
-        expectBalanceLe(
-            tokenTestSuite.addressOf(t),
-            holder,
-            maxBalance,
-            reason
-        );
     }
 
     function expectBalanceLe(
@@ -184,36 +115,6 @@ contract BalanceHelper is DSTest {
             );
 
         assertEq(balance, expectedBalance);
-    }
-
-    function expectAllowance(
-        Tokens t,
-        address owner,
-        address spender,
-        uint256 expectedAllowance
-    ) internal {
-        expectAllowance(t, owner, spender, expectedAllowance, "");
-    }
-
-    function expectAllowance(
-        Tokens t,
-        address owner,
-        address spender,
-        uint256 expectedAllowance,
-        string memory reason
-    ) internal {
-        require(
-            address(tokenTestSuite) != address(0),
-            "tokenTestSuite is not set"
-        );
-
-        expectAllowance(
-            tokenTestSuite.addressOf(t),
-            owner,
-            spender,
-            expectedAllowance,
-            reason
-        );
     }
 
     function expectAllowance(

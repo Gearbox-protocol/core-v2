@@ -6,19 +6,16 @@ pragma solidity ^0.8.10;
 import { ILPPriceFeedExceptions, ILPPriceFeedEvents } from "../../interfaces/ILPPriceFeed.sol";
 import { PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
 
-// LIBRARIES
-
 // TEST
 import "../lib/constants.sol";
 
 // MOCKS
-
 import { LPPriceFeedMock } from "../mocks/oracles/LPPriceFeedMock.sol";
 import { AddressProviderACLMock } from "../mocks/core/AddressProviderACLMock.sol";
 
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
-
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
 // EXCEPTIONS
 
 import { ZeroAddressException, CallerNotConfiguratorException, NotImplementedException } from "../../interfaces/IErrors.sol";

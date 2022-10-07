@@ -4,27 +4,24 @@
 pragma solidity ^0.8.10;
 
 import { IAddressProvider } from "../../interfaces/IAddressProvider.sol";
-
 import { ContractsRegister } from "../../core/ContractsRegister.sol";
-
 import { PauseMulticall } from "../../support/PauseMulticall.sol";
-
 import { CreditManager, UNIVERSAL_CONTRACT } from "../../credit/CreditManager.sol";
 
-import { CallerNotPausableAdminException } from "../../interfaces/IErrors.sol";
-
 // TESTS
-
 import "../lib/constants.sol";
 
 // EXCEPTIONS
+import { CallerNotPausableAdminException } from "../../interfaces/IErrors.sol";
 
 // MOCKS
 import { PoolServiceMock } from "../mocks/pool/PoolServiceMock.sol";
 
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
 import { CreditManagerTestSuite } from "../suites/CreditManagerTestSuite.sol";
+import { CreditConfig } from "../config/CreditConfig.sol";
 
 /// @title Pause multicall test
 /// @notice Test for pause multicall
@@ -47,8 +44,11 @@ contract PauseMulticallTest is DSTest {
 
     function setUp() public {
         tokenTestSuite = new TokensTestSuite();
-
-        cms = new CreditManagerTestSuite(tokenTestSuite, Tokens.DAI, false);
+        CreditConfig creditConfig = new CreditConfig(
+            tokenTestSuite,
+            Tokens.DAI
+        );
+        cms = new CreditManagerTestSuite(creditConfig, false);
 
         addressProvider = cms.addressProvider();
 

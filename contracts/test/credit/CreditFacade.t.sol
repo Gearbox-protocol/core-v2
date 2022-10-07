@@ -21,7 +21,7 @@ import { IDegenNFT, IDegenNFTExceptions } from "../../interfaces/IDegenNFT.sol";
 import { MultiCall, MultiCallOps } from "../../libraries/MultiCall.sol";
 import { Balance } from "../../libraries/Balances.sol";
 
-import { CreditFacadeMulticaller, CreditFacadeCalls } from "../../multicall/credit/CreditFacadeCalls.sol";
+import { CreditFacadeMulticaller, CreditFacadeCalls } from "../../multicall/CreditFacadeCalls.sol";
 
 // CONSTANTS
 
@@ -31,8 +31,8 @@ import { PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
 // TESTS
 
 import "../lib/constants.sol";
-import { BalanceHelper } from "../suites/BalanceHelper.sol";
-import { CreditFacadeHelper } from "../suites/CreditFacadeHelper.sol";
+import { BalanceHelper } from "../helpers/BalanceHelper.sol";
+import { CreditFacadeTestHelper } from "../helpers/CreditFacadeTestHelper.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException } from "../../interfaces/IErrors.sol";
@@ -42,12 +42,11 @@ import { ICreditManagerV2Exceptions } from "../../interfaces/ICreditManagerV2.so
 import { AdapterMock } from "../mocks/adapters/AdapterMock.sol";
 import { TargetContractMock } from "../mocks/adapters/TargetContractMock.sol";
 
-// import { UniswapV2Mock } from "../mocks/integrations/UniswapV2Mock.sol";
-// import { UniswapV2Adapter } from "../../adapters/uniswap/UniswapV2.sol";
-
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
 import { CreditFacadeTestSuite } from "../suites/CreditFacadeTestSuite.sol";
+import { CreditConfig } from "../config/CreditConfig.sol";
 
 uint256 constant WETH_TEST_AMOUNT = 5 * WAD;
 uint16 constant REFERRAL_CODE = 23;
@@ -57,7 +56,7 @@ uint16 constant REFERRAL_CODE = 23;
 contract CreditFacadeTest is
     DSTest,
     BalanceHelper,
-    CreditFacadeHelper,
+    CreditFacadeTestHelper,
     ICreditManagerV2Events,
     ICreditFacadeEvents,
     ICreditFacadeExceptions
@@ -72,7 +71,12 @@ contract CreditFacadeTest is
         tokenTestSuite = new TokensTestSuite();
         tokenTestSuite.topUpWETH{ value: 100 * WAD }();
 
-        cft = new CreditFacadeTestSuite(tokenTestSuite, Tokens.DAI);
+        CreditConfig creditConfig = new CreditConfig(
+            tokenTestSuite,
+            Tokens.DAI
+        );
+
+        cft = new CreditFacadeTestSuite(creditConfig);
 
         underlying = tokenTestSuite.addressOf(Tokens.DAI);
         creditManager = cft.creditManager();

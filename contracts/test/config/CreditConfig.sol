@@ -11,7 +11,8 @@ import { AccountFactory } from "../../core/AccountFactory.sol";
 import { GenesisFactory } from "../../factories/GenesisFactory.sol";
 import { PoolFactory, PoolOpts } from "../../factories/PoolFactory.sol";
 
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
 
 import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
 import { PoolServiceMock } from "../mocks/pool/PoolServiceMock.sol";
@@ -20,6 +21,9 @@ import "../lib/constants.sol";
 
 import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
+import { ICreditConfig } from "../interfaces/ICreditConfig.sol";
+import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
 struct PoolCreditOpts {
     PoolOpts poolOpts;
@@ -33,72 +37,58 @@ struct CollateralTokensItem {
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol
-contract BaseCreditTestSuite is DSTest {
-    CheatCodes evm = CheatCodes(HEVM_ADDRESS);
+contract CreditConfig is DSTest, ICreditConfig {
+    uint128 public minBorrowedAmount;
+    uint128 public maxBorrowedAmount;
 
-    TokensTestSuite public tokenTestSuite;
-    AddressProvider public addressProvider;
-    GenesisFactory public gp;
-    AccountFactory public af;
-    PoolServiceMock public poolMock;
-    ContractsRegister public cr;
-    ACL public acl;
-
-    IPriceOracleV2Ext public priceOracle;
-
-    address public underlying;
+    TokensTestSuite public _tokenTestSuite;
 
     mapping(Tokens => uint16) public lt;
 
-    constructor(TokensTestSuite _tokenTestSuite, Tokens _underlying) {
-        new Roles();
+    address public override underlying;
 
-        tokenTestSuite = _tokenTestSuite;
+    address public override wethToken;
 
-        gp = new GenesisFactory(tokenTestSuite.wethToken(), DUMB_ADDRESS);
+    Tokens public underlyingSymbol;
 
-        gp.acl().claimOwnership();
-        gp.addressProvider().claimOwnership();
+    constructor(TokensTestSuite tokenTestSuite_, Tokens _underlying) {
+        emit log_named_uint("BLOCK TIMESTAMP", block.timestamp);
 
-        gp.acl().addPausableAdmin(CONFIGURATOR);
-        gp.acl().addUnpausableAdmin(CONFIGURATOR);
+        uint256 accountAmount = _underlying == Tokens.DAI
+            ? DAI_ACCOUNT_AMOUNT
+            : WETH_ACCOUNT_AMOUNT;
 
-        gp.acl().transferOwnership(address(gp));
-        gp.claimACLOwnership();
+        minBorrowedAmount = uint128(WAD);
+        maxBorrowedAmount = uint128(10 * accountAmount);
 
-        gp.addPriceFeeds(tokenTestSuite.getPriceFeeds());
-        gp.acl().claimOwnership();
+        _tokenTestSuite = tokenTestSuite_;
 
-        addressProvider = gp.addressProvider();
-        af = AccountFactory(addressProvider.getAccountFactory());
-
-        priceOracle = IPriceOracleV2Ext(addressProvider.getPriceOracle());
-
-        acl = ACL(addressProvider.getACL());
-
-        cr = ContractsRegister(addressProvider.getContractsRegister());
-
-        underlying = tokenTestSuite.addressOf(_underlying);
-
-        poolMock = new PoolServiceMock(
-            address(gp.addressProvider()),
-            underlying
-        );
-
-        tokenTestSuite.mint(
-            _underlying,
-            address(poolMock),
-            10 * _getAccountAmount()
-        );
-
-        cr.addPool(address(poolMock));
+        wethToken = tokenTestSuite_.addressOf(Tokens.WETH);
+        underlyingSymbol = _underlying;
+        underlying = tokenTestSuite_.addressOf(_underlying);
     }
 
-    function _getCollateralTokens(Tokens t)
+    function getCreditOpts()
+        external
+        override
+        returns (CreditManagerOpts memory)
+    {
+        return
+            CreditManagerOpts({
+                minBorrowedAmount: minBorrowedAmount,
+                maxBorrowedAmount: maxBorrowedAmount,
+                collateralTokens: getCollateralTokens(),
+                degenNFT: address(0),
+                expirable: false
+            });
+    }
+
+    function getCollateralTokens()
         public
+        override
         returns (CollateralToken[] memory collateralTokens)
     {
-        CollateralTokensItem[11] memory collateralTokenOpts = [
+        CollateralTokensItem[8] memory collateralTokenOpts = [
             CollateralTokensItem({
                 token: Tokens.USDC,
                 liquidationThreshold: 9000
@@ -130,34 +120,22 @@ contract BaseCreditTestSuite is DSTest {
             CollateralTokensItem({
                 token: Tokens.STETH,
                 liquidationThreshold: 7300
-            }),
-            CollateralTokensItem({
-                token: Tokens.cDAI,
-                liquidationThreshold: 8300
-            }),
-            CollateralTokensItem({
-                token: Tokens.cUSDC,
-                liquidationThreshold: 9000
-            }),
-            CollateralTokensItem({
-                token: Tokens.cUSDT,
-                liquidationThreshold: 8800
             })
         ];
 
-        lt[t] = 9300;
+        lt[underlyingSymbol] = 9300;
 
         uint256 len = collateralTokenOpts.length;
         collateralTokens = new CollateralToken[](len - 1);
         uint256 j;
         for (uint256 i = 0; i < len; i++) {
-            if (collateralTokenOpts[i].token == t) continue;
+            if (collateralTokenOpts[i].token == underlyingSymbol) continue;
 
             lt[collateralTokenOpts[i].token] = collateralTokenOpts[i]
                 .liquidationThreshold;
 
             collateralTokens[j] = CollateralToken({
-                token: tokenTestSuite.addressOf(collateralTokenOpts[i].token),
+                token: _tokenTestSuite.addressOf(collateralTokenOpts[i].token),
                 liquidationThreshold: collateralTokenOpts[i]
                     .liquidationThreshold
             });
@@ -165,17 +143,23 @@ contract BaseCreditTestSuite is DSTest {
         }
     }
 
-    function addMockPriceFeed(address token, uint256 price) external {
-        AggregatorV3Interface priceFeed = new PriceFeedMock(int256(price), 8);
-
-        evm.prank(CONFIGURATOR);
-        priceOracle.addPriceFeed(token, address(priceFeed));
-    }
-
-    function _getAccountAmount() public view returns (uint256) {
+    function getAccountAmount() public view override returns (uint256) {
         return
-            (underlying == tokenTestSuite.addressOf(Tokens.DAI))
+            (underlyingSymbol == Tokens.DAI)
                 ? DAI_ACCOUNT_AMOUNT
                 : WETH_ACCOUNT_AMOUNT;
+    }
+
+    function getPriceFeeds()
+        external
+        view
+        override
+        returns (PriceFeedConfig[] memory)
+    {
+        return _tokenTestSuite.getPriceFeeds();
+    }
+
+    function tokenTestSuite() external view override returns (ITokenTestSuite) {
+        return _tokenTestSuite;
     }
 }

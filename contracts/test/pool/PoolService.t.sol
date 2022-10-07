@@ -17,8 +17,9 @@ import { liquidityProviderInitBalance, addLiquidity, removeLiquidity, referral, 
 import { RAY } from "../../libraries/Constants.sol";
 import "../../libraries/Errors.sol";
 
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
-import { BalanceHelper } from "../suites/BalanceHelper.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
+import { BalanceHelper } from "../helpers/BalanceHelper.sol";
 
 // TEST
 import "../lib/constants.sol";

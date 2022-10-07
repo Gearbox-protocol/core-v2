@@ -3,35 +3,46 @@
 // (c) Gearbox Holdings, 2021
 pragma solidity ^0.8.10;
 
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
 import { CreditManager } from "../../credit/CreditManager.sol";
-
 import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
 
 import { IWETH } from "../../interfaces/external/IWETH.sol";
 
-import { PercentageMath, PERCENTAGE_FACTOR, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
+import { PercentageMath, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
 
 import "../../libraries/Constants.sol";
 
 import "../lib/constants.sol";
 import { CreditManagerTestInternal } from "../mocks/credit/CreditManagerTestInternal.sol";
-import { BaseCreditTestSuite, CollateralTokensItem } from "./BaseCreditTestSuite.sol";
+import { PoolDeployer } from "./PoolDeployer.sol";
+import { ICreditConfig } from "../interfaces/ICreditConfig.sol";
+import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol
-contract CreditManagerTestSuite is BaseCreditTestSuite {
+contract CreditManagerTestSuite is PoolDeployer {
+    ITokenTestSuite public tokenTestSuite;
+
     CreditManager public creditManager;
 
     IWETH wethToken;
 
     address creditFacade;
+    uint256 creditAccountAmount;
 
-    constructor(
-        TokensTestSuite _tokenTestSuite,
-        Tokens _underlying,
-        bool internalSuite
-    ) BaseCreditTestSuite(_tokenTestSuite, _underlying) {
+    constructor(ICreditConfig creditConfig, bool internalSuite)
+        PoolDeployer(
+            creditConfig.tokenTestSuite(),
+            creditConfig.underlying(),
+            creditConfig.wethToken(),
+            10 * creditConfig.getAccountAmount(),
+            creditConfig.getPriceFeeds()
+        )
+    {
+        creditAccountAmount = creditConfig.getAccountAmount();
+
+        tokenTestSuite = creditConfig.tokenTestSuite();
+
         creditManager = internalSuite
             ? new CreditManagerTestInternal(address(poolMock))
             : new CreditManager(address(poolMock));
@@ -52,9 +63,8 @@ contract CreditManagerTestSuite is BaseCreditTestSuite {
             PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
         );
 
-        CollateralToken[] memory collateralTokens = _getCollateralTokens(
-            Tokens.DAI
-        );
+        CollateralToken[] memory collateralTokens = creditConfig
+            .getCollateralTokens();
 
         for (uint256 i = 0; i < collateralTokens.length; i++) {
             if (collateralTokens[i].token != underlying) {
@@ -78,8 +88,8 @@ contract CreditManagerTestSuite is BaseCreditTestSuite {
         cr.addCreditManager(address(creditManager));
 
         // Approve USER & LIQUIDATOR to credit manager
-        tokenTestSuite.approve(_underlying, USER, address(creditManager));
-        tokenTestSuite.approve(_underlying, LIQUIDATOR, address(creditManager));
+        tokenTestSuite.approve(underlying, USER, address(creditManager));
+        tokenTestSuite.approve(underlying, LIQUIDATOR, address(creditManager));
 
         addressProvider.transferOwnership(CONFIGURATOR);
         acl.transferOwnership(CONFIGURATOR);
@@ -105,7 +115,7 @@ contract CreditManagerTestSuite is BaseCreditTestSuite {
             address creditAccount
         )
     {
-        return openCreditAccount(_getAccountAmount());
+        return openCreditAccount(creditAccountAmount);
     }
 
     function openCreditAccount(uint256 _borrowedAmount)

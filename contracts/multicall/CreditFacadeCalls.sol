@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2021
 pragma solidity ^0.8.10;
 
-import { MultiCall } from "../../libraries/MultiCall.sol";
-import { Balance, BalanceOps } from "../../libraries/Balances.sol";
-import { ICreditFacade, ICreditFacadeExtended } from "../../interfaces/ICreditFacade.sol";
+import { MultiCall } from "../libraries/MultiCall.sol";
+import { Balance, BalanceOps } from "../libraries/Balances.sol";
+import { ICreditFacade, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
 
 interface CreditFacadeMulticaller {}
 
