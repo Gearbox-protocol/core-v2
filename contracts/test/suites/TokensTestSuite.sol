@@ -9,9 +9,6 @@ import { WETHMock } from "../mocks/token/WETHMock.sol";
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
-import { IWETH } from "../../interfaces/external/IWETH.sol";
-import { CheatCodes, HEVM_ADDRESS } from "../lib/cheatCodes.sol";
-import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
 // MOCKS
 import { ERC20Mock } from "../mocks/token/ERC20Mock.sol";
@@ -19,7 +16,7 @@ import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
 import "../lib/constants.sol";
 import "../lib/test.sol";
 
-import { TokensTestSuiteHelper } from "../helpers/TokensTestSuiteHelper.sol";
+import { TokensTestSuiteHelper } from "./TokensTestSuiteHelper.sol";
 import { TokensData, TestToken } from "../config/TokensData.sol";
 import { Tokens } from "../config/Tokens.sol";
 

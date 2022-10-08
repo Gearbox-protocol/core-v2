@@ -2154,7 +2154,7 @@ contract CreditFacadeTest is
         );
 
         // 3 ASSET TEST: 10 DAI + 10 USDC + 0.01 WETH (3200 $/ETH)
-        _addCollateral(Tokens.WETH, WAD / 100);
+        addCollateral(Tokens.WETH, WAD / 100);
 
         expectedTV += (WAD / 100) * DAI_WETH_RATE;
         expectedTWV += ((WAD / 100) * DAI_WETH_RATE * 8300) / PERCENTAGE_FACTOR;
@@ -2193,7 +2193,7 @@ contract CreditFacadeTest is
 
         // ADDING USDC AS COLLATERAL
 
-        _addCollateral(Tokens.USDC, 10 * 10**6);
+        addCollateral(Tokens.USDC, 10 * 10**6);
 
         expectedTV += 10 * WAD;
         expectedTWV += (10 * WAD * 9000) / PERCENTAGE_FACTOR;
@@ -2207,7 +2207,7 @@ contract CreditFacadeTest is
         );
 
         // 3 ASSET: 10 DAI + 10 USDC + 0.01 WETH (3200 $/ETH)
-        _addCollateral(Tokens.WETH, WAD / 100);
+        addCollateral(Tokens.WETH, WAD / 100);
 
         expectedTV += (WAD / 100) * DAI_WETH_RATE;
         expectedTWV += ((WAD / 100) * DAI_WETH_RATE * 8300) / PERCENTAGE_FACTOR;

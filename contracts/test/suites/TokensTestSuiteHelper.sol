@@ -33,7 +33,7 @@ contract TokensTestSuiteHelper is DSTest, ITokenTestSuite {
         address token,
         address to,
         uint256 amount
-    ) public override {
+    ) public virtual override {
         if (token == wethToken) {
             evm.deal(address(this), amount);
             IWETH(wethToken).deposit{ value: amount }();

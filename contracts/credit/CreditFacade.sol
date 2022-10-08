@@ -190,7 +190,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         ); // F:[FA-5]
 
         // Transfers collateral from the user to the new Credit Account
-        _addCollateral(onBehalfOf, creditAccount, underlying, amount); // F:[FA-5]
+        addCollateral(onBehalfOf, creditAccount, underlying, amount); // F:[FA-5]
     }
 
     /// @dev Opens a Credit Account and runs a batch of operations in a multicall
@@ -570,7 +570,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             onBehalfOf
         ); // F:[FA-2]
 
-        _addCollateral(onBehalfOf, creditAccount, token, amount);
+        addCollateral(onBehalfOf, creditAccount, token, amount);
 
         // Since this action can enable new tokens, Credit Manager
         // needs to check that the max enabled token limit is not
@@ -578,7 +578,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         creditManager.checkAndOptimizeEnabledTokens(creditAccount); // F: [FA-21C]
     }
 
-    function _addCollateral(
+    function addCollateral(
         address onBehalfOf,
         address creditAccount,
         address token,
@@ -779,7 +779,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
             // In case onBehalfOf isn't the owner of the currently processed account,
             // retrieves onBehalfOf's account
-            _addCollateral(
+            addCollateral(
                 onBehalfOf,
                 onBehalfOf == borrower
                     ? creditAccount
