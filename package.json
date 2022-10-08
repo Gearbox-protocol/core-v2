@@ -1,7 +1,7 @@
 {
   "name": "@gearbox-protocol/core-v2",
   "description": "Core smart contracts of Gearbox V2",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "homepage": "https://gearbox.fi",
   "files": [
     "contracts",
