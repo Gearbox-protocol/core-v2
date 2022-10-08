@@ -211,12 +211,12 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
 
         uint256 tokenId = uint256(uint160(USER)) + 2;
 
-        evm.expectRevert("ERC721: owner query for nonexistent token");
+        evm.expectRevert("ERC721: invalid token ID");
         degenNFT.ownerOf(tokenId);
 
         tokenId = uint256(uint160(USER)) + 1;
 
-        evm.expectRevert("ERC721: owner query for nonexistent token");
+        evm.expectRevert("ERC721: invalid token ID");
         degenNFT.ownerOf(tokenId);
 
         assertEq(degenNFT.totalSupply(), 1, "Total supply is incorrect");
