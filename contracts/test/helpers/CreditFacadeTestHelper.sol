@@ -27,7 +27,7 @@ contract CreditFacadeTestHelper is CreditFacadeTestEngine {
         );
     }
 
-    function _addCollateral(Tokens t, uint256 amount) internal {
+    function addCollateral(Tokens t, uint256 amount) internal {
         tokenTestSuite().mint(t, USER, amount);
         tokenTestSuite().approve(t, USER, address(creditManager));
 

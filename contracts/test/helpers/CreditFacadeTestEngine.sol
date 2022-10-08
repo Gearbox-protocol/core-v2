@@ -132,7 +132,7 @@ contract CreditFacadeTestEngine is DSTest {
         );
     }
 
-    function _addCollateral(address token, uint256 amount) internal {
+    function addCollateral(address token, uint256 amount) internal {
         // tokenTestSuite.mint(t, USER, amount);
 
         evm.startPrank(USER);
