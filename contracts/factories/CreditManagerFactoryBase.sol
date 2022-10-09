@@ -146,7 +146,7 @@ contract CreditManagerFactoryBase is ContractUpgrader {
 
         pool.connectCreditManager(address(creditManager));
 
-        _postInstall(creditConfigurator);
+        _postInstall();
     }
 
     function _postInstall() internal virtual {}
