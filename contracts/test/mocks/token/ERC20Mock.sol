@@ -8,6 +8,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract ERC20Mock is ERC20, Ownable {
     uint8 private immutable _decimals;
+    address public minter;
 
     constructor(
         string memory name_,
@@ -15,6 +16,13 @@ contract ERC20Mock is ERC20, Ownable {
         uint8 decimals_
     ) ERC20(name_, symbol_) {
         _decimals = decimals_;
+        minter = msg.sender;
+        // _mint(msg.sender, 1e24);
+    }
+
+    modifier minterOnly() {
+        require(msg.sender == minter, "Minter calls only");
+        _;
     }
 
     function decimals() public view override returns (uint8) {
