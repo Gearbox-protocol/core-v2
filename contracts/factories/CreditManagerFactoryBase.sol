@@ -26,7 +26,7 @@ struct Adapter {
 /// @title CreditManagerFactory
 /// @notice Deploys 3 core interdependent contracts: CreditManage, CreditFacade and CredigConfigurator
 ///         and setup them by following options
-contract CreditManagerFactory is ContractUpgrader {
+contract CreditManagerFactoryBase is ContractUpgrader {
     CreditManager public creditManager;
     CreditFacade public creditFacade;
     CreditConfigurator public creditConfigurator;

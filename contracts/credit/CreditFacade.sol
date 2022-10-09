@@ -347,7 +347,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3D]
 
-        // Checks if the liquidsation during pause
+        // Checks if the liquidation is done while the contract is paused
         bool emergencyLiquidation = _checkIfEmergencyLiquidator(true);
 
         if (calls.length != 0)
