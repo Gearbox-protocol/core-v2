@@ -3,32 +3,16 @@
 // (c) Gearbox Holdings, 2021
 pragma solidity ^0.8.10;
 
-import { AddressProvider } from "../../core/AddressProvider.sol";
-import { IPriceOracleV2Ext } from "../../interfaces/IPriceOracle.sol";
-import { ACL } from "../../core/ACL.sol";
-import { ContractsRegister } from "../../core/ContractsRegister.sol";
-import { AccountFactory } from "../../core/AccountFactory.sol";
-import { GenesisFactory } from "../../factories/GenesisFactory.sol";
-import { PoolFactory, PoolOpts } from "../../factories/PoolFactory.sol";
-
 import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { Tokens } from "../config/Tokens.sol";
+import { Tokens } from "./Tokens.sol";
 
 import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
-import { PoolServiceMock } from "../mocks/pool/PoolServiceMock.sol";
 
-import "../lib/constants.sol";
-
-import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
 import { ICreditConfig } from "../interfaces/ICreditConfig.sol";
 import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
-struct PoolCreditOpts {
-    PoolOpts poolOpts;
-    CreditManagerOpts creditOpts;
-}
+import "../lib/constants.sol";
 
 struct CollateralTokensItem {
     Tokens token;
@@ -52,8 +36,6 @@ contract CreditConfig is DSTest, ICreditConfig {
     Tokens public underlyingSymbol;
 
     constructor(TokensTestSuite tokenTestSuite_, Tokens _underlying) {
-        emit log_named_uint("BLOCK TIMESTAMP", block.timestamp);
-
         uint256 accountAmount = _underlying == Tokens.DAI
             ? DAI_ACCOUNT_AMOUNT
             : WETH_ACCOUNT_AMOUNT;

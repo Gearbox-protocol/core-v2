@@ -34,7 +34,6 @@ contract ERC20Mock is ERC20, Ownable {
         minterOnly
         returns (bool)
     {
-        require(msg.sender == minter, "Minter calls only");
         _mint(to, amount);
         return true;
     }
