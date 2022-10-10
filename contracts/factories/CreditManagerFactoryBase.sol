@@ -131,8 +131,6 @@ contract CreditManagerFactoryBase is ContractUpgrader {
             addressProvider.getContractsRegister()
         );
 
-        // PriceOracle priceOracle = PriceOracle(addressProvider.getPriceOracle());
-
         uint256 len = adapters.length;
         for (uint256 i = 0; i < len; ) {
             creditConfigurator.allowContract(
@@ -148,53 +146,8 @@ contract CreditManagerFactoryBase is ContractUpgrader {
 
         pool.connectCreditManager(address(creditManager));
 
-        _postInstall(creditConfigurator);
-
-        // address[] memory allowedContracts = creditConfigurator
-        //     .allowedContracts();
-        // len = allowedContracts.length;
-
-        // for (uint256 i = 0; i < len; ) {
-        //     address allowedContract = allowedContracts[i];
-        //     address adapter = creditManager.contractToAdapter(allowedContract);
-        //     AdapterType aType = IAdapter(adapter)._gearboxAdapterType();
-
-        //     if (aType == AdapterType.CONVEX_V1_BASE_REWARD_POOL) {
-        //         address stakedPhantomToken = IConvexV1BaseRewardPoolAdapter(
-        //             adapter
-        //         ).stakedPhantomToken();
-
-        //         address curveLPtoken = IConvexV1BaseRewardPoolAdapter(adapter)
-        //             .curveLPtoken();
-        //         address cvxLPToken = address(
-        //             IConvexV1BaseRewardPoolAdapter(adapter).stakingToken()
-        //         );
-
-        //         priceOracle.addPriceFeed(
-        //             cvxLPToken,
-        //             priceOracle.priceFeeds(curveLPtoken)
-        //         );
-
-        //         priceOracle.addPriceFeed(
-        //             stakedPhantomToken,
-        //             priceOracle.priceFeeds(curveLPtoken)
-        //         );
-
-        //         creditConfigurator.addCollateralToken(
-        //             stakedPhantomToken,
-        //             creditManager.liquidationThresholds(curveLPtoken)
-        //         ); // F:
-        //     }
-
-        //     if (aType == AdapterType.CONVEX_V1_BOOSTER) {
-        //         IConvexV1BoosterAdapter(adapter).updateStakedPhantomTokensMap();
-        //     }
-
-        //     unchecked {
-        //         ++i;
-        //     }
-        // }
+        _postInstall();
     }
 
-    function _postInstall(CreditConfigurator) internal virtual {}
+    function _postInstall() internal virtual {}
 }
