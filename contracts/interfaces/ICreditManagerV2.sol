@@ -236,7 +236,10 @@ interface ICreditManagerV2 is
     /// @notice Usually called by adapters to disable spent tokens during a multicall,
     ///         but can also be called separately from the Credit Facade to remove
     ///         unwanted tokens
-    function disableToken(address creditAccount, address token) external;
+    /// @return True if token mask was change otherwise False
+    function disableToken(address creditAccount, address token)
+        external
+        returns (bool);
 
     //
     // GETTERS

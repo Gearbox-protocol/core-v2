@@ -1080,16 +1080,23 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         whenNotPausedOrEmergency // F:[CM-5]
         adaptersOrCreditFacadeOnly // F:[CM-3]
         nonReentrant
+        returns (bool)
     {
-        _disableToken(creditAccount, token);
+        return _disableToken(creditAccount, token);
     }
 
     /// @dev IMPLEMENTATION: disableToken
-    function _disableToken(address creditAccount, address token) internal {
+    function _disableToken(address creditAccount, address token)
+        internal
+        returns (bool wasChanged)
+    {
         // The enabled token mask encodes all enabled tokens as 1,
         // therefore the corresponding bit is set to 0 to disable it
         uint256 tokenMask = tokenMasksMap(token);
-        enabledTokensMap[creditAccount] &= ~tokenMask; // F:[CM-46]
+        if (enabledTokensMap[creditAccount] & tokenMask != 0) {
+            enabledTokensMap[creditAccount] &= ~tokenMask; // F:[CM-46]
+            wasChanged = true;
+        }
     }
 
     /// @dev Checks if the contract is paused; if true, checks that the caller is emergency liquidator

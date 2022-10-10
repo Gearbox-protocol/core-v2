@@ -1105,10 +1105,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ) internal {
         // If the token is enabled, removes a respective bit from the mask,
         // otherwise does nothing
-        creditManager.disableToken(creditAccount, token); // F: [FA-54]
-
-        // Emits event
-        emit TokenDisabled(borrower, token);
+        if (creditManager.disableToken(creditAccount, token)) {
+            // Emits event
+            emit TokenDisabled(borrower, token);
+        } // F: [FA-54]
     }
 
     //
