@@ -105,7 +105,7 @@ contract CreditConfig is DSTest, ICreditConfig {
             })
         ];
 
-        lt[underlyingSymbol] = 9300;
+        lt[underlyingSymbol] = DEFAULT_UNDERLYING_LT;
 
         uint256 len = collateralTokenOpts.length;
         collateralTokens = new CollateralToken[](len - 1);

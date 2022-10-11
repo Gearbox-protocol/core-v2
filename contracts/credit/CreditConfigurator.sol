@@ -111,7 +111,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
         // Connects creditFacade and priceOracle
         creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
-        creditManager.upgradePriceOracle(address(creditManager.priceOracle())); // F:[CC-1]
 
         emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
         emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
