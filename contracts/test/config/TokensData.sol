@@ -16,8 +16,8 @@ struct TestToken {
 }
 
 contract TokensData {
-    function tokensData() internal view returns (TestToken[] memory result) {
-        TestToken[10] memory tokensData = [
+    function tokensData() internal pure returns (TestToken[] memory result) {
+        TestToken[10] memory testTokensData = [
             TestToken({
                 index: Tokens.DAI,
                 symbol: "DAI",
@@ -90,12 +90,12 @@ contract TokensData {
             })
         ];
 
-        uint256 len = tokensData.length;
+        uint256 len = testTokensData.length;
         result = new TestToken[](len);
 
         unchecked {
             for (uint256 i = 0; i < len; ++i) {
-                result[i] = tokensData[i];
+                result[i] = testTokensData[i];
             }
         }
     }

@@ -36,7 +36,7 @@ contract CreditFacadeTestHelper is CreditFacadeTestEngine {
         evm.stopPrank();
     }
 
-    function tokenTestSuite() private returns (TokensTestSuite) {
+    function tokenTestSuite() private view returns (TokensTestSuite) {
         return TokensTestSuite(payable(address(cft.tokenTestSuite())));
     }
 }
