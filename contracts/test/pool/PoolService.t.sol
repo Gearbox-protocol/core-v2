@@ -14,7 +14,6 @@ import { ACL } from "../../core/ACL.sol";
 import { CreditManagerMockForPoolTest } from "../mocks/pool/CreditManagerMockForPoolTest.sol";
 import { liquidityProviderInitBalance, addLiquidity, removeLiquidity, referral, PoolServiceTestSuite } from "../suites/PoolServiceTestSuite.sol";
 
-import { RAY } from "../../libraries/Constants.sol";
 import "../../libraries/Errors.sol";
 
 import { TokensTestSuite } from "../suites/TokensTestSuite.sol";

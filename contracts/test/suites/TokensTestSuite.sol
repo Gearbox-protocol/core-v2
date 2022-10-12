@@ -13,7 +13,7 @@ import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
 // MOCKS
 import { ERC20Mock } from "../mocks/token/ERC20Mock.sol";
 import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
-import "../lib/constants.sol";
+
 import "../lib/test.sol";
 
 import { TokensTestSuiteHelper } from "./TokensTestSuiteHelper.sol";

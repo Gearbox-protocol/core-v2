@@ -7,7 +7,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IWETH } from "../../interfaces/external/IWETH.sol";
 
 import { CreditFacade } from "../../credit/CreditFacade.sol";
-import { CreditManager } from "../../credit/CreditManager.sol";
 
 import { CreditAccount } from "../../credit/CreditAccount.sol";
 import { AccountFactory } from "../../core/AccountFactory.sol";

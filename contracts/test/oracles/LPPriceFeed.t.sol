@@ -15,7 +15,7 @@ import { AddressProviderACLMock } from "../mocks/core/AddressProviderACLMock.sol
 
 // SUITES
 import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { Tokens } from "../config/Tokens.sol";
+
 // EXCEPTIONS
 
 import { ZeroAddressException, CallerNotConfiguratorException, NotImplementedException } from "../../interfaces/IErrors.sol";

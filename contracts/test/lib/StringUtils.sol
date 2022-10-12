@@ -3,9 +3,6 @@
 // (c) Gearbox Holdings, 2021
 pragma solidity ^0.8.10;
 
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-
 /// @notice Designed for test purposes only
 library StringUtils {
     function memcmp(bytes memory a, bytes memory b)

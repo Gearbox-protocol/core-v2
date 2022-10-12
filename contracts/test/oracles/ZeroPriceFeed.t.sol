@@ -17,7 +17,6 @@ import "../lib/test.sol";
 
 // SUITES
 import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { Tokens } from "../config/Tokens.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException, NotImplementedException } from "../../interfaces/IErrors.sol";

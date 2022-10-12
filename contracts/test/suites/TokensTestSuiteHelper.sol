@@ -5,16 +5,13 @@ pragma solidity ^0.8.10;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { WETHMock } from "../mocks/token/WETHMock.sol";
-
 import { IWETH } from "../../interfaces/external/IWETH.sol";
-import { CheatCodes, HEVM_ADDRESS } from "../lib/cheatCodes.sol";
+
 import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
 
 // MOCKS
 import { ERC20Mock } from "../mocks/token/ERC20Mock.sol";
 import "../lib/constants.sol";
-import "../lib/test.sol";
 
 contract TokensTestSuiteHelper is DSTest, ITokenTestSuite {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);

@@ -8,7 +8,6 @@ import { CreditConfigurator } from "../../credit/CreditConfigurator.sol";
 import { CreditManager } from "../../credit/CreditManager.sol";
 
 import { CreditManagerFactoryBase } from "../../factories/CreditManagerFactoryBase.sol";
-import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 

@@ -4,7 +4,6 @@
 pragma solidity ^0.8.10;
 
 import { ContractsRegister } from "../core/ContractsRegister.sol";
-import { PriceOracle } from "../oracles/PriceOracle.sol";
 
 // import { IConvexV1BaseRewardPoolAdapter } from "../interfaces/adapters/convex/IConvexV1BaseRewardPoolAdapter.sol";
 // import { IConvexV1BoosterAdapter } from "../interfaces/adapters/convex/IConvexV1BoosterAdapter.sol";
@@ -15,8 +14,6 @@ import { CreditFacade } from "../credit/CreditFacade.sol";
 import { CreditConfigurator, CreditManagerOpts } from "../credit/CreditConfigurator.sol";
 
 import { ContractUpgrader } from "../support/ContractUpgrader.sol";
-
-import "../interfaces/adapters/IAdapter.sol";
 
 struct Adapter {
     address adapter;
