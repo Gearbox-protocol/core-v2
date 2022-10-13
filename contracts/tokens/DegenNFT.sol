@@ -2,6 +2,8 @@
 pragma solidity ^0.8.10;
 
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { AddressProvider } from "../core/AddressProvider.sol";
@@ -131,7 +133,7 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
     function tokenURI(uint256 tokenId)
         public
         view
-        override
+        override(IERC721Metadata, ERC721)
         returns (string memory)
     {
         require(
@@ -191,12 +193,22 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
     }
 
     /// @dev Not implemented as the token is not transferrable
-    function approve(address, uint256) public pure virtual override {
+    function approve(address, uint256)
+        public
+        pure
+        virtual
+        override(IERC721, ERC721)
+    {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
     /// @dev Not implemented as the token is not transferrable
-    function setApprovalForAll(address, bool) public pure virtual override {
+    function setApprovalForAll(address, bool)
+        public
+        pure
+        virtual
+        override(IERC721, ERC721)
+    {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
@@ -205,7 +217,7 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
         address,
         address,
         uint256
-    ) public pure virtual override {
+    ) public pure virtual override(IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
@@ -214,7 +226,7 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
         address,
         address,
         uint256
-    ) public pure virtual override {
+    ) public pure virtual override(IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
@@ -224,7 +236,7 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
         address,
         uint256,
         bytes memory
-    ) public pure virtual override {
+    ) public pure virtual override(IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 }
