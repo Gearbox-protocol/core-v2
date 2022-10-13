@@ -27,13 +27,6 @@ contract PoolFactory is ContractUpgrader {
     uint256 public withdrawFee;
 
     constructor(PoolOpts memory opts) ContractUpgrader(opts.addressProvider) {
-        // ERC20 token = ERC20(opts.underlying);
-        // DieselToken dieselToken = new DieselToken(
-        //     string(abi.encodePacked("diesel ", token.name())),
-        //     string(abi.encodePacked("d", token.symbol())),
-        //     token.decimals()
-        // ); // T:[PD-1]
-
         LinearInterestRateModel linearModel = new LinearInterestRateModel(
             opts.U_optimal,
             opts.R_base,
@@ -44,12 +37,9 @@ contract PoolFactory is ContractUpgrader {
         pool = new PoolService(
             opts.addressProvider,
             opts.underlying,
-            //address(dieselToken),
             address(linearModel),
             opts.expectedLiquidityLimit
         );
-
-        //dieselToken.transferOwnership(address(pool));
 
         withdrawFee = opts.withdrawFee;
     }

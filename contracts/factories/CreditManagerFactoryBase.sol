@@ -4,10 +4,6 @@
 pragma solidity ^0.8.10;
 
 import { ContractsRegister } from "../core/ContractsRegister.sol";
-
-// import { IConvexV1BaseRewardPoolAdapter } from "../interfaces/adapters/convex/IConvexV1BaseRewardPoolAdapter.sol";
-// import { IConvexV1BoosterAdapter } from "../interfaces/adapters/convex/IConvexV1BoosterAdapter.sol";
-
 import { PoolService } from "../pool/PoolService.sol";
 import { CreditManager } from "../credit/CreditManager.sol";
 import { CreditFacade } from "../credit/CreditFacade.sol";
