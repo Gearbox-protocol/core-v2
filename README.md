@@ -148,7 +148,7 @@ Exceptions to this are:
 - The files in `contracts/interfaces`, `contracts/support` are licensed under GPL-2.0-or-later.
 - The files in `contracts/libraries` are licensed under GPL-2.0-or-later or GNU AGPL 3.0 (as indicated in their SPDX headers).
 - The file `contracts/tokens/GearToken.sol` is based on [`Uni.sol`](https://github.com/Uniswap/governance/blob/master/contracts/Uni.sol) and distributed under the BSD 3-clause license.
-- The files in `scripts`, `contracts/test`,`contracts/mocks` are unlicensed.
+- The files in `scripts`, `contracts/test` are unlicensed.
 
 ## Disclaimer
 
