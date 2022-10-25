@@ -2,10 +2,9 @@
 
 Gearbox is a generalized leverage protocol. It has two sides to it: passive liquidity providers who earn low-risk APY by providing single-asset liquidity; and active farmers, firms, or even other protocols who borrow those assets to trade or farm with even x10 leverage.
 
-Gearbox Protocol allows anyone to take DeFi-native leverage and then use it across various (DeFi & more) protocols in a composable way. You take leverage with Gearbox and then use it on other protocols you already love: Uniswap, Curve, Convex, Lido, etc. For example, you can leverage trade on Uniswap, leverage farm on Yearn, make delta-neutral strategies, get Leverage-as-a-Service for your structured product, and more... Thanks to the Credit Accounts primitive! 
+Gearbox Protocol allows anyone to take DeFi-native leverage and then use it across various (DeFi & more) protocols in a composable way. You take leverage with Gearbox and then use it on other protocols you already love: Uniswap, Curve, Convex, Lido, etc. For example, you can leverage trade on Uniswap, leverage farm on Yearn, make delta-neutral strategies, get Leverage-as-a-Service for your structured product, and more... Thanks to the Credit Accounts primitive!
 
 _Some compare composable leverage as a primitive to DeFi-native prime brokerage._
-
 
 ## New in V2
 
@@ -142,16 +141,7 @@ Running Forge unit tests requires Foundry. See [Foundry Book](https://book.getfo
 
 ## Licensing
 
-The primary license for the Gearbox-Contracts is the Business Source License 1.1 (BUSL-1.1), see [LICENSE](https://github.com/Gearbox-protocol/gearbox-contracts/blob/master/LICENSE). The files licensed under the BUSL-1.1 have appropriate SPDX headers.
-
-###
-
-Exceptions to this are:
-
-- The files in `contracts/interfaces`, `contracts/support` are licensed under GPL-2.0-or-later.
-- The files in `contracts/libraries` are licensed under GPL-2.0-or-later or GNU AGPL 3.0 (as indicated in their SPDX headers).
-- The file `contracts/tokens/GearToken.sol` is based on [`Uni.sol`](https://github.com/Uniswap/governance/blob/master/contracts/Uni.sol) and distributed under the BSD 3-clause license.
-- The files in `scripts`, `contracts/test` are unlicensed.
+The primary license for the Gearbox-protocol/core-v2 is the Business Source License 1.1 (BUSL-1.1), see [LICENSE](https://github.com/Gearbox-protocol/core-v2/blob/master/LICENSE). The files which are NOT licensed under the BUSL-1.1 have appropriate SPDX headers.
 
 ## Disclaimer
 
