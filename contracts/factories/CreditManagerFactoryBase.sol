@@ -79,7 +79,7 @@ contract CreditManagerFactoryBase is ContractUpgrader {
         return address(uint160(uint256(hash)));
     }
 
-    function deploy(bytes memory bytecode, uint256 _salt) public payable {
+    function deploy(bytes memory bytecode, uint256 _salt) internal {
         address addr;
 
         /*
