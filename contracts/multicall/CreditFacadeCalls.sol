@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { MultiCall } from "../../libraries/MultiCall.sol";
-import { Balance, BalanceOps } from "../../libraries/Balances.sol";
-import { ICreditFacade, ICreditFacadeExtended } from "../../interfaces/ICreditFacade.sol";
+import { MultiCall } from "../libraries/MultiCall.sol";
+import { Balance, BalanceOps } from "../libraries/Balances.sol";
+import { ICreditFacade, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
 
 interface CreditFacadeMulticaller {}
 

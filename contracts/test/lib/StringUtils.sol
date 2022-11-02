@@ -1,10 +1,7 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: UNLICENSED
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
-
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @notice Designed for test purposes only
 library StringUtils {

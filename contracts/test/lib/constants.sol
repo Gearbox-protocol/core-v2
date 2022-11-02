@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
 import { WAD, RAY, DEFAULT_FEE_LIQUIDATION, DEFAULT_LIQUIDATION_PREMIUM } from "../../libraries/Constants.sol";

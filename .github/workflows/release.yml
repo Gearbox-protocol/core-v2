@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     branches:
-      - "master"
+      - "main"
 
 env:
   HUSKY: 0
@@ -21,10 +21,13 @@ jobs:
           cache: "yarn"
           node-version-file: ".nvmrc"
 
+      # prepare script runs before publish, and it needs husky
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v3
-        with:
-          dry_run: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

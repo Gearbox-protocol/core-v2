@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: UNLICENSED
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { CreditManager } from "../../credit/CreditManager.sol";
@@ -15,21 +15,23 @@ import { IDegenNFT, IDegenNFTExceptions } from "../../interfaces/IDegenNFT.sol";
 import { DegenNFT } from "../../tokens/DegenNFT.sol";
 
 import "../lib/constants.sol";
-import { CreditFacadeHelper } from "../suites/CreditFacadeHelper.sol";
+import { CreditFacadeTestHelper } from "../helpers/CreditFacadeTestHelper.sol";
 
 // EXCEPTIONS
 import { NotImplementedException, CallerNotConfiguratorException } from "../../interfaces/IErrors.sol";
 
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
 import { CreditFacadeTestSuite } from "../suites/CreditFacadeTestSuite.sol";
+import { CreditConfig } from "../config/CreditConfig.sol";
+import { Tokens } from "../config/Tokens.sol";
 
 uint256 constant WETH_TEST_AMOUNT = 5 * WAD;
 uint16 constant REFERRAL_CODE = 23;
 
 /// @title CreditFacadeTest
 /// @notice Designed for unit test purposes only
-contract DegenNFTTest is DSTest, CreditFacadeHelper, IDegenNFTExceptions {
+contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
     DegenNFT degenNFT;
     AddressProvider addressProvider;
     AccountFactory accountFactory;
@@ -40,7 +42,12 @@ contract DegenNFTTest is DSTest, CreditFacadeHelper, IDegenNFTExceptions {
         TokensTestSuite tokenTestSuite = new TokensTestSuite();
         tokenTestSuite.topUpWETH{ value: 100 * WAD }();
 
-        cft = new CreditFacadeTestSuite(tokenTestSuite, Tokens.DAI);
+        CreditConfig creditConfig = new CreditConfig(
+            tokenTestSuite,
+            Tokens.DAI
+        );
+
+        cft = new CreditFacadeTestSuite(creditConfig);
         cft.testFacadeWithDegenNFT();
 
         creditManager = cft.creditManager();
@@ -204,12 +211,12 @@ contract DegenNFTTest is DSTest, CreditFacadeHelper, IDegenNFTExceptions {
 
         uint256 tokenId = uint256(uint160(USER)) + 2;
 
-        evm.expectRevert("ERC721: owner query for nonexistent token");
+        evm.expectRevert("ERC721: invalid token ID");
         degenNFT.ownerOf(tokenId);
 
         tokenId = uint256(uint160(USER)) + 1;
 
-        evm.expectRevert("ERC721: owner query for nonexistent token");
+        evm.expectRevert("ERC721: invalid token ID");
         degenNFT.ownerOf(tokenId);
 
         assertEq(degenNFT.totalSupply(), 1, "Total supply is incorrect");

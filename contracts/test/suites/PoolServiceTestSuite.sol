@@ -1,13 +1,11 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: UNLICENSED
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { AddressProvider } from "../../core/AddressProvider.sol";
 import { ACL } from "../../core/ACL.sol";
 import { DieselToken } from "../../tokens/DieselToken.sol";
-
-//import {TokensTestSuite, Tokens} from "../suites/TokensTestSuite.sol";
 
 import { TestPoolService } from "../mocks/pool/TestPoolService.sol";
 import { LinearInterestRateModel } from "../../pool/LinearInterestRateModel.sol";
@@ -50,7 +48,6 @@ contract PoolServiceTestSuite {
         treasury = DUMB_ADDRESS2;
 
         underlying = IERC20(_underlying);
-        // underlying = IERC20(_tokenTestSuite.addressOf(Tokens.DAI));
 
         _tokenTestSuite.mint(_underlying, USER, liquidityProviderInitBalance);
 

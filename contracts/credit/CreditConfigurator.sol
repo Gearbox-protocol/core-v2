@@ -97,7 +97,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         for (uint256 i = 0; i < len; ) {
             address token = opts.collateralTokens[i].token;
 
-            _addCollateralToken(token); // F:[CC-1]
+            addCollateralToken(token); // F:[CC-1]
 
             _setLiquidationThreshold(
                 token,
@@ -111,7 +111,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
         // Connects creditFacade and priceOracle
         creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
-        creditManager.upgradePriceOracle(address(creditManager.priceOracle())); // F:[CC-1]
 
         emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
         emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
@@ -135,13 +134,13 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         override
         configuratorOnly // F:[CC-2]
     {
-        _addCollateralToken(token); // F:[CC-3,4]
+        addCollateralToken(token); // F:[CC-3,4]
         _setLiquidationThreshold(token, liquidationThreshold); // F:[CC-4]
     }
 
     /// @dev Makes all sanity checks and adds the token to the collateral token list
     /// @param token Address of token to be added
-    function _addCollateralToken(address token) internal {
+    function addCollateralToken(address token) internal {
         // Checks that token != address(0)
         if (token == address(0)) revert ZeroAddressException(); // F:[CC-3]
 

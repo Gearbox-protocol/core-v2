@@ -8,7 +8,8 @@ set -u
 
 compile(){
   echo Compiling...
-  npx hardhat compile >/dev/null 2>&1 
+  forge clean
+  forge b >/dev/null 2>&1 
 }
 
 echo "This script will run on the following files:"

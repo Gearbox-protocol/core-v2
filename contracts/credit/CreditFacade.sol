@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -190,7 +190,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         ); // F:[FA-5]
 
         // Transfers collateral from the user to the new Credit Account
-        _addCollateral(onBehalfOf, creditAccount, underlying, amount); // F:[FA-5]
+        addCollateral(onBehalfOf, creditAccount, underlying, amount); // F:[FA-5]
     }
 
     /// @dev Opens a Credit Account and runs a batch of operations in a multicall
@@ -347,7 +347,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3D]
 
-        // Checks if the liquidsation during pause
+        // Checks if the liquidation is done while the contract is paused
         bool emergencyLiquidation = _checkIfEmergencyLiquidator(true);
 
         if (calls.length != 0)
@@ -570,7 +570,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             onBehalfOf
         ); // F:[FA-2]
 
-        _addCollateral(onBehalfOf, creditAccount, token, amount);
+        addCollateral(onBehalfOf, creditAccount, token, amount);
 
         // Since this action can enable new tokens, Credit Manager
         // needs to check that the max enabled token limit is not
@@ -578,7 +578,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         creditManager.checkAndOptimizeEnabledTokens(creditAccount); // F: [FA-21C]
     }
 
-    function _addCollateral(
+    function addCollateral(
         address onBehalfOf,
         address creditAccount,
         address token,
@@ -779,7 +779,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
             // In case onBehalfOf isn't the owner of the currently processed account,
             // retrieves onBehalfOf's account
-            _addCollateral(
+            addCollateral(
                 onBehalfOf,
                 onBehalfOf == borrower
                     ? creditAccount
@@ -1105,10 +1105,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ) internal {
         // If the token is enabled, removes a respective bit from the mask,
         // otherwise does nothing
-        creditManager.disableToken(creditAccount, token); // F: [FA-54]
-
-        // Emits event
-        emit TokenDisabled(borrower, token);
+        if (creditManager.disableToken(creditAccount, token)) {
+            // Emits event
+            emit TokenDisabled(borrower, token);
+        } // F: [FA-54]
     }
 
     //

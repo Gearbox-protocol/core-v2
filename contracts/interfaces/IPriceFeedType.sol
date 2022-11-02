@@ -8,7 +8,8 @@ enum PriceFeedType {
     CURVE_3LP_ORACLE,
     CURVE_4LP_ORACLE,
     ZERO_ORACLE,
-    WSTETH_ORACLE
+    WSTETH_ORACLE,
+    BOUNDED_ORACLE
 }
 
 interface IPriceFeedType {

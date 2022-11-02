@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -34,8 +34,8 @@ contract PriceFeedMock is AggregatorV3Interface, IPriceFeedType {
         decimals = _decimals;
         roundId = 80;
         answerInRound = 80;
-        startedAt = uint256(block.timestamp);
-        updatedAt = uint256(block.timestamp);
+        startedAt = uint256(block.timestamp) + 1;
+        updatedAt = uint256(block.timestamp) + 1;
     }
 
     function setParams(

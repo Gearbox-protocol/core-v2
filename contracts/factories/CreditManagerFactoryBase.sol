@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox. Generalized leverage protocol that allows to take leverage and then use it across other DeFi protocols and platforms in a composable way.
-// (c) Gearbox.fi, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { ContractsRegister } from "../core/ContractsRegister.sol";
-import { PriceOracle } from "../oracles/PriceOracle.sol";
-
-// import { IConvexV1BaseRewardPoolAdapter } from "../interfaces/adapters/convex/IConvexV1BaseRewardPoolAdapter.sol";
-// import { IConvexV1BoosterAdapter } from "../interfaces/adapters/convex/IConvexV1BoosterAdapter.sol";
-
 import { PoolService } from "../pool/PoolService.sol";
 import { CreditManager } from "../credit/CreditManager.sol";
 import { CreditFacade } from "../credit/CreditFacade.sol";
 import { CreditConfigurator, CreditManagerOpts } from "../credit/CreditConfigurator.sol";
 
 import { ContractUpgrader } from "../support/ContractUpgrader.sol";
-
-import "../interfaces/adapters/IAdapter.sol";
 
 struct Adapter {
     address adapter;
@@ -26,7 +19,7 @@ struct Adapter {
 /// @title CreditManagerFactory
 /// @notice Deploys 3 core interdependent contracts: CreditManage, CreditFacade and CredigConfigurator
 ///         and setup them by following options
-contract CreditManagerFactory is ContractUpgrader {
+contract CreditManagerFactoryBase is ContractUpgrader {
     CreditManager public creditManager;
     CreditFacade public creditFacade;
     CreditConfigurator public creditConfigurator;
@@ -86,7 +79,7 @@ contract CreditManagerFactory is ContractUpgrader {
         return address(uint160(uint256(hash)));
     }
 
-    function deploy(bytes memory bytecode, uint256 _salt) public payable {
+    function deploy(bytes memory bytecode, uint256 _salt) internal {
         address addr;
 
         /*
@@ -131,8 +124,6 @@ contract CreditManagerFactory is ContractUpgrader {
             addressProvider.getContractsRegister()
         );
 
-        // PriceOracle priceOracle = PriceOracle(addressProvider.getPriceOracle());
-
         uint256 len = adapters.length;
         for (uint256 i = 0; i < len; ) {
             creditConfigurator.allowContract(
@@ -148,53 +139,8 @@ contract CreditManagerFactory is ContractUpgrader {
 
         pool.connectCreditManager(address(creditManager));
 
-        _postInstall(creditConfigurator);
-
-        // address[] memory allowedContracts = creditConfigurator
-        //     .allowedContracts();
-        // len = allowedContracts.length;
-
-        // for (uint256 i = 0; i < len; ) {
-        //     address allowedContract = allowedContracts[i];
-        //     address adapter = creditManager.contractToAdapter(allowedContract);
-        //     AdapterType aType = IAdapter(adapter)._gearboxAdapterType();
-
-        //     if (aType == AdapterType.CONVEX_V1_BASE_REWARD_POOL) {
-        //         address stakedPhantomToken = IConvexV1BaseRewardPoolAdapter(
-        //             adapter
-        //         ).stakedPhantomToken();
-
-        //         address curveLPtoken = IConvexV1BaseRewardPoolAdapter(adapter)
-        //             .curveLPtoken();
-        //         address cvxLPToken = address(
-        //             IConvexV1BaseRewardPoolAdapter(adapter).stakingToken()
-        //         );
-
-        //         priceOracle.addPriceFeed(
-        //             cvxLPToken,
-        //             priceOracle.priceFeeds(curveLPtoken)
-        //         );
-
-        //         priceOracle.addPriceFeed(
-        //             stakedPhantomToken,
-        //             priceOracle.priceFeeds(curveLPtoken)
-        //         );
-
-        //         creditConfigurator.addCollateralToken(
-        //             stakedPhantomToken,
-        //             creditManager.liquidationThresholds(curveLPtoken)
-        //         ); // F:
-        //     }
-
-        //     if (aType == AdapterType.CONVEX_V1_BOOSTER) {
-        //         IConvexV1BoosterAdapter(adapter).updateStakedPhantomTokensMap();
-        //     }
-
-        //     unchecked {
-        //         ++i;
-        //     }
-        // }
+        _postInstall();
     }
 
-    function _postInstall(CreditConfigurator) internal virtual {}
+    function _postInstall() internal virtual {}
 }

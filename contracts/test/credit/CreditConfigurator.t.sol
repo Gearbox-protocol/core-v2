@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: UNLICENSED
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -28,8 +28,12 @@ import { AdapterMock } from "../mocks/adapters/AdapterMock.sol";
 import { TargetContractMock } from "../mocks/adapters/TargetContractMock.sol";
 
 // SUITES
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
-import { CreditFacadeTestSuite, CollateralTokensItem } from "../suites/CreditFacadeTestSuite.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
+import { CreditFacadeTestSuite } from "../suites/CreditFacadeTestSuite.sol";
+import { CreditConfig } from "../config/CreditConfig.sol";
+
+import { CollateralTokensItem } from "../config/CreditConfig.sol";
 
 /// @title CreditConfiguratorTest
 /// @notice Designed for unit test purposes only
@@ -60,12 +64,12 @@ contract CreditConfiguratorTest is
         tokenTestSuite = new TokensTestSuite();
         tokenTestSuite.topUpWETH{ value: 100 * WAD }();
 
-        cct = new CreditFacadeTestSuite(
+        CreditConfig creditConfig = new CreditConfig(
             tokenTestSuite,
             Tokens.DAI
-            // DAI_MIN_BORROWED_AMOUNT,
-            // DAI_MAX_BORROWED_AMOUNT
         );
+
+        cct = new CreditFacadeTestSuite(creditConfig);
 
         underlying = cct.underlying();
         creditManager = cct.creditManager();
@@ -238,7 +242,7 @@ contract CreditConfiguratorTest is
             "Incorrect address provider"
         );
 
-        CollateralTokensItem[11] memory collateralTokenOpts = [
+        CollateralTokensItem[8] memory collateralTokenOpts = [
             CollateralTokensItem({
                 token: Tokens.DAI,
                 liquidationThreshold: DEFAULT_UNDERLYING_LT
@@ -270,18 +274,6 @@ contract CreditConfiguratorTest is
             CollateralTokensItem({
                 token: Tokens.STETH,
                 liquidationThreshold: 7300
-            }),
-            CollateralTokensItem({
-                token: Tokens.cDAI,
-                liquidationThreshold: 8300
-            }),
-            CollateralTokensItem({
-                token: Tokens.cUSDC,
-                liquidationThreshold: 9000
-            }),
-            CollateralTokensItem({
-                token: Tokens.cUSDT,
-                liquidationThreshold: 8800
             })
         ];
 
@@ -526,7 +518,7 @@ contract CreditConfiguratorTest is
     {
         uint256 tokensCountBefore = creditManager.collateralTokensCount();
 
-        address cLINKToken = tokenTestSuite.addressOf(Tokens.cLINK);
+        address cLINKToken = tokenTestSuite.addressOf(Tokens.LUNA);
 
         evm.expectEmit(true, false, false, false);
         emit TokenAllowed(cLINKToken);

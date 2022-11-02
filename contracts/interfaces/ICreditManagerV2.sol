@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { IPriceOracleV2 } from "./IPriceOracle.sol";
@@ -236,7 +236,10 @@ interface ICreditManagerV2 is
     /// @notice Usually called by adapters to disable spent tokens during a multicall,
     ///         but can also be called separately from the Credit Facade to remove
     ///         unwanted tokens
-    function disableToken(address creditAccount, address token) external;
+    /// @return True if token mask was change otherwise False
+    function disableToken(address creditAccount, address token)
+        external
+        returns (bool);
 
     //
     // GETTERS

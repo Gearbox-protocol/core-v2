@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: UNLICENSED
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,11 +14,11 @@ import { ACL } from "../../core/ACL.sol";
 import { CreditManagerMockForPoolTest } from "../mocks/pool/CreditManagerMockForPoolTest.sol";
 import { liquidityProviderInitBalance, addLiquidity, removeLiquidity, referral, PoolServiceTestSuite } from "../suites/PoolServiceTestSuite.sol";
 
-import { RAY } from "../../libraries/Constants.sol";
 import "../../libraries/Errors.sol";
 
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
-import { BalanceHelper } from "../suites/BalanceHelper.sol";
+import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import { Tokens } from "../config/Tokens.sol";
+import { BalanceHelper } from "../helpers/BalanceHelper.sol";
 
 // TEST
 import "../lib/constants.sol";

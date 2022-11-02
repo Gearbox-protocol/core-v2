@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: UNLICENSED
 // Gearbox Protocol. Generalized leverage for DeFi protocols
-// (c) Gearbox Holdings, 2021
+// (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -12,13 +12,13 @@ import { MultiCall } from "../../interfaces/ICreditFacade.sol";
 import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICreditManagerV2.sol";
 
 import { CreditFacadeTestSuite } from "../suites/CreditFacadeTestSuite.sol";
-import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
+// import { TokensTestSuite, Tokens } from "../suites/TokensTestSuite.sol";
 
 import "../lib/constants.sol";
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol
-contract CreditFacadeHelper is DSTest {
+contract CreditFacadeTestEngine is DSTest {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     // Suites
@@ -38,7 +38,7 @@ contract CreditFacadeHelper is DSTest {
         internal
         returns (address creditAccount, uint256 balance)
     {
-        uint256 accountAmount = cft._getAccountAmount();
+        uint256 accountAmount = cft.creditAccountAmount();
 
         cft.tokenTestSuite().mint(underlying, USER, accountAmount);
 
@@ -56,7 +56,7 @@ contract CreditFacadeHelper is DSTest {
         internal
         returns (address creditAccount, uint256 balance)
     {
-        uint256 accountAmount = cft._getAccountAmount();
+        uint256 accountAmount = cft.creditAccountAmount();
 
         evm.prank(FRIEND);
         creditFacade.openCreditAccount(accountAmount, FRIEND, 100, 0);
@@ -99,22 +99,6 @@ contract CreditFacadeHelper is DSTest {
         creditFacade.closeCreditAccount(FRIEND, 0, false, closeCalls);
     }
 
-    function expectTokenIsEnabled(Tokens t, bool expectedState) internal {
-        expectTokenIsEnabled(t, expectedState, "");
-    }
-
-    function expectTokenIsEnabled(
-        Tokens t,
-        bool expectedState,
-        string memory reason
-    ) internal {
-        expectTokenIsEnabled(
-            cft.tokenTestSuite().addressOf(t),
-            expectedState,
-            reason
-        );
-    }
-
     function expectTokenIsEnabled(address token, bool expectedState) internal {
         expectTokenIsEnabled(token, expectedState, "");
     }
@@ -148,25 +132,7 @@ contract CreditFacadeHelper is DSTest {
         );
     }
 
-    function _addCollateral(Tokens t, uint256 amount) internal {
-        cft.tokenTestSuite().mint(t, USER, amount);
-
-        evm.startPrank(USER);
-        IERC20(cft.tokenTestSuite().addressOf(t)).approve(
-            address(creditManager),
-            type(uint256).max
-        );
-
-        creditFacade.addCollateral(
-            USER,
-            cft.tokenTestSuite().addressOf(t),
-            amount
-        );
-
-        evm.stopPrank();
-    }
-
-    function _addCollateral(address token, uint256 amount) internal {
+    function addCollateral(address token, uint256 amount) internal {
         // tokenTestSuite.mint(t, USER, amount);
 
         evm.startPrank(USER);
