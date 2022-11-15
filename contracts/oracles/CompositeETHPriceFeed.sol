@@ -27,8 +27,8 @@ contract CompositeETHPriceFeed is
     /// @dev Decimals of the returned result.
     uint8 public immutable override decimals;
 
-    /// @dev Decimals of Target / ETH price feed
-    uint8 public immutable ethPriceFeedDecimals;
+    /// @dev 10 ^ Decimals of Target / ETH price feed, to divide the product of answers
+    int256 public immutable answerDenominator;
 
     /// @dev Price feed description
     string public override description;
@@ -53,7 +53,7 @@ contract CompositeETHPriceFeed is
             )
         );
         decimals = ethUsdPriceFeed.decimals();
-        ethPriceFeedDecimals = targetEthPriceFeed.decimals();
+        answerDenominator = int256(10**targetEthPriceFeed.decimals());
     }
 
     /// @dev Implemented for compatibility, but reverts since Gearbox's price feeds
@@ -107,6 +107,6 @@ contract CompositeETHPriceFeed is
 
         _checkAnswer(roundId2, answer2, updatedAt2, answeredInRound2);
 
-        answer = (answer * answer2) / int256(10**ethPriceFeedDecimals);
+        answer = (answer * answer2) / answerDenominator;
     }
 }

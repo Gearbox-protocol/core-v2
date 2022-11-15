@@ -51,8 +51,8 @@ contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
         assertEq(pf.decimals(), 8, "Incorrect decimals");
 
         assertEq(
-            pf.ethPriceFeedDecimals(),
-            18,
+            pf.answerDenominator(),
+            int256(10**18),
             "Incorrect ETH price feed decimals"
         );
 
