@@ -88,25 +88,25 @@ contract CompositeETHPriceFeed is
         )
     {
         (
+            uint80 roundId0,
+            int256 answer0,
+            uint256 startedAt0,
+            uint256 updatedAt0,
+            uint80 answeredInRound0
+        ) = targetEthPriceFeed.latestRoundData();
+
+        _checkAnswer(roundId0, answer0, updatedAt0, answeredInRound0);
+
+        (
             roundId,
             answer,
             startedAt,
             updatedAt,
             answeredInRound
-        ) = targetEthPriceFeed.latestRoundData();
+        ) = ethUsdPriceFeed.latestRoundData();
 
         _checkAnswer(roundId, answer, updatedAt, answeredInRound);
 
-        (
-            uint80 roundId2,
-            int256 answer2,
-            uint256 startedAt2,
-            uint256 updatedAt2,
-            uint80 answeredInRound2
-        ) = ethUsdPriceFeed.latestRoundData();
-
-        _checkAnswer(roundId2, answer2, updatedAt2, answeredInRound2);
-
-        answer = (answer * answer2) / answerDenominator;
+        answer = (answer0 * answer) / answerDenominator;
     }
 }

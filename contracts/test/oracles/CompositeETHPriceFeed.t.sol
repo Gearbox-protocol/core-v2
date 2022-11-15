@@ -86,26 +86,26 @@ contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
             uint256 updatedAt,
             uint80 answeredInRound
         ) = pf.latestRoundData();
+        (, int256 answerTarget, , , ) = targetPf.latestRoundData();
         (
-            uint80 roundIdTarget,
-            int256 answerTarget,
-            uint256 startedAtTarget,
-            uint256 updatedAtTarget,
-            uint80 answeredInRoundTarget
-        ) = targetPf.latestRoundData();
-        (, int256 answerEth, , , ) = ethUsdPf.latestRoundData();
+            uint80 roundIdEth,
+            int256 answerEth,
+            uint256 startedAtEth,
+            uint256 updatedAtEth,
+            uint80 answeredInRoundEth
+        ) = ethUsdPf.latestRoundData();
 
-        assertEq(roundId, roundIdTarget, "Incorrect round Id #1");
+        assertEq(roundId, roundIdEth, "Incorrect round Id #1");
         assertEq(
             answer,
             (answerTarget * answerEth) / int256(10**targetPf.decimals()),
             "Incorrect answer #1"
         );
-        assertEq(startedAt, startedAtTarget, "Incorrect startedAt #1");
-        assertEq(updatedAt, updatedAtTarget, "Incorrect updatedAt #1");
+        assertEq(startedAt, startedAtEth, "Incorrect startedAt #1");
+        assertEq(updatedAt, updatedAtEth, "Incorrect updatedAt #1");
         assertEq(
             answeredInRound,
-            answeredInRoundTarget,
+            answeredInRoundEth,
             "Incorrect answeredInRound #1"
         );
     }
