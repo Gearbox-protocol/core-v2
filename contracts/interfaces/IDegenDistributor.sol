@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0;
 
-import { IDegenNFT } from "@gearbox-protocol/core-v2/contracts/interfaces/IDegenNFT.sol";
+import { IDegenNFT } from "./IDegenNFT.sol";
 
 interface IDegenDistributorEvents {
     /// @dev Emits when a user claims tokens

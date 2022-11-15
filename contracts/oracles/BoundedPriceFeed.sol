@@ -4,7 +4,6 @@
 pragma solidity ^0.8.10;
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import { PriceFeedChecker } from "./PriceFeedChecker.sol";
 import { ACLTrait } from "../core/ACLTrait.sol";
 import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
 import { PriceFeedType, IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
@@ -16,7 +15,7 @@ import { NotImplementedException } from "../interfaces/IErrors.sol";
 /// @notice Used to limit prices on assets that should not rise above
 ///         a certain level, such as stablecoins and other pegged assets
 contract BoundedPriceFeed is ACLTrait, AggregatorV3Interface, IPriceFeedType {
-    /// @dev Chainlink price feed for the Vault's underlying
+    /// @dev Chainlink price feed for the asset
     AggregatorV3Interface public immutable priceFeed;
 
     /// @dev The upper bound on Chainlink price for the asset
