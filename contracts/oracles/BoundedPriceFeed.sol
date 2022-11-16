@@ -5,7 +5,6 @@ pragma solidity ^0.8.10;
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import { PriceFeedChecker } from "./PriceFeedChecker.sol";
-import { ACLTrait } from "../core/ACLTrait.sol";
 import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
 import { PriceFeedType, IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
 
@@ -15,12 +14,12 @@ import { NotImplementedException } from "../interfaces/IErrors.sol";
 /// @title Price feed with an upper bound on price
 /// @notice Used to limit prices on assets that should not rise above
 ///         a certain level, such as stablecoins and other pegged assets
-contract BoundedPriceFeed is ACLTrait, AggregatorV3Interface, IPriceFeedType {
+contract BoundedPriceFeed is AggregatorV3Interface, IPriceFeedType {
     /// @dev Chainlink price feed for the Vault's underlying
     AggregatorV3Interface public immutable priceFeed;
 
     /// @dev The upper bound on Chainlink price for the asset
-    int256 public upperBound;
+    int256 public immutable upperBound;
 
     /// @dev Decimals of the returned result.
     uint8 public immutable override decimals;
@@ -36,14 +35,9 @@ contract BoundedPriceFeed is ACLTrait, AggregatorV3Interface, IPriceFeedType {
     bool public constant override skipPriceCheck = false;
 
     /// @dev Constructor
-    /// @param addressProvider Address of address provier which is use for getting ACL
     /// @param _priceFeed Chainlink price feed to receive results from
     /// @param _upperBound Initial upper bound for the Chainlink price
-    constructor(
-        address addressProvider,
-        address _priceFeed,
-        int256 _upperBound
-    ) ACLTrait(addressProvider) {
+    constructor(address _priceFeed, int256 _upperBound) {
         priceFeed = AggregatorV3Interface(_priceFeed);
         description = string(
             abi.encodePacked(priceFeed.description(), " Bounded")
@@ -74,15 +68,6 @@ contract BoundedPriceFeed is ACLTrait, AggregatorV3Interface, IPriceFeedType {
     /// @param value Value to be checked and bounded
     function _upperBoundValue(int256 value) internal view returns (int256) {
         return (value > upperBound) ? upperBound : value;
-    }
-
-    /// @dev Updates the upper bound for Chainlink price
-    /// @param _upperBound The new upper bound
-    function setUpperBound(int256 _upperBound)
-        external
-        configuratorOnly // F:[LPF-4]
-    {
-        upperBound = _upperBound;
     }
 
     /// @dev Returns the upper-bounded USD price of the token

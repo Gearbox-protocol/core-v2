@@ -31,7 +31,7 @@ contract BoundedPriceFeedTest is DSTest {
         address apMock = address(new AddressProviderACLMock());
 
         targetPf = new PriceFeedMock(8 * 10**8, 8);
-        pf = new BoundedPriceFeed(apMock, address(targetPf), 10 * 10**8);
+        pf = new BoundedPriceFeed(address(targetPf), 10 * 10**8);
     }
 
     ///
@@ -108,21 +108,5 @@ contract BoundedPriceFeedTest is DSTest {
             answeredInRoundTarget,
             "Incorrect answeredInRound #2"
         );
-    }
-
-    /// @dev [BPF-4]: setUpperBound works correctly
-    function test_BPF_04_setUpperBound_works_correctly() public {
-        pf.setUpperBound(15 * 10**8);
-
-        assertEq(
-            pf.upperBound(),
-            15 * 10**8,
-            "Upper bound was not set correctly"
-        );
-
-        evm.expectRevert(CallerNotConfiguratorException.selector);
-
-        evm.prank(USER);
-        pf.setUpperBound(1);
     }
 }
