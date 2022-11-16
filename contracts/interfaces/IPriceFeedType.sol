@@ -10,7 +10,7 @@ enum PriceFeedType {
     ZERO_ORACLE,
     WSTETH_ORACLE,
     BOUNDED_ORACLE,
-    COMPOSITE_ETH_ORACLE
+    COMPOSITE_ORACLE
 }
 
 interface IPriceFeedType {
