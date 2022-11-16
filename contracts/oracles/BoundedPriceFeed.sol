@@ -14,7 +14,10 @@ import { NotImplementedException } from "../interfaces/IErrors.sol";
 interface ChainlinkReadableAggregator {
     function aggregator() external view returns (address);
 
-    function phaseAggregators(uint16 idx) external view returns (address);
+    function phaseAggregators(uint16 idx)
+        external
+        view
+        returns (AggregatorV2V3Interface);
 }
 
 /// @title Price feed with an upper bound on price
@@ -105,7 +108,11 @@ contract BoundedPriceFeed is
     }
 
     /// @dev Returns a phase aggregator by index
-    function phaseAggregators(uint16 idx) external view returns (address) {
+    function phaseAggregators(uint16 idx)
+        external
+        view
+        returns (AggregatorV2V3Interface)
+    {
         return
             ChainlinkReadableAggregator(address(priceFeed)).phaseAggregators(
                 idx
