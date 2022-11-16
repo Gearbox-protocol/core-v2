@@ -36,7 +36,7 @@ contract CompositeETHPriceFeed is
     uint256 public constant override version = 1;
 
     PriceFeedType public constant override priceFeedType =
-        PriceFeedType.COMPOSITE_ETH_ORACLE;
+        PriceFeedType.COMPOSITE_ORACLE;
 
     bool public constant override skipPriceCheck = true;
 
