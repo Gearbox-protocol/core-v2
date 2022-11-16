@@ -4,16 +4,27 @@
 pragma solidity ^0.8.10;
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import { AggregatorV2V3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV2V3Interface.sol";
 import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
 import { PriceFeedType, IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
 
 // EXCEPTIONS
 import { NotImplementedException } from "../interfaces/IErrors.sol";
 
+interface ChainlinkReadableAggregator {
+    function aggregator() external view returns (address);
+
+    function phaseAggregators(uint16 idx) external view returns (address);
+}
+
 /// @title Price feed with an upper bound on price
 /// @notice Used to limit prices on assets that should not rise above
 ///         a certain level, such as stablecoins and other pegged assets
-contract BoundedPriceFeed is AggregatorV3Interface, IPriceFeedType {
+contract BoundedPriceFeed is
+    ChainlinkReadableAggregator,
+    AggregatorV3Interface,
+    IPriceFeedType
+{
     /// @dev Chainlink price feed for the Vault's underlying
     AggregatorV3Interface public immutable priceFeed;
 
@@ -86,5 +97,18 @@ contract BoundedPriceFeed is AggregatorV3Interface, IPriceFeedType {
             .latestRoundData(); // F:[OYPF-4]
 
         answer = _upperBoundValue(answer);
+    }
+
+    /// @dev Returns the current phase's aggregator address
+    function aggregator() external view returns (address) {
+        return ChainlinkReadableAggregator(address(priceFeed)).aggregator();
+    }
+
+    /// @dev Returns a phase aggregator by index
+    function phaseAggregators(uint16 idx) external view returns (address) {
+        return
+            ChainlinkReadableAggregator(address(priceFeed)).phaseAggregators(
+                idx
+            );
     }
 }
