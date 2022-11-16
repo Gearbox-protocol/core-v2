@@ -17,7 +17,7 @@ import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
 // EXCEPTIONS
 import { NotImplementedException, CallerNotConfiguratorException } from "../../interfaces/IErrors.sol";
 
-/// @title ZeroFeedTest
+/// @title BoundedPriceFeedTest
 /// @notice Designed for unit test purposes only
 contract BoundedPriceFeedTest is DSTest {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
