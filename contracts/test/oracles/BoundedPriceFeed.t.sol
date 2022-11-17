@@ -28,8 +28,6 @@ contract BoundedPriceFeedTest is DSTest {
     TokensTestSuite tokenTestSuite;
 
     function setUp() public {
-        address apMock = address(new AddressProviderACLMock());
-
         targetPf = new PriceFeedMock(8 * 10**8, 8);
         pf = new BoundedPriceFeed(address(targetPf), 10 * 10**8);
     }
