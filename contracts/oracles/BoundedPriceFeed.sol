@@ -18,6 +18,8 @@ interface ChainlinkReadableAggregator {
         external
         view
         returns (AggregatorV2V3Interface);
+
+    function phaseId() external view returns (uint16);
 }
 
 /// @title Price feed with an upper bound on price
@@ -117,5 +119,9 @@ contract BoundedPriceFeed is
             ChainlinkReadableAggregator(address(priceFeed)).phaseAggregators(
                 idx
             );
+    }
+
+    function phaseId() external view returns (uint16) {
+        return ChainlinkReadableAggregator(address(priceFeed)).phaseId();
     }
 }
