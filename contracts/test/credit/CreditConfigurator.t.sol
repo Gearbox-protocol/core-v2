@@ -366,6 +366,7 @@ contract CreditConfiguratorTest is
             maxBorrowedAmount: uint128(150000 * WAD),
             collateralTokens: cTokens,
             degenNFT: address(0),
+            blacklistHelper: address(0),
             expirable: false
         });
 
@@ -373,6 +374,7 @@ contract CreditConfiguratorTest is
         creditFacade = new CreditFacade(
             address(creditManager),
             creditOpts.degenNFT,
+            creditOpts.blacklistHelper,
             creditOpts.expirable
         );
 
@@ -1197,6 +1199,7 @@ contract CreditConfiguratorTest is
                         CreditFacade initialCf = new CreditFacade(
                             address(creditManager),
                             address(0),
+                            address(0),
                             true
                         );
 
@@ -1216,6 +1219,7 @@ contract CreditConfiguratorTest is
 
                     CreditFacade cf = new CreditFacade(
                         address(creditManager),
+                        address(0),
                         address(0),
                         isExpirable
                     );
@@ -1336,7 +1340,7 @@ contract CreditConfiguratorTest is
             address(creditManager),
             address(tc0)
         );
-        UniversalAdapter adapter1 = new UniversalAdapter(
+        UniversalAdapter uAdapter = new UniversalAdapter(
             address(creditManager)
         );
 
@@ -1344,10 +1348,11 @@ contract CreditConfiguratorTest is
         creditConfigurator.allowContract(address(tc0), address(adapter0));
 
         evm.prank(CONFIGURATOR);
-        creditConfigurator.allowContract(UNIVERSAL_CONTRACT, address(adapter1));
+        creditConfigurator.allowContract(UNIVERSAL_CONTRACT, address(uAdapter));
 
         CreditFacade cf = new CreditFacade(
             address(creditManager),
+            address(0),
             address(0),
             false
         );

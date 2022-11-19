@@ -177,6 +177,9 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     /// @dev Thrown if a Credit Account has enabled forbidden tokens and the owner attempts to perform an action
     ///      that is not allowed with any forbidden tokens enabled
     error ActionProhibitedWithForbiddenTokensException();
+
+    /// @dev Thrown when attempting to perform an action on behalf of a borrower that is blacklisted in the underlying token
+    error NotAllowedForBlacklistedAddressException();
 }
 
 interface ICreditFacade is
@@ -432,4 +435,10 @@ interface ICreditFacade is
 
     /// @dev Address of the underlying asset
     function underlying() external view returns (address);
+
+    /// @dev Address of the blacklist helper or address(0), if the underlying is not blacklistable
+    function blacklistHelper() external view returns (address);
+
+    /// @dev Whether the underlying of connected Credit Manager is blacklistable
+    function isBlacklistableUnderlying() external view returns (bool);
 }

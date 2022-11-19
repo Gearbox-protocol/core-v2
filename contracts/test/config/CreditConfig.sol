@@ -36,18 +36,18 @@ contract CreditConfig is DSTest, ICreditConfig {
     Tokens public underlyingSymbol;
 
     constructor(TokensTestSuite tokenTestSuite_, Tokens _underlying) {
-        uint256 accountAmount = _underlying == Tokens.DAI
-            ? DAI_ACCOUNT_AMOUNT
-            : WETH_ACCOUNT_AMOUNT;
+        underlyingSymbol = _underlying;
+        underlying = tokenTestSuite_.addressOf(_underlying);
 
-        minBorrowedAmount = uint128(WAD);
+        uint256 accountAmount = getAccountAmount();
+
+        minBorrowedAmount = getMinBorrowAmount();
         maxBorrowedAmount = uint128(10 * accountAmount);
 
         _tokenTestSuite = tokenTestSuite_;
 
         wethToken = tokenTestSuite_.addressOf(Tokens.WETH);
         underlyingSymbol = _underlying;
-        underlying = tokenTestSuite_.addressOf(_underlying);
     }
 
     function getCreditOpts()
@@ -61,6 +61,7 @@ contract CreditConfig is DSTest, ICreditConfig {
                 maxBorrowedAmount: maxBorrowedAmount,
                 collateralTokens: getCollateralTokens(),
                 degenNFT: address(0),
+                blacklistHelper: address(0),
                 expirable: false
             });
     }
@@ -125,10 +126,17 @@ contract CreditConfig is DSTest, ICreditConfig {
         }
     }
 
+    function getMinBorrowAmount() internal view returns (uint128) {
+        return
+            (underlyingSymbol == Tokens.USDC) ? uint128(10**6) : uint128(WAD);
+    }
+
     function getAccountAmount() public view override returns (uint256) {
         return
             (underlyingSymbol == Tokens.DAI)
                 ? DAI_ACCOUNT_AMOUNT
+                : (underlyingSymbol == Tokens.USDC)
+                ? USDC_ACCOUNT_AMOUNT
                 : WETH_ACCOUNT_AMOUNT;
     }
 
