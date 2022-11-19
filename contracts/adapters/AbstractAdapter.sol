@@ -5,15 +5,22 @@ pragma solidity ^0.8.10;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
-import { IAdapter } from "../interfaces/adapters/IAdapter.sol";
+import { IAdapterConfigurable } from "../interfaces/adapters/IAdapter.sol";
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
-abstract contract AbstractAdapter is IAdapter {
+abstract contract AbstractAdapter is IAdapterConfigurable {
     using Address for address;
 
     ICreditManagerV2 public immutable override creditManager;
-    address public immutable override creditFacade;
+    address public override creditFacade;
     address public immutable override targetContract;
+
+    /// @dev Restricts calls to Credit Configurator only
+    modifier creditConfiguratorOnly() {
+        if (msg.sender != creditManager.creditConfigurator())
+            revert CreditConfiguratorOnlyException();
+        _;
+    }
 
     constructor(address _creditManager, address _targetContract) {
         if (_creditManager == address(0) || _targetContract == address(0))
@@ -244,5 +251,15 @@ abstract contract AbstractAdapter is IAdapter {
         if (msg.sender != creditFacade) {
             creditManager.checkAndOptimizeEnabledTokens(creditAccount);
         }
+    }
+
+    /// @dev Updates the Credit Facade in the adapter
+    /// @param _creditFacade The new Credit Facade address
+    /// @notice Called by CreditConfigurator when its respective "updateCreditFacade" function is called
+    function updateCreditFacade(address _creditFacade)
+        external
+        creditConfiguratorOnly
+    {
+        creditFacade = _creditFacade;
     }
 }

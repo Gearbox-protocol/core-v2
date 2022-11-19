@@ -9,6 +9,8 @@ import { CreditManager } from "../../credit/CreditManager.sol";
 import { CreditConfigurator, CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
 import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICreditManagerV2.sol";
 import { ICreditConfiguratorEvents } from "../../interfaces/ICreditConfigurator.sol";
+import { IAdapter } from "../../interfaces/adapters/IAdapter.sol";
+import { UniversalAdapter } from "../../adapters/UniversalAdapter.sol";
 
 //
 import { PercentageMath, PERCENTAGE_FACTOR, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
@@ -1323,6 +1325,46 @@ contract CreditConfiguratorTest is
                     );
                 }
             }
+        }
+    }
+
+    /// @dev [CC-30A]: upgradeCreditFacade correctly updates creditFacade in adapters to new value
+    function test_CC_30A_upgradeCreditFacade_updates_CF_in_adapters() public {
+        address tc0 = address(new TargetContractMock());
+
+        AdapterMock adapter0 = new AdapterMock(
+            address(creditManager),
+            address(tc0)
+        );
+        UniversalAdapter adapter1 = new UniversalAdapter(
+            address(creditManager)
+        );
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.allowContract(address(tc0), address(adapter0));
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.allowContract(UNIVERSAL_CONTRACT, address(adapter1));
+
+        CreditFacade cf = new CreditFacade(
+            address(creditManager),
+            address(0),
+            false
+        );
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.upgradeCreditFacade(address(cf), false);
+
+        address[] memory allowedContracts = creditConfigurator
+            .allowedContracts();
+
+        for (uint256 i = 0; i < allowedContracts.length; ++i) {
+            assertEq(
+                IAdapter(creditManager.contractToAdapter(allowedContracts[i]))
+                    .creditFacade(),
+                address(cf),
+                "Credit Facade was not updated in adapter"
+            );
         }
     }
 
