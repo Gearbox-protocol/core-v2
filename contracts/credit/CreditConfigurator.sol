@@ -22,7 +22,6 @@ import { ICreditConfigurator, CollateralToken, CreditManagerOpts } from "../inte
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
-import { IAdapterConfigurable } from "../interfaces/adapters/IAdapter.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../interfaces/IErrors.sol";
@@ -559,24 +558,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             if (expirable) _setExpirationDate(expirationDate); // F: [CC-30]
         }
 
-        _updateAdaptersCreditFacade(_creditFacade);
-
         emit CreditFacadeUpgraded(_creditFacade); // F:[CC-30]
-    }
-
-    /// @dev Updates the Credit Facade address in adapters after changing it in CreditManager
-    function _updateAdaptersCreditFacade(address _newCreditFacade) internal {
-        uint256 len = allowedContractsSet.length();
-        for (uint256 i; i < len; ) {
-            address adapter = creditManager.contractToAdapter(
-                allowedContractsSet.at(i)
-            );
-
-            IAdapterConfigurable(adapter).updateCreditFacade(_newCreditFacade);
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     /// @dev Upgrades the Credit Configurator for a connected Credit Manager

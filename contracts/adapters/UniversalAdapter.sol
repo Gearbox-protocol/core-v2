@@ -19,9 +19,6 @@ contract UniversalAdapter is IUniversalAdapter {
     /// @dev The credit manager this universal adapter connects to
     ICreditManagerV2 public immutable override creditManager;
 
-    /// @dev The credit facade attached to the credit manager
-    address public override creditFacade;
-
     AdapterType public constant _gearboxAdapterType = AdapterType.UNIVERSAL;
     uint16 public constant _gearboxAdapterVersion = 1;
 
@@ -29,16 +26,7 @@ contract UniversalAdapter is IUniversalAdapter {
     /// @param _creditManager Address of the Credit Manager
     constructor(address _creditManager) {
         if (_creditManager == address(0)) revert ZeroAddressException();
-
         creditManager = ICreditManagerV2(_creditManager);
-        creditFacade = ICreditManagerV2(_creditManager).creditFacade();
-    }
-
-    /// @dev Restricts calls to Credit Configurator only
-    modifier creditConfiguratorOnly() {
-        if (msg.sender != creditManager.creditConfigurator())
-            revert CreditConfiguratorOnlyException();
-        _;
     }
 
     /// @dev Sets allowances to zero for the provided spender/token pairs, for msg.sender's CA
@@ -110,16 +98,6 @@ contract UniversalAdapter is IUniversalAdapter {
                 ++i;
             }
         }
-    }
-
-    /// @dev Updates the Credit Facade in the adapter
-    /// @param _creditFacade The new Credit Facade address
-    /// @notice Called by CreditConfigurator when its respective "updateCreditFacade" function is called
-    function updateCreditFacade(address _creditFacade)
-        external
-        creditConfiguratorOnly
-    {
-        creditFacade = _creditFacade;
     }
 
     /// @notice For demonstration purposes only. Not in V2 launch scope

@@ -5,29 +5,20 @@ pragma solidity ^0.8.10;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
-import { IAdapterConfigurable } from "../interfaces/adapters/IAdapter.sol";
+import { IAdapter } from "../interfaces/adapters/IAdapter.sol";
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
-abstract contract AbstractAdapter is IAdapterConfigurable {
+abstract contract AbstractAdapter is IAdapter {
     using Address for address;
 
     ICreditManagerV2 public immutable override creditManager;
-    address public override creditFacade;
     address public immutable override targetContract;
-
-    /// @dev Restricts calls to Credit Configurator only
-    modifier creditConfiguratorOnly() {
-        if (msg.sender != creditManager.creditConfigurator())
-            revert CreditConfiguratorOnlyException();
-        _;
-    }
 
     constructor(address _creditManager, address _targetContract) {
         if (_creditManager == address(0) || _targetContract == address(0))
             revert ZeroAddressException(); // F:[AA-2]
 
         creditManager = ICreditManagerV2(_creditManager); // F:[AA-1]
-        creditFacade = ICreditManagerV2(_creditManager).creditFacade(); // F:[AA-1]
         targetContract = _targetContract; // F:[AA-1]
     }
 
@@ -72,6 +63,8 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
         bool allowTokenIn,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
+        address creditFacade = creditManager.creditFacade();
+
         uint256 balanceInBefore;
         uint256 balanceOutBefore;
 
@@ -96,6 +89,7 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
 
         _fastCheck(
             creditAccount,
+            creditFacade,
             tokenIn,
             tokenOut,
             balanceInBefore,
@@ -142,6 +136,8 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
         bool allowTokenIn,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
+        address creditFacade = creditManager.creditFacade();
+
         uint256 balanceInBefore;
         uint256 balanceOutBefore;
 
@@ -166,6 +162,7 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
 
         _fastCheck(
             creditAccount,
+            creditFacade,
             tokenIn,
             tokenOut,
             balanceInBefore,
@@ -204,6 +201,7 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
     /// @dev Performs a fast check during ordinary adapter call, or skips
     /// it for multicalls (since a full collateral check is always performed after a multicall)
     /// @param creditAccount Credit Account for which the fast check is performed
+    /// @param creditFacade CreditFacade currently associated with CreditManager
     /// @param tokenIn Token that is spent by the operation
     /// @param tokenOut Token that is received as a result of operation
     /// @param balanceInBefore Balance of tokenIn before the operation
@@ -211,6 +209,7 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
     /// @param disableTokenIn Whether tokenIn needs to be disabled (required for multicalls, where the fast check is skipped)
     function _fastCheck(
         address creditAccount,
+        address creditFacade,
         address tokenIn,
         address tokenOut,
         uint256 balanceInBefore,
@@ -236,6 +235,8 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
     /// it for multicalls (since a full collateral check is always performed after a multicall)
     /// @param creditAccount Credit Account for which the full check is performed
     function _fullCheck(address creditAccount) internal {
+        address creditFacade = creditManager.creditFacade();
+
         if (msg.sender != creditFacade) {
             creditManager.fullCollateralCheck(creditAccount);
         }
@@ -248,18 +249,10 @@ abstract contract AbstractAdapter is IAdapterConfigurable {
     /// @notice Used when new tokens are added on an account but no tokens are subtracted
     ///         (e.g., claiming rewards)
     function _checkAndOptimizeEnabledTokens(address creditAccount) internal {
+        address creditFacade = creditManager.creditFacade();
+
         if (msg.sender != creditFacade) {
             creditManager.checkAndOptimizeEnabledTokens(creditAccount);
         }
-    }
-
-    /// @dev Updates the Credit Facade in the adapter
-    /// @param _creditFacade The new Credit Facade address
-    /// @notice Called by CreditConfigurator when its respective "updateCreditFacade" function is called
-    function updateCreditFacade(address _creditFacade)
-        external
-        creditConfiguratorOnly
-    {
-        creditFacade = _creditFacade;
     }
 }

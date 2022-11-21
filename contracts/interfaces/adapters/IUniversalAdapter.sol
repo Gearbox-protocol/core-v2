@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IAdapterConfigurable } from "./IAdapter.sol";
+import { IAdapter } from "./IAdapter.sol";
 
 struct RevocationPair {
     address spender;
@@ -15,10 +15,7 @@ interface IUniversalAdapterExceptions {
     error UnexpectedCreditAccountException(address expected, address actual);
 }
 
-interface IUniversalAdapter is
-    IAdapterConfigurable,
-    IUniversalAdapterExceptions
-{
+interface IUniversalAdapter is IAdapter, IUniversalAdapterExceptions {
     /// @dev Sets allowances to zero for provided spender/token pairs, for msg.sender's CA
     /// @param revocations Pairs of spenders/tokens to revoke allowances for
     function revokeAdapterAllowances(RevocationPair[] calldata revocations)

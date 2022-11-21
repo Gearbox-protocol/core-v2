@@ -34,9 +34,6 @@ interface IAdapter is IAdapterExceptions {
     /// @dev Returns the Credit Manager connected to the adapter
     function creditManager() external view returns (ICreditManagerV2);
 
-    /// @dev Returns the Credit Facade connected to the adapter's Credit Manager
-    function creditFacade() external view returns (address);
-
     /// @dev Returns the address of the contract the adapter is interacting with
     function targetContract() external view returns (address);
 
@@ -45,15 +42,4 @@ interface IAdapter is IAdapterExceptions {
 
     /// @dev Returns the adapter version
     function _gearboxAdapterVersion() external pure returns (uint16);
-}
-
-interface IAdapterConfigurableExceptions {
-    /// @dev Thrown when a configuration function is called by
-    ///      other than Credit Configurator
-    error CreditConfiguratorOnlyException();
-}
-
-interface IAdapterConfigurable is IAdapter, IAdapterConfigurableExceptions {
-    /// @dev Updates the CreditFacade of the adapter
-    function updateCreditFacade(address _creditFacade) external;
 }

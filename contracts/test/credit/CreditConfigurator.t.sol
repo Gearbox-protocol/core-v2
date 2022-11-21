@@ -1332,47 +1332,6 @@ contract CreditConfiguratorTest is
         }
     }
 
-    /// @dev [CC-30A]: upgradeCreditFacade correctly updates creditFacade in adapters to new value
-    function test_CC_30A_upgradeCreditFacade_updates_CF_in_adapters() public {
-        address tc0 = address(new TargetContractMock());
-
-        AdapterMock adapter0 = new AdapterMock(
-            address(creditManager),
-            address(tc0)
-        );
-        UniversalAdapter uAdapter = new UniversalAdapter(
-            address(creditManager)
-        );
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.allowContract(address(tc0), address(adapter0));
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.allowContract(UNIVERSAL_CONTRACT, address(uAdapter));
-
-        CreditFacade cf = new CreditFacade(
-            address(creditManager),
-            address(0),
-            address(0),
-            false
-        );
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.upgradeCreditFacade(address(cf), false);
-
-        address[] memory allowedContracts = creditConfigurator
-            .allowedContracts();
-
-        for (uint256 i = 0; i < allowedContracts.length; ++i) {
-            assertEq(
-                IAdapter(creditManager.contractToAdapter(allowedContracts[i]))
-                    .creditFacade(),
-                address(cf),
-                "Credit Facade was not updated in adapter"
-            );
-        }
-    }
-
     /// @dev [CC-31]: uupgradeCreditConfigurator upgrades creditConfigurator
     function test_CC_31_upgradeCreditConfigurator_upgrades_creditConfigurator()
         public
