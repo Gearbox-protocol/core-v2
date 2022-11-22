@@ -19,7 +19,7 @@ import { AddressList } from "../../libraries/AddressList.sol";
 
 // EXCEPTIONS
 import { ICreditConfiguratorExceptions } from "../../interfaces/ICreditConfigurator.sol";
-import { ZeroAddressException, AddressIsNotContractException, CallerNotConfiguratorException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../../interfaces/IErrors.sol";
+import { ZeroAddressException, AddressIsNotContractException, CallerNotConfiguratorException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../../interfaces/IErrors.sol";
 import { ICreditManagerV2Exceptions } from "../../interfaces/ICreditManagerV2.sol";
 
 // TEST
@@ -474,12 +474,25 @@ contract CreditConfiguratorTest is
         creditConfigurator.upgradeCreditConfigurator(DUMB_ADDRESS);
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.setIncreaseDebtForbidden(false);
-
-        evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.setLimitPerBlock(0);
 
         evm.stopPrank();
+    }
+
+    function test_CC_02A_setIncreaseDebtForbidden_reverts_on_non_pausable_unpausable_admin()
+        public
+    {
+        evm.expectRevert(CallerNotPausableAdminException.selector);
+        creditConfigurator.setIncreaseDebtForbidden(true);
+
+        evm.expectRevert(CallerNotUnPausableAdminException.selector);
+        creditConfigurator.setIncreaseDebtForbidden(false);
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setIncreaseDebtForbidden(true);
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setIncreaseDebtForbidden(false);
     }
 
     //
