@@ -2804,6 +2804,7 @@ contract CreditFacadeTest is
         );
     }
 
+    /// @dev [FA-57]: openCreditAccount reverts when the borrower is blacklisted on a blacklistable underlying
     function test_FA_57_openCreditAccount_reverts_on_blacklisted_borrower()
         public
     {
@@ -2830,6 +2831,94 @@ contract CreditFacadeTest is
             USER,
             multicallBuilder(),
             0
+        );
+    }
+
+    /// @dev [FA-58]: maintainerMulticall works correctly
+    function test_FA_58_maintainerMulticall_works_correctly() public {
+        (address creditAccount, ) = _openTestCreditAccount();
+
+        evm.prank(USER);
+        creditFacade.setMaintainerStatus(FRIEND, true);
+
+        bytes memory DUMB_CALLDATA = _prepareMockCall();
+
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeWithSelector(
+                ICreditManagerV2.transferAccountOwnership.selector,
+                USER,
+                address(creditFacade)
+            )
+        );
+
+        evm.expectEmit(true, true, false, true);
+        emit MultiCallStarted(USER);
+
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeWithSelector(
+                ICreditManagerV2.executeOrder.selector,
+                address(creditFacade),
+                address(targetMock),
+                DUMB_CALLDATA
+            )
+        );
+
+        evm.expectEmit(true, true, false, true);
+        emit ExecuteOrder(address(creditFacade), address(targetMock));
+
+        evm.expectCall(
+            creditAccount,
+            abi.encodeWithSignature(
+                "execute(address,bytes)",
+                address(targetMock),
+                DUMB_CALLDATA
+            )
+        );
+
+        evm.expectCall(address(targetMock), DUMB_CALLDATA);
+
+        evm.expectEmit(false, false, false, true);
+        emit MultiCallFinished();
+
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeWithSelector(
+                ICreditManagerV2.transferAccountOwnership.selector,
+                address(creditFacade),
+                USER
+            )
+        );
+
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeWithSelector(
+                ICreditManagerV2.fullCollateralCheck.selector,
+                creditAccount
+            )
+        );
+
+        evm.prank(FRIEND);
+        creditFacade.maintainerMulticall(
+            USER,
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: DUMB_CALLDATA
+                })
+            )
+        );
+
+        evm.expectRevert(NotApprovedMaintainerException.selector);
+        creditFacade.maintainerMulticall(
+            USER,
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: DUMB_CALLDATA
+                })
+            )
         );
     }
 
