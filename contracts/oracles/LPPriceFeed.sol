@@ -91,7 +91,9 @@ abstract contract LPPriceFeed is ILPPriceFeed, PriceFeedChecker, ACLTrait {
         if (
             _lowerBound == 0 ||
             !_checkCurrentValueInBounds(_lowerBound, _upperBound(_lowerBound))
-        ) revert IncorrectLimitsException(); // F:[LPF-4]
+        ) {
+            revert IncorrectLimitsException();
+        } // F:[LPF-4]
 
         lowerBound = _lowerBound; // F:[LPF-5]
         emit NewLimiterParams(lowerBound, _upperBound(_lowerBound)); // F:[LPF-5]

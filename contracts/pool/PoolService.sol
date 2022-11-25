@@ -272,7 +272,8 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
             borrowAPY_RAY *
             timeDifference) /
             RAY /
-            SECONDS_PER_YEAR; // T:[PS-29]
+            SECONDS_PER_YEAR;
+        // T:[PS-29]
 
         return _expectedLiquidityLU + interestAccrued; // T:[PS-29]
     }
@@ -425,7 +426,8 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
         //
         uint256 linearAccumulated_RAY = RAY +
             (currentBorrowRate_RAY * timeDifference) /
-            SECONDS_PER_YEAR; // T:[GM-2]
+            SECONDS_PER_YEAR;
+        // T:[GM-2]
 
         return (cumulativeIndex_RAY * linearAccumulated_RAY) / RAY; // T:[GM-2]
     }

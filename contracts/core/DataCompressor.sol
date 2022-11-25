@@ -15,6 +15,7 @@ import { ICreditFilter } from "../interfaces/V1/ICreditFilter.sol";
 import { ICreditConfigurator } from "../interfaces/ICreditConfigurator.sol";
 import { ICreditAccount } from "../interfaces/ICreditAccount.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
+import { IPool4626 } from "../interfaces/IPool4626.sol";
 
 import { IVersion } from "../interfaces/IVersion.sol";
 
@@ -52,8 +53,9 @@ contract DataCompressor is IDataCompressor {
 
     /// @dev Prevents function usage for target contracts that are not Gearbox Credit Managers
     modifier targetIsRegisteredCreditManager(address creditManager) {
-        if (!contractsRegister.isCreditManager(creditManager))
-            revert NotCreditManagerException(); // T:[WG-3]
+        if (!contractsRegister.isCreditManager(creditManager)) {
+            revert NotCreditManagerException();
+        } // T:[WG-3]
         _;
     }
 
@@ -409,6 +411,7 @@ contract DataCompressor is IDataCompressor {
         returns (PoolData memory result)
     {
         IPoolService pool = IPoolService(_pool);
+        result.version = uint8(pool.version());
 
         result.addr = _pool;
         result.expectedLiquidity = pool.expectedLiquidity();
@@ -419,7 +422,7 @@ contract DataCompressor is IDataCompressor {
         result.linearCumulativeIndex = pool.calcLinearCumulative_RAY();
         result.borrowAPY_RAY = pool.borrowAPY_RAY();
         result.underlying = pool.underlyingToken();
-        result.dieselToken = pool.dieselToken();
+        result.dieselToken = (result.version > 1) ? _pool : pool.dieselToken();
         result.dieselRate_RAY = pool.getDieselRate_RAY();
         result.withdrawFee = pool.withdrawFee();
         result.isWETH = result.underlying == WETHToken;
@@ -427,14 +430,16 @@ contract DataCompressor is IDataCompressor {
         result.cumulativeIndex_RAY = pool._cumulativeIndex_RAY();
 
         uint256 dieselSupply = IERC20(result.dieselToken).totalSupply();
-        uint256 totalLP = pool.fromDiesel(dieselSupply);
+
+        uint256 totalLP = (result.version > 1)
+            ? IPool4626(_pool).convertToAssets(dieselSupply)
+            : pool.fromDiesel(dieselSupply);
+
         result.depositAPY_RAY = totalLP == 0
             ? result.borrowAPY_RAY
             : (result.borrowAPY_RAY * result.totalBorrowed).percentMul(
                 PERCENTAGE_FACTOR - result.withdrawFee
             ) / totalLP;
-
-        result.version = uint8(pool.version());
 
         return result;
     }

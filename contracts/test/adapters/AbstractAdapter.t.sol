@@ -266,7 +266,7 @@ contract AbstractAdapterTest is
 
             expectAllowance(Tokens.USDC, ca, address(targetMock), 0);
 
-            if (allowTokenIn)
+            if (allowTokenIn) {
                 evm.expectCall(
                     usdc,
                     abi.encodeWithSelector(
@@ -275,8 +275,9 @@ contract AbstractAdapterTest is
                         type(uint256).max
                     )
                 );
+            }
 
-            if (allowTokenIn)
+            if (allowTokenIn) {
                 evm.expectCall(
                     usdc,
                     abi.encodeWithSelector(
@@ -285,6 +286,7 @@ contract AbstractAdapterTest is
                         type(uint256).max
                     )
                 );
+            }
 
             evm.prank(USER);
             adapterMock.executeMaxAllowanceFastCheck(
@@ -295,13 +297,14 @@ contract AbstractAdapterTest is
                 false
             );
 
-            if (allowTokenIn)
+            if (allowTokenIn) {
                 expectAllowance(
                     Tokens.USDC,
                     ca,
                     address(targetMock),
                     type(uint256).max
                 );
+            }
         }
     }
 

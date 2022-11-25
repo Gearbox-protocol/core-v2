@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.10;
 
+import { PERCENTAGE_FACTOR } from "./Constants.sol";
 import { Errors } from "./Errors.sol";
 
-uint16 constant PERCENTAGE_FACTOR = 1e4; //percentage plus two decimals
 uint256 constant HALF_PERCENT = PERCENTAGE_FACTOR / 2;
 
 /**
@@ -12,7 +12,8 @@ uint256 constant HALF_PERCENT = PERCENTAGE_FACTOR / 2;
  * @notice Provides functions to perform percentage calculations
  * @dev Percentages are defined by default with 2 decimals of precision (100.00). The precision is indicated by PERCENTAGE_FACTOR
  * @dev Operations are rounded half up
- **/
+ *
+ */
 
 library PercentageMath {
     /**
@@ -20,7 +21,8 @@ library PercentageMath {
      * @param value The value of which the percentage needs to be calculated
      * @param percentage The percentage of the value to be calculated
      * @return The percentage of value
-     **/
+     *
+     */
     function percentMul(uint256 value, uint256 percentage)
         internal
         pure
@@ -43,7 +45,8 @@ library PercentageMath {
      * @param value The value of which the percentage needs to be calculated
      * @param percentage The percentage of the value to be calculated
      * @return The value divided the percentage
-     **/
+     *
+     */
     function percentDiv(uint256 value, uint256 percentage)
         internal
         pure

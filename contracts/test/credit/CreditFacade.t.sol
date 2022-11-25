@@ -61,6 +61,7 @@ contract CreditFacadeTest is
     ICreditFacadeExceptions
 {
     using CreditFacadeCalls for CreditFacadeMulticaller;
+
     AccountFactory accountFactory;
 
     TargetContractMock targetMock;

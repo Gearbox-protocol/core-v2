@@ -169,7 +169,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param liquidationThreshold in PERCENTAGE_FORMAT (100% = 10000)
     function setLiquidationThreshold(address token, uint16 liquidationThreshold)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         _setLiquidationThreshold(token, liquidationThreshold); // F:[CC-5]
     }
@@ -184,8 +184,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
         (, uint16 ltUnderlying) = creditManager.collateralTokens(0);
         // Sanity checks for the liquidation threshold. It should be > 0 and less than the LT of the underlying
-        if (liquidationThreshold == 0 || liquidationThreshold > ltUnderlying)
-            revert IncorrectLiquidationThresholdException(); // F:[CC-5]
+        if (liquidationThreshold == 0 || liquidationThreshold > ltUnderlying) {
+            revert IncorrectLiquidationThresholdException();
+        } // F:[CC-5]
 
         uint16 currentLT = creditManager.liquidationThresholds(token);
 
@@ -225,7 +226,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param token Address of collateral token to forbid
     function forbidToken(address token)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         // Gets token masks. Reverts if the token was not added as collateral or is the underlying
         uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token); // F:[CC-7]
@@ -256,8 +257,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         // tokenMask can't be 0, since this means that the token is not a collateral token
         // tokenMask can't be 1, since this mask is reserved for underlying
 
-        if (tokenMask == 0 || tokenMask == 1)
-            revert ICreditManagerV2Exceptions.TokenNotAllowedException(); // F:[CC-7]
+        if (tokenMask == 0 || tokenMask == 1) {
+            revert ICreditManagerV2Exceptions.TokenNotAllowedException();
+        } // F:[CC-7]
     }
 
     //
@@ -284,7 +286,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (
             !targetContract.isContract() &&
             (targetContract != UNIVERSAL_CONTRACT)
-        ) revert AddressIsNotContractException(targetContract); // F:[CC-12A] [TODO]: Add check for Universal contract
+        ) {
+            revert AddressIsNotContractException(targetContract);
+        } // F:[CC-12A] [TODO]: Add check for Universal contract
 
         // Checks that the adapter is an actual contract and has the correct Credit Manager and is an actual contract
         _revertIfContractIncompatible(adapter); // F:[CC-12]
@@ -301,8 +305,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         ) revert CreditManagerOrFacadeUsedAsTargetContractsException(); // F:[CC-13]
 
         // Checks that adapter is not used for another target
-        if (creditManager.adapterToContract(adapter) != address(0))
-            revert AdapterUsedTwiceException(); // F:[CC-14]
+        if (creditManager.adapterToContract(adapter) != address(0)) {
+            revert AdapterUsedTwiceException();
+        } // F:[CC-14]
 
         // Sets a link between adapter and targetContract in creditFacade and creditManager
         creditManager.changeContractAllowance(adapter, targetContract); // F:[CC-15]
@@ -320,15 +325,16 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     function forbidContract(address targetContract)
         external
         override
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         // Checks that targetContract is not address(0)
         if (targetContract == address(0)) revert ZeroAddressException(); // F:[CC-12]
 
         // Checks that targetContract has a connected adapter
         address adapter = creditManager.contractToAdapter(targetContract);
-        if (adapter == address(0))
-            revert ContractIsNotAnAllowedAdapterException(); // F:[CC-16]
+        if (adapter == address(0)) {
+            revert ContractIsNotAnAllowedAdapterException();
+        } // F:[CC-16]
 
         // Sets both contractToAdapter[targetContract] and adapterToContract[adapter]
         // To address(0), which would make Credit Manager revert on attempts to
@@ -351,7 +357,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param _maxBorrowedAmount Maximum borrowed amount
     function setLimits(uint128 _minBorrowedAmount, uint128 _maxBorrowedAmount)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         _setLimits(_minBorrowedAmount, _maxBorrowedAmount);
     }
@@ -367,7 +373,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (
             _minBorrowedAmount > _maxBorrowedAmount ||
             _maxBorrowedAmount > blockLimit
-        ) revert IncorrectLimitsException(); // F:[CC-18]
+        ) {
+            revert IncorrectLimitsException();
+        } // F:[CC-18]
 
         // Sets limits in Credit Facade
         creditFacade().setCreditAccountLimits(
@@ -586,8 +594,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (_contract == address(0)) revert ZeroAddressException(); // F:[CC-12,29]
 
         // Checks that the address is a contract
-        if (!_contract.isContract())
-            revert AddressIsNotContractException(_contract); // F:[CC-12A,29]
+        if (!_contract.isContract()) {
+            revert AddressIsNotContractException(_contract);
+        } // F:[CC-12A,29]
 
         // Checks that the contract has a creditManager() function, which returns a correct value
         try CreditFacade(_contract).creditManager() returns (
@@ -624,7 +633,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param newLimit The new max borrowed amount per block
     function setLimitPerBlock(uint128 newLimit)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         _setLimitPerBlock(newLimit); // F:[CC-33]
     }
@@ -650,7 +659,10 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @notice Upgradeable contracts are contracts with an upgradeable proxy
     /// Or other practices and patterns potentially detrimental to security
     /// Contracts from the list have certain restrictions applied to them
-    function addContractToUpgradeable(address addr) external configuratorOnly {
+    function addContractToUpgradeable(address addr)
+        external
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
+    {
         _addContractToUpgradeable(addr); // F: [CC-35]
     }
 
@@ -702,7 +714,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/credit/liquidation#liquidating-accounts-by-expiration
     function setExpirationDate(uint40 newExpirationDate)
         external
-        configuratorOnly
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         _setExpirationDate(newExpirationDate); // F: [CC-34]
     }
@@ -717,7 +729,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (
             expirationDate >= newExpirationDate ||
             block.timestamp > newExpirationDate
-        ) revert IncorrectExpirationDateException(); // F: [CC-34]
+        ) {
+            revert IncorrectExpirationDateException();
+        } // F: [CC-34]
 
         creditFacade().setExpirationDate(newExpirationDate); // F: [CC-34]
         emit ExpirationDateUpdated(newExpirationDate); // F: [CC-34]
@@ -730,9 +744,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// hence the number is limited
     function setMaxEnabledTokens(uint8 maxEnabledTokens)
         external
-        configuratorOnly // F: [CC-37]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
-        _setMaxEnabledTokens(maxEnabledTokens);
+        _setMaxEnabledTokens(maxEnabledTokens); // F: [CC-37]
     }
 
     /// @dev IMPLEMENTATION: setMaxEnabledTokens

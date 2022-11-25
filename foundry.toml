@@ -10,7 +10,7 @@ remappings = [
 ]
 solc_version = '0.8.10'
 src = 'contracts'
-optimizer_runs = 1000000
+optimizer_runs = 20000
 
 # See more config options https://github.com/gakonst/foundry/tree/master/config
 block_number = 120000 

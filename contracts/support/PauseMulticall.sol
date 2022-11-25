@@ -2,6 +2,7 @@
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
+
 import { ACLTrait } from "../core/ACLTrait.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { ACL } from "../core/ACL.sol";
@@ -13,8 +14,9 @@ contract PauseMulticall is ACLTrait {
     ContractsRegister public immutable cr;
 
     modifier pausableAdminOnly() {
-        if (!acl.isPausableAdmin(msg.sender))
-            revert CallerNotPausableAdminException(); // F:[PM-05]
+        if (!acl.isPausableAdmin(msg.sender)) {
+            revert CallerNotPausableAdminException();
+        } // F:[PM-05]
         _;
     }
 

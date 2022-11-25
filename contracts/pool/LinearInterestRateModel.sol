@@ -83,7 +83,6 @@ contract LinearInterestRateModel is IInterestRateModel {
         // borrowRate = Rbase + Rslope1 * ----------
         //                                 Uoptimal
         //
-
         if (U_WAD < _U_Optimal_WAD) {
             return _R_base_RAY + ((_R_slope1_RAY * U_WAD) / _U_Optimal_WAD);
         }

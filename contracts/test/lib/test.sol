@@ -73,6 +73,7 @@ contract DSTest {
     modifier mayRevert() {
         _;
     }
+
     modifier testopts(string memory) {
         _;
     }

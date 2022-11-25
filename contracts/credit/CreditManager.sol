@@ -166,7 +166,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         if (
             adapterToContract[msg.sender] == address(0) &&
             msg.sender != creditFacade
-        ) revert AdaptersOrCreditFacadeOnlyException(); //
+        ) {
+            revert AdaptersOrCreditFacadeOnlyException();
+        } //
         _;
     }
 
@@ -178,8 +180,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
 
     /// @dev Restricts calls to Credit Configurator only
     modifier creditConfiguratorOnly() {
-        if (msg.sender != creditConfigurator)
+        if (msg.sender != creditConfigurator) {
             revert CreditConfiguratorOnlyException();
+        }
         _;
     }
 
@@ -304,7 +307,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
                     ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT)
             ) {
                 closureActionType = ClosureAction.LIQUIDATE_PAUSED; // F: [CM-12, 13]
-            } else revert("Pausable: paused"); // F:[CM-5]
+            } else {
+                revert("Pausable: paused");
+            } // F:[CM-5]
         }
 
         // Checks that the Credit Account exists for the borrower
@@ -685,8 +690,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
                 )
             )
         returns (bytes memory result) {
-            if (result.length == 0 || abi.decode(result, (bool)) == true)
+            if (result.length == 0 || abi.decode(result, (bool)) == true) {
                 return true;
+            }
         } catch {}
 
         // On the first try, failure is allowed to handle tokens
@@ -719,8 +725,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
             adapterToContract[msg.sender] != targetContract ||
             targetContract == address(0)
         ) {
-            if (msg.sender != universalAdapter)
-                revert TargetContractNotAllowedException(); // F:[CM-28]
+            if (msg.sender != universalAdapter) {
+                revert TargetContractNotAllowedException();
+            } // F:[CM-28]
         }
 
         address creditAccount = getCreditAccountOrRevert(borrower); // F:[CM-6]
@@ -762,13 +769,15 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
 
         // Checks that the token is valid collateral recognized by the system
         // and that it is not forbidden
-        if (tokenMask == 0 || forbiddenTokenMask & tokenMask != 0)
-            revert TokenNotAllowedException(); // F:[CM-30]
+        if (tokenMask == 0 || forbiddenTokenMask & tokenMask != 0) {
+            revert TokenNotAllowedException();
+        } // F:[CM-30]
 
         // Performs an inclusion check using token masks,
         // to avoid accidentally disabling the token
-        if (enabledTokensMap[creditAccount] & tokenMask == 0)
-            enabledTokensMap[creditAccount] |= tokenMask; // F:[CM-31]
+        if (enabledTokensMap[creditAccount] & tokenMask == 0) {
+            enabledTokensMap[creditAccount] |= tokenMask;
+        } // F:[CM-31]
     }
 
     /// @dev Optimized health check for individual swap-like operations.
@@ -1213,8 +1222,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     function _safeCreditAccountSet(address borrower, address creditAccount)
         internal
     {
-        if (borrower == address(0) || creditAccounts[borrower] != address(0))
-            revert ZeroAddressOrUserAlreadyHasAccountException(); // F:[CM-7]
+        if (borrower == address(0) || creditAccounts[borrower] != address(0)) {
+            revert ZeroAddressOrUserAlreadyHasAccountException();
+        } // F:[CM-7]
         creditAccounts[borrower] = creditAccount; // F:[CM-7]
     }
 
@@ -1571,8 +1581,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     /// @param token Address of the token to add
     function _addToken(address token) internal {
         // Checks that the token is not already known (has an associated token mask)
-        if (tokenMasksMapInternal[token] > 0)
-            revert TokenAlreadyAddedException(); // F:[CM-52]
+        if (tokenMasksMapInternal[token] > 0) {
+            revert TokenAlreadyAddedException();
+        } // F:[CM-52]
 
         // Checks that there aren't too many tokens
         // Since token masks are 256 bit numbers with each bit corresponding to 1 token,

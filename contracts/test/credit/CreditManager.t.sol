@@ -2684,7 +2684,6 @@ contract CreditManagerTest is
     //
     // CALC CLOSE PAYMENT PURE
     //
-
     struct CalcClosePaymentsPureTestCase {
         string name;
         uint256 totalValue;

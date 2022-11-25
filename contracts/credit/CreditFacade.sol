@@ -94,8 +94,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Restricts actions for users with opened credit accounts only
     modifier creditConfiguratorOnly() {
-        if (msg.sender != creditManager.creditConfigurator())
+        if (msg.sender != creditManager.creditConfigurator()) {
             revert CreditConfiguratorOnlyException();
+        }
 
         _;
     }
@@ -171,8 +172,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // In order for the account to pass the health check after opening,
         // the inequality "(amount + borrowedAmount) * LTU > borrowedAmount" must hold
         // this can be transformed into "amount * LTU > borrowedAmount * (1 - LTU)"
-        if (amount * ltu <= borrowedAmount * (PERCENTAGE_FACTOR - ltu))
-            revert NotEnoughCollateralException(); // F:[FA-6]
+        if (amount * ltu <= borrowedAmount * (PERCENTAGE_FACTOR - ltu)) {
+            revert NotEnoughCollateralException();
+        } // F:[FA-6]
 
         // Opens credit accnount and borrows funds from the pool
         // Returns the new credit account's address
@@ -239,8 +241,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // F:[FA-10]: no free flashloans through opening a Credit Account
         // and immediately decreasing debt
-        if (calls.length != 0)
-            _multicall(calls, onBehalfOf, creditAccount, false, true); // F:[FA-8]
+        if (calls.length != 0) {
+            _multicall(calls, onBehalfOf, creditAccount, false, true);
+        } // F:[FA-8]
 
         // Checks that the new credit account has enough collateral to cover the debt
         creditManager.fullCollateralCheck(creditAccount); // F:[FA-8, 9]
@@ -277,8 +280,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _wrapETH(); // F:[FA-3C]
 
         // [FA-13]: Calls to CreditFacade are forbidden during closure
-        if (calls.length != 0)
-            _multicall(calls, msg.sender, creditAccount, true, false); // F:[FA-2, 12, 13]
+        if (calls.length != 0) {
+            _multicall(calls, msg.sender, creditAccount, true, false);
+        } // F:[FA-2, 12, 13]
 
         // Requests the Credit manager to close the Credit Account
         creditManager.closeCreditAccount(
@@ -341,8 +345,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         ); // F:[FA-14]
 
         // An account can't be liquidated if hf >= 1
-        if (!isLiquidatable)
-            revert CantLiquidateWithSuchHealthFactorException(); // F:[FA-14]
+        if (!isLiquidatable) {
+            revert CantLiquidateWithSuchHealthFactorException();
+        } // F:[FA-14]
 
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3D]
@@ -350,8 +355,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Checks if the liquidation is done while the contract is paused
         bool emergencyLiquidation = _checkIfEmergencyLiquidator(true);
 
-        if (calls.length != 0)
-            _multicall(calls, borrower, creditAccount, true, false); // F:[FA-15]
+        if (calls.length != 0) {
+            _multicall(calls, borrower, creditAccount, true, false);
+        } // F:[FA-15]
 
         if (emergencyLiquidation) {
             _checkIfEmergencyLiquidator(false);
@@ -413,8 +419,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Checks if the liquidsation during pause
         bool emergencyLiquidation = _checkIfEmergencyLiquidator(true);
 
-        if (calls.length != 0)
-            _multicall(calls, borrower, creditAccount, true, false); // F:[FA-49]
+        if (calls.length != 0) {
+            _multicall(calls, borrower, creditAccount, true, false);
+        } // F:[FA-49]
 
         if (emergencyLiquidation) {
             _checkIfEmergencyLiquidator(false);
@@ -465,8 +472,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         uint256 amount
     ) internal {
         // It is forbidden to take new debt if increaseDebtForbidden mode is enabled
-        if (params.isIncreaseDebtForbidden)
-            revert IncreaseDebtForbiddenException(); // F:[FA-18C]
+        if (params.isIncreaseDebtForbidden) {
+            revert IncreaseDebtForbiddenException();
+        } // F:[FA-18C]
 
         // Checks that the borrowed amount does not violate the per block limit
         _checkAndUpdateBorrowedBlockLimit(amount); // F:[FA-18A]
@@ -670,7 +678,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                     if (
                         method !=
                         ICreditFacadeExtended.revertIfReceivedLessThan.selector
-                    ) revert ForbiddenDuringClosureException(); // F:[FA-13]
+                    ) {
+                        revert ForbiddenDuringClosureException();
+                    } // F:[FA-13]
                 }
 
                 //
@@ -715,8 +725,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // If expectedBalances was set by calling revertIfGetLessThan,
         // checks that actual token balances are not less than expected balances
-        if (expectedBalances.length != 0)
+        if (expectedBalances.length != 0) {
             _compareBalances(expectedBalances, creditAccount);
+        }
 
         // Emits event for multicall end - used in analytics to track actions within multicalls
         emit MultiCallFinished(); // F:[FA-27,27,29]
@@ -758,8 +769,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // contains deltas that are added to the current balances
             // Calling this function again could potentially override old values
             // and cause confusion, especially if called later in the MultiCall
-            if (expectedBalances.length != 0)
-                revert ExpectedBalancesAlreadySetException(); // F:[FA-45A]
+            if (expectedBalances.length != 0) {
+                revert ExpectedBalancesAlreadySetException();
+            } // F:[FA-45A]
 
             // Retrieves the balance list from calldata
             expectedBalances = abi.decode(callData[4:], (Balance[])); // F:[FA-45]
@@ -805,8 +817,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         else if (method == ICreditFacade.decreaseDebt.selector) {
             // it's forbidden to call decreaseDebt after increaseDebt, in the same multicall
-            if (increaseDebtWasCalled)
-                revert IncreaseAndDecreaseForbiddenInOneCallException(); // F:[FA-28]
+            if (increaseDebtWasCalled) {
+                revert IncreaseAndDecreaseForbiddenInOneCallException();
+            } // F:[FA-28]
 
             // Parses parameters from calldata
             uint256 amount = abi.decode(callData[4:], (uint256)); // F:[FA-27]
@@ -874,7 +887,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             if (
                 IERC20(expected[i].token).balanceOf(creditAccount) <
                 expected[i].balance
-            ) revert BalanceLessThanMinimumDesiredException(expected[i].token); // F:[FA-45]
+            ) {
+                revert BalanceLessThanMinimumDesiredException(
+                    expected[i].token
+                );
+            } // F:[FA-45]
             unchecked {
                 ++i;
             }
@@ -897,9 +914,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (
             creditManager.contractToAdapter(targetContract) == address(0) ||
             upgradeableContracts.contains(targetContract)
-        )
+        ) {
             // F: [FA-51]
-            revert TargetContractNotAllowedException(); // F:[FA-30]
+            revert TargetContractNotAllowedException();
+        } // F:[FA-30]
 
         // Requests Credit Manager to set token allowance from Credit Account to contract
         creditManager.approveCreditAccount(
@@ -929,8 +947,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         ); // F:[FA-2]
 
         // Checks that transfer is allowed
-        if (!transfersAllowed[msg.sender][to])
-            revert AccountTransferNotAllowedException(); // F:[FA-33]
+        if (!transfersAllowed[msg.sender][to]) {
+            revert AccountTransferNotAllowedException();
+        } // F:[FA-33]
 
         /// Checks that the account hf > 1, as it is forbidden to transfer
         /// accounts that are liquidatable
@@ -954,8 +973,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @param onBehalfOf Account which would own credit account
     function _revertIfOpenCreditAccountNotAllowed(address onBehalfOf) internal {
         // Opening new Credit Accounts is prohibited in increaseDebtForbidden mode
-        if (params.isIncreaseDebtForbidden)
-            revert IncreaseDebtForbiddenException(); // F:[FA-7]
+        if (params.isIncreaseDebtForbidden) {
+            revert IncreaseDebtForbiddenException();
+        } // F:[FA-7]
 
         // Checks that this CreditFacade is not expired
         if (_isExpired()) {
@@ -968,8 +988,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
             // In whitelisted mode, users can only open an account by burning a DegenNFT
             // And opening an account for another address is forbidden
-            if (whitelisted && msg.sender != onBehalfOf)
-                revert NotAllowedInWhitelistedMode(); // F:[FA-4B]
+            if (whitelisted && msg.sender != onBehalfOf) {
+                revert NotAllowedInWhitelistedMode();
+            } // F:[FA-4B]
 
             IDegenNFT(degenNFT).burn(onBehalfOf, 1); // F:[FA-4B]
         }
@@ -988,7 +1009,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (
             msg.sender != onBehalfOf &&
             !transfersAllowed[msg.sender][onBehalfOf]
-        ) revert AccountTransferNotAllowedException(); // F:[FA-04C]
+        ) {
+            revert AccountTransferNotAllowedException();
+        } // F:[FA-04C]
     }
 
     /// @dev Checks that the per-block borrow limit was not violated and updates the
@@ -1011,8 +1034,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                     ? amount + lastLimit // F:[FA-37]
                     : amount; // F:[FA-18, 37]
 
-                if (newLimit > _limitPerBlock)
-                    revert BorrowedBlockLimitException(); // F:[FA-18]
+                if (newLimit > _limitPerBlock) {
+                    revert BorrowedBlockLimitException();
+                } // F:[FA-18]
 
                 _updateTotalBorrowedInBlock(uint128(newLimit)); // F:[FA-37]
             }
@@ -1029,7 +1053,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (
             borrowedAmount < uint256(limits.minBorrowedAmount) ||
             borrowedAmount > uint256(limits.maxBorrowedAmount)
-        ) revert BorrowAmountOutOfLimitsException(); // F:
+        ) {
+            revert BorrowAmountOutOfLimitsException();
+        } // F:
     }
 
     function _checkIfEmergencyLiquidator(bool state) internal returns (bool) {

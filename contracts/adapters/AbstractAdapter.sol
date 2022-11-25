@@ -2,6 +2,7 @@
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
+
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
@@ -16,8 +17,9 @@ abstract contract AbstractAdapter is IAdapter {
     address public immutable override targetContract;
 
     constructor(address _creditManager, address _targetContract) {
-        if (_creditManager == address(0) || _targetContract == address(0))
-            revert ZeroAddressException(); // F:[AA-2]
+        if (_creditManager == address(0) || _targetContract == address(0)) {
+            revert ZeroAddressException();
+        } // F:[AA-2]
 
         creditManager = ICreditManagerV2(_creditManager); // F:[AA-1]
         creditFacade = ICreditManagerV2(_creditManager).creditFacade(); // F:[AA-1]
@@ -219,8 +221,9 @@ abstract contract AbstractAdapter is IAdapter {
                 balanceOutBefore
             );
         } else {
-            if (disableTokenIn)
+            if (disableTokenIn) {
                 creditManager.disableToken(creditAccount, tokenIn);
+            }
             creditManager.checkAndEnableToken(creditAccount, tokenOut);
         }
     }

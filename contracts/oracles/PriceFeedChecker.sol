@@ -14,7 +14,8 @@ contract PriceFeedChecker is IPriceOracleV2Exceptions {
         uint80 answeredInRound
     ) internal pure {
         if (price <= 0) revert ZeroPriceException(); // F:[PO-5]
-        if (answeredInRound < roundID || updatedAt == 0)
-            revert ChainPriceStaleException(); // F:[PO-5]
+        if (answeredInRound < roundID || updatedAt == 0) {
+            revert ChainPriceStaleException();
+        } // F:[PO-5]
     }
 }

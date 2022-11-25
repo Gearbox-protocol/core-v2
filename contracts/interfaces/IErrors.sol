@@ -24,6 +24,9 @@ error IncorrectPriceFeedException();
 /// @dev Thrown on attempting to call an access restricted function as a non-Configurator
 error CallerNotConfiguratorException();
 
+/// @dev Thrown on attempting to call an access restricted function as a non-Configurator
+error CallerNotControllerException();
+
 /// @dev Thrown on attempting to pause a contract as a non-Pausable admin
 error CallerNotPausableAdminException();
 

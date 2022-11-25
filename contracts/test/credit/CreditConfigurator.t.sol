@@ -44,6 +44,7 @@ contract CreditConfiguratorTest is
     ICreditConfiguratorExceptions
 {
     using AddressList for address[];
+
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     TokensTestSuite tokenTestSuite;
@@ -87,7 +88,6 @@ contract CreditConfiguratorTest is
     //
     // HELPERS
     //
-
     function _compareParams(
         uint16 feeInterest,
         uint16 feeLiquidation,
@@ -895,7 +895,6 @@ contract CreditConfiguratorTest is
         creditConfigurator.forbidContract(DUMB_COMPARTIBLE_CONTRACT);
 
         //
-
         allowedContracts = creditConfigurator.allowedContracts();
 
         assertEq(
