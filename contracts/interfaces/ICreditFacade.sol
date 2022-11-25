@@ -181,8 +181,8 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     /// @dev Thrown when attempting to perform an action on behalf of a borrower that is blacklisted in the underlying token
     error NotAllowedForBlacklistedAddressException();
 
-    /// @dev Thrown if maintainerMulticall is called by an address that is not a maintainer for a specified borrower
-    error NotApprovedMaintainerException();
+    /// @dev Thrown if botMulticall is called by an address that is not a bot for a specified borrower
+    error NotApprovedBotException();
 }
 
 interface ICreditFacade is
@@ -333,13 +333,13 @@ interface ICreditFacade is
     /// @param calls The array of MultiCall structs encoding the operations to execute.
     function multicall(MultiCall[] calldata calls) external payable;
 
-    /// @dev Executes a batch of transactions within a Multicall from maintainer on behalf of a borrower
+    /// @dev Executes a batch of transactions within a Multicall from bot on behalf of a borrower
     ///  - Wraps ETH and sends it back to msg.sender, if value > 0
     ///  - Executes the Multicall
     ///  - Performs a fullCollateralCheck to verify that hf > 1 after all actions
     /// @param borrower Borrower the perform the multicall for
     /// @param calls The array of MultiCall structs encoding the operations to execute.
-    function maintainerMulticall(address borrower, MultiCall[] calldata calls)
+    function botMulticall(address borrower, MultiCall[] calldata calls)
         external
         payable;
 

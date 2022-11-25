@@ -536,6 +536,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
         bool expirable = creditFacade().expirable();
 
+        address botList = creditFacade().botList();
+
         // Sets Credit Facade to the new address
         creditManager.upgradeCreditFacade(_creditFacade); // F:[CC-30]
 
@@ -556,6 +558,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
             // Copies the expiration date if the contract is expirable
             if (expirable) _setExpirationDate(expirationDate); // F: [CC-30]
+
+            if (botList != address(0)) _setBotList(botList);
         }
 
         emit CreditFacadeUpgraded(_creditFacade); // F:[CC-30]
@@ -746,6 +750,23 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (maxEnabledTokens != maxEnabledTokensCurrent) {
             creditManager.setMaxEnabledTokens(maxEnabledTokens); // F: [CC-37]
             emit MaxEnabledTokensUpdated(maxEnabledTokens); // F: [CC-37]
+        }
+    }
+
+    function setBotList(address botList) external configuratorOnly {
+        _setBotList(botList);
+    }
+
+    function _setBotList(address botList) internal {
+        address currentBotList = creditFacade().botList();
+
+        if (botList == address(0)) {
+            revert ZeroAddressException();
+        }
+
+        if (botList != currentBotList) {
+            creditFacade().setBotList(botList);
+            emit BotListUpdated(botList);
         }
     }
 

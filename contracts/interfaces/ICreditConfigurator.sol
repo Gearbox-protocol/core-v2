@@ -94,6 +94,9 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when an address is removed from the list of emergency liquidators
     event EmergencyLiquidatorRemoved(address);
+
+    /// @dev Emits when the bot list is updated in Credit Facade
+    event BotListUpdated(address);
 }
 
 /// @dev CreditConfigurator Exceptions

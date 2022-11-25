@@ -11,6 +11,7 @@ import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICred
 import { ICreditConfiguratorEvents } from "../../interfaces/ICreditConfigurator.sol";
 import { IAdapter } from "../../interfaces/adapters/IAdapter.sol";
 import { UniversalAdapter } from "../../adapters/UniversalAdapter.sol";
+import { BotList } from "../../support/BotList.sol";
 
 //
 import { PercentageMath, PERCENTAGE_FACTOR, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
@@ -475,6 +476,9 @@ contract CreditConfiguratorTest is
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.setLimitPerBlock(0);
+
+        evm.expectRevert(CallerNotConfiguratorException.selector);
+        creditConfigurator.setBotList(FRIEND);
 
         evm.stopPrank();
     }
@@ -1342,6 +1346,45 @@ contract CreditConfiguratorTest is
                     );
                 }
             }
+        }
+    }
+
+    /// @dev [CC-30A]: uupgradeCreditFacade transfers bot list
+    function test_CC_30A_botList_is_transferred_on_CreditFacade_upgrade()
+        public
+    {
+        for (uint256 ms = 0; ms < 2; ms++) {
+            bool migrateSettings = ms != 0;
+
+            setUp();
+
+            address botList = address(
+                new BotList(address(cct.addressProvider()))
+            );
+
+            evm.prank(CONFIGURATOR);
+            creditConfigurator.setBotList(botList);
+
+            CreditFacade cf = new CreditFacade(
+                address(creditManager),
+                address(0),
+                address(0),
+                false
+            );
+
+            evm.prank(CONFIGURATOR);
+            creditConfigurator.upgradeCreditFacade(
+                address(cf),
+                migrateSettings
+            );
+
+            address botList2 = cf.botList();
+
+            assertEq(
+                botList2,
+                migrateSettings ? botList : address(0),
+                "Bot list was not transferred"
+            );
         }
     }
 

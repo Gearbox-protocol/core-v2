@@ -12,6 +12,8 @@ import { CreditManager } from "../../credit/CreditManager.sol";
 import { CreditAccount } from "../../credit/CreditAccount.sol";
 import { AccountFactory } from "../../core/AccountFactory.sol";
 
+import { BotList } from "../../support/BotList.sol";
+
 import { ICreditFacade, ICreditFacadeExtended } from "../../interfaces/ICreditFacade.sol";
 import { ICreditManagerV2, ICreditManagerV2Events, ClosureAction } from "../../interfaces/ICreditManagerV2.sol";
 import { ICreditFacadeEvents, ICreditFacadeExceptions } from "../../interfaces/ICreditFacade.sol";
@@ -2255,6 +2257,10 @@ contract CreditFacadeTest is
         evm.expectRevert(CreditConfiguratorOnlyException.selector);
         evm.prank(USER);
         creditFacade.setLimitPerBlock(100);
+
+        evm.expectRevert(CreditConfiguratorOnlyException.selector);
+        evm.prank(USER);
+        creditFacade.setBotList(FRIEND);
     }
 
     /// CHECK SLIPPAGE PROTECTION
@@ -2733,7 +2739,7 @@ contract CreditFacadeTest is
 
         address blacklistHelper = creditFacade.blacklistHelper();
 
-        (address creditAccount, ) = _openTestCreditAccount();
+        _openTestCreditAccount();
 
         uint256 expectedAmount = (2 *
             USDC_ACCOUNT_AMOUNT *
@@ -2834,12 +2840,19 @@ contract CreditFacadeTest is
         );
     }
 
-    /// @dev [FA-58]: maintainerMulticall works correctly
-    function test_FA_58_maintainerMulticall_works_correctly() public {
+    /// @dev [FA-58]: botll works correctly
+    function test_FA_58_botMulticall_works_correctly() public {
         (address creditAccount, ) = _openTestCreditAccount();
 
+        BotList botList = new BotList(address(cft.addressProvider()));
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setBotList(address(botList));
+
+        address bot = address(new TargetContractMock());
+
         evm.prank(USER);
-        creditFacade.setMaintainerStatus(FRIEND, true);
+        botList.setBotStatus(bot, true);
 
         bytes memory DUMB_CALLDATA = _prepareMockCall();
 
@@ -2899,8 +2912,8 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.prank(FRIEND);
-        creditFacade.maintainerMulticall(
+        evm.prank(bot);
+        creditFacade.botMulticall(
             USER,
             multicallBuilder(
                 MultiCall({
@@ -2910,8 +2923,23 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.expectRevert(NotApprovedMaintainerException.selector);
-        creditFacade.maintainerMulticall(
+        evm.expectRevert(NotApprovedBotException.selector);
+        creditFacade.botMulticall(
+            USER,
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: DUMB_CALLDATA
+                })
+            )
+        );
+
+        evm.prank(CONFIGURATOR);
+        botList.setBotForbiddenStatus(bot, true);
+
+        evm.expectRevert(NotApprovedBotException.selector);
+        evm.prank(bot);
+        creditFacade.botMulticall(
             USER,
             multicallBuilder(
                 MultiCall({

@@ -19,6 +19,7 @@ import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
 import { IWETH } from "../interfaces/external/IWETH.sol";
 import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
+import { IBotList } from "../interfaces/IBotList.sol";
 
 // CONSTANTS
 
@@ -81,11 +82,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         public
         override transfersAllowed;
 
-    /// @dev A map from maintainers to borrowers they maintain
-    mapping(address => address) public maintainerToBorrower;
-
-    /// @dev A map from (borrower, maintainer) to maintainer status
-    mapping(address => mapping(address => bool)) approvedMaintainer;
+    /// @dev Contract containing the list of approval statuses for borrowers / bots
+    address public botList;
 
     /// @dev Address of WETH
     address public immutable wethAddress;
@@ -674,21 +672,24 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
     }
 
-    /// @dev Executes a batch of transactions within a Multicall from maintainer on behalf of a borrower
+    /// @dev Executes a batch of transactions within a Multicall from bot on behalf of a borrower
     ///  - Wraps ETH and sends it back to msg.sender, if value > 0
     ///  - Executes the Multicall
     ///  - Performs a fullCollateralCheck to verify that hf > 1 after all actions
     /// @param borrower Borrower to perform the multicall for
     /// @param calls The array of MultiCall structs encoding the operations to execute.
-    function maintainerMulticall(address borrower, MultiCall[] calldata calls)
+    function botMulticall(address borrower, MultiCall[] calldata calls)
         external
         payable
         override
         nonReentrant
     {
-        // Checks that the maintainer is approved by the borrower
-        if (!approvedMaintainer[borrower][msg.sender]) {
-            revert NotApprovedMaintainerException();
+        // Checks that the bot is approved by the borrower and is not forbidden
+        if (
+            !IBotList(botList).approvedBot(borrower, msg.sender) ||
+            IBotList(botList).forbiddenBot(msg.sender)
+        ) {
+            revert NotApprovedBotException(); // F: [FA-58]
         }
 
         // Checks that msg.sender has an account
@@ -696,16 +697,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             borrower
         );
 
-        // Wraps ETH and sends it back to msg.sender
-        _wrapETH(); // F:[FA-3F]
-
         if (calls.length != 0) {
-            _multicall(calls, borrower, creditAccount, false, false);
+            _multicall(calls, borrower, creditAccount, false, false); // F: [FA-58]
 
             // Performs a fullCollateralCheck
             // During a multicall, all intermediary health checks are skipped,
             // as one fullCollateralCheck at the end is sufficient
-            creditManager.fullCollateralCheck(creditAccount);
+            creditManager.fullCollateralCheck(creditAccount); // F: [FA-58]
         }
     }
 
@@ -1204,17 +1202,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         } // F: [FA-54]
     }
 
-    //
-    // MAINTAINERS
-    //
-
-    /// @dev Adds or removes allowance for a maintainer to execute multicall on behalf of sender
-    /// @param maintainer Maintainer address
-    /// @param status Whether allowance is added or removed
-    function setMaintainerStatus(address maintainer, bool status) external {
-        approvedMaintainer[msg.sender][maintainer] = status;
-    }
-
     // GETTERS
     //
 
@@ -1430,6 +1417,14 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ) external creditConfiguratorOnly {
         limits.minBorrowedAmount = _minBorrowedAmount; // F:
         limits.maxBorrowedAmount = _maxBorrowedAmount; // F:
+    }
+
+    /// @dev Sets the bot list for this Credit Facade
+    ///      The bot list is used to determine whether an address has a right to
+    ///      run multicalls for a borrower as a bot. The relationship is stored in a separate
+    ///      contract for easier transferability
+    function setBotList(address _botList) external creditConfiguratorOnly {
+        botList = _botList;
     }
 
     //
