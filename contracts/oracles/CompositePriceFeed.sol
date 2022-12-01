@@ -75,7 +75,7 @@ contract CompositePriceFeed is
         revert NotImplementedException();
     }
 
-    /// @dev Returns the composite USD-denominated price of the asset, computed as (Target / ETH rate * ETH / USD rate)
+    /// @dev Returns the composite USD-denominated price of the asset, computed as (Target / base rate * base / USD rate)
     function latestRoundData()
         external
         view
