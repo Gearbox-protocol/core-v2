@@ -11,23 +11,24 @@ import { PriceFeedType, IPriceFeedType } from "../interfaces/IPriceFeedType.sol"
 // EXCEPTIONS
 import { NotImplementedException } from "../interfaces/IErrors.sol";
 
-/// @title Price feed that composes an ETH price feed with a USD one
-/// @notice Used to avoid price feed discrepancies for ETH-correlated assets, such as stETH
-contract CompositeETHPriceFeed is
+/// @title Price feed that composes an base asset-denominated price feed with a USD one
+/// @notice Used for better price tracking for correlated assets (such as stETH or WBTC) or on networks where
+///         only feeds for the native tokens exist
+contract CompositePriceFeed is
     PriceFeedChecker,
     AggregatorV3Interface,
     IPriceFeedType
 {
-    /// @dev Chainlink ETH price feed for the target asset
-    AggregatorV3Interface public immutable targetEthPriceFeed;
+    /// @dev Chainlink base asset price feed for the target asset
+    AggregatorV3Interface public immutable targetToBasePriceFeed;
 
-    /// @dev Chainlink ETH/USD price feed
-    AggregatorV3Interface public immutable ethUsdPriceFeed;
+    /// @dev Chainlink Base asset / USD price feed
+    AggregatorV3Interface public immutable baseToUsdPriceFeed;
 
     /// @dev Decimals of the returned result.
     uint8 public immutable override decimals;
 
-    /// @dev 10 ^ Decimals of Target / ETH price feed, to divide the product of answers
+    /// @dev 10 ^ Decimals of Target / Base price feed, to divide the product of answers
     int256 public immutable answerDenominator;
 
     /// @dev Price feed description
@@ -41,19 +42,19 @@ contract CompositeETHPriceFeed is
     bool public constant override skipPriceCheck = true;
 
     /// @dev Constructor
-    /// @param _targetEthPriceFeed ETH price feed for target asset
-    /// @param _ethUsdPriceFeed USD price feed for ETH
-    constructor(address _targetEthPriceFeed, address _ethUsdPriceFeed) {
-        targetEthPriceFeed = AggregatorV3Interface(_targetEthPriceFeed);
-        ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+    /// @param _targetToBasePriceFeed Base asset price feed for target asset
+    /// @param _baseToUsdPriceFeed USD price feed for base asset
+    constructor(address _targetToBasePriceFeed, address _baseToUsdPriceFeed) {
+        targetToBasePriceFeed = AggregatorV3Interface(_targetToBasePriceFeed);
+        baseToUsdPriceFeed = AggregatorV3Interface(_baseToUsdPriceFeed);
         description = string(
             abi.encodePacked(
-                targetEthPriceFeed.description(),
-                " ETH/USD Composite"
+                targetToBasePriceFeed.description(),
+                " to USD Composite"
             )
         );
-        decimals = ethUsdPriceFeed.decimals();
-        answerDenominator = int256(10**targetEthPriceFeed.decimals());
+        decimals = baseToUsdPriceFeed.decimals();
+        answerDenominator = int256(10**targetToBasePriceFeed.decimals());
     }
 
     /// @dev Implemented for compatibility, but reverts since Gearbox's price feeds
@@ -71,7 +72,7 @@ contract CompositeETHPriceFeed is
             uint80 // answeredInRound
         )
     {
-        revert NotImplementedException(); // F:[LPF-2]
+        revert NotImplementedException();
     }
 
     /// @dev Returns the composite USD-denominated price of the asset, computed as (Target / ETH rate * ETH / USD rate)
@@ -93,7 +94,7 @@ contract CompositeETHPriceFeed is
             uint256 startedAt0,
             uint256 updatedAt0,
             uint80 answeredInRound0
-        ) = targetEthPriceFeed.latestRoundData();
+        ) = targetToBasePriceFeed.latestRoundData();
 
         _checkAnswer(roundId0, answer0, updatedAt0, answeredInRound0);
 
@@ -103,7 +104,7 @@ contract CompositeETHPriceFeed is
             startedAt,
             updatedAt,
             answeredInRound
-        ) = ethUsdPriceFeed.latestRoundData();
+        ) = baseToUsdPriceFeed.latestRoundData();
 
         _checkAnswer(roundId, answer, updatedAt, answeredInRound);
 
