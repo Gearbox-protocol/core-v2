@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { CompositeETHPriceFeed } from "../../oracles/CompositeETHPriceFeed.sol";
+import { CompositePriceFeed } from "../../oracles/CompositePriceFeed.sol";
 import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
 import { IPriceOracleV2Exceptions } from "../../interfaces/IPriceOracle.sol";
 
@@ -17,21 +17,21 @@ import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
 // EXCEPTIONS
 import { NotImplementedException, CallerNotConfiguratorException } from "../../interfaces/IErrors.sol";
 
-/// @title CompositeETHPriceFeedTest
+/// @title CompositePriceFeedTest
 /// @notice Designed for unit test purposes only
-contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
+contract CompositePriceFeedTest is DSTest, IPriceOracleV2Exceptions {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     PriceFeedMock public targetPf;
-    PriceFeedMock public ethUsdPf;
-    CompositeETHPriceFeed public pf;
+    PriceFeedMock public baseUsdPf;
+    CompositePriceFeed public pf;
 
     TokensTestSuite tokenTestSuite;
 
     function setUp() public {
         targetPf = new PriceFeedMock(99 * 10**16, 18);
-        ethUsdPf = new PriceFeedMock(1000 * 10**8, 8);
-        pf = new CompositeETHPriceFeed(address(targetPf), address(ethUsdPf));
+        baseUsdPf = new PriceFeedMock(1000 * 10**8, 8);
+        pf = new CompositePriceFeed(address(targetPf), address(baseUsdPf));
     }
 
     ///
@@ -40,11 +40,11 @@ contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
     ///
     ///
 
-    /// @dev [CEPF-1]: constructor sets correct values
-    function test_CEPF_01_constructor_sets_correct_values() public {
+    /// @dev [CPF-1]: constructor sets correct values
+    function test_CPF_01_constructor_sets_correct_values() public {
         assertEq(
             pf.description(),
-            "price oracle ETH/USD Composite",
+            "price oracle to USD Composite",
             "Incorrect description"
         );
 
@@ -59,15 +59,15 @@ contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
         assertTrue(pf.skipPriceCheck(), "Incorrect skipPriceCheck");
     }
 
-    /// @dev [CEPF-2]: getRoundData reverts
-    function test_CEPF_02_getRoundData_reverts() public {
+    /// @dev [CPF-2]: getRoundData reverts
+    function test_CPF_02_getRoundData_reverts() public {
         evm.expectRevert(NotImplementedException.selector);
 
         pf.getRoundData(1);
     }
 
-    /// @dev [CEPF-3]: latestRoundData works correctly
-    function test_CEPF_03_latestRoundData_works_correctly(
+    /// @dev [CPF-3]: latestRoundData works correctly
+    function test_CPF_03_latestRoundData_works_correctly(
         int256 answer1,
         int256 answer2
     ) public {
@@ -77,7 +77,7 @@ contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
         evm.assume(answer2 < int256(RAY));
 
         targetPf.setPrice(answer1);
-        ethUsdPf.setPrice(answer2);
+        baseUsdPf.setPrice(answer2);
 
         (
             uint80 roundId,
@@ -88,24 +88,24 @@ contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
         ) = pf.latestRoundData();
         (, int256 answerTarget, , , ) = targetPf.latestRoundData();
         (
-            uint80 roundIdEth,
-            int256 answerEth,
-            uint256 startedAtEth,
-            uint256 updatedAtEth,
-            uint80 answeredInRoundEth
-        ) = ethUsdPf.latestRoundData();
+            uint80 roundIdBase,
+            int256 answerBase,
+            uint256 startedAtBase,
+            uint256 updatedAtBase,
+            uint80 answeredInRoundBase
+        ) = baseUsdPf.latestRoundData();
 
-        assertEq(roundId, roundIdEth, "Incorrect round Id #1");
+        assertEq(roundId, roundIdBase, "Incorrect round Id #1");
         assertEq(
             answer,
-            (answerTarget * answerEth) / int256(10**targetPf.decimals()),
+            (answerTarget * answerBase) / int256(10**targetPf.decimals()),
             "Incorrect answer #1"
         );
-        assertEq(startedAt, startedAtEth, "Incorrect startedAt #1");
-        assertEq(updatedAt, updatedAtEth, "Incorrect updatedAt #1");
+        assertEq(startedAt, startedAtBase, "Incorrect startedAt #1");
+        assertEq(updatedAt, updatedAtBase, "Incorrect updatedAt #1");
         assertEq(
             answeredInRound,
-            answeredInRoundEth,
+            answeredInRoundBase,
             "Incorrect answeredInRound #1"
         );
     }
@@ -141,22 +141,22 @@ contract CompositeETHPriceFeedTest is DSTest, IPriceOracleV2Exceptions {
 
         targetPf.setPrice(99 * 10**16);
 
-        (roundId, answer, startedAt, updatedAt, answeredInRound) = ethUsdPf
+        (roundId, answer, startedAt, updatedAt, answeredInRound) = baseUsdPf
             .latestRoundData();
 
-        ethUsdPf.setParams(roundId, startedAt, 0, answeredInRound);
+        baseUsdPf.setParams(roundId, startedAt, 0, answeredInRound);
 
         evm.expectRevert(ChainPriceStaleException.selector);
         pf.latestRoundData();
 
-        ethUsdPf.setParams(roundId, startedAt, updatedAt, roundId - 1);
+        baseUsdPf.setParams(roundId, startedAt, updatedAt, roundId - 1);
 
         evm.expectRevert(ChainPriceStaleException.selector);
         pf.latestRoundData();
 
-        ethUsdPf.setParams(roundId, startedAt, updatedAt, answeredInRound);
+        baseUsdPf.setParams(roundId, startedAt, updatedAt, answeredInRound);
 
-        ethUsdPf.setPrice(0);
+        baseUsdPf.setPrice(0);
 
         evm.expectRevert(ZeroPriceException.selector);
         pf.latestRoundData();
