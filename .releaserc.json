@@ -2,11 +2,6 @@
   "branches": [
     {
       "name": "main"
-    },
-    {
-      "name": "v2.1",
-      "channel": "next",
-      "prerelease": "next"
     }
   ],
   "plugins": [
