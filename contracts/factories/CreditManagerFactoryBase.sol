@@ -38,6 +38,7 @@ contract CreditManagerFactoryBase is ContractUpgrader {
         creditFacade = new CreditFacade(
             address(creditManager),
             opts.degenNFT,
+            opts.blacklistHelper,
             opts.expirable
         );
 

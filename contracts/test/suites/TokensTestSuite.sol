@@ -6,6 +6,7 @@ pragma solidity ^0.8.10;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { WETHMock } from "../mocks/token/WETHMock.sol";
+import { ERC20BlacklistableMock } from "../mocks/token/ERC20Blacklistable.sol";
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
@@ -50,6 +51,12 @@ contract TokensTestSuite is DSTest, TokensData, TokensTestSuiteHelper {
         if (token.index == Tokens.WETH) {
             t = new WETHMock();
             wethToken = address(t);
+        } else if (token.index == Tokens.USDC) {
+            t = new ERC20BlacklistableMock(
+                token.symbol,
+                token.symbol,
+                token.decimals
+            );
         } else {
             t = new ERC20Mock(token.symbol, token.symbol, token.decimals);
         }
