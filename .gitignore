@@ -21,3 +21,4 @@ forge-out/
 *.log
 .eslintcache
 .eslint.local.json
+.certora_internal
