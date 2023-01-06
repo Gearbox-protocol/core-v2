@@ -24,7 +24,7 @@ import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 
 // EXCEPTIONS
-import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../interfaces/IErrors.sol";
+import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../interfaces/IErrors.sol";
 import { ICreditManagerV2, ICreditManagerV2Exceptions } from "../interfaces/ICreditManagerV2.sol";
 
 /// @title CreditConfigurator
@@ -594,6 +594,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
         bool expirable = creditFacade().expirable();
 
+        address botList = creditFacade().botList();
+
         // Sets Credit Facade to the new address
         creditManager.upgradeCreditFacade(_creditFacade); // F:[CC-30]
 
@@ -614,6 +616,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
             // Copies the expiration date if the contract is expirable
             if (expirable) _setExpirationDate(expirationDate); // F: [CC-30]
+
+            if (botList != address(0)) _setBotList(botList);
         }
 
         emit CreditFacadeUpgraded(_creditFacade); // F:[CC-30]
@@ -660,10 +664,12 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @dev Enables or disables borrowing
     /// In Credit Facade (and, consequently, the Credit Manager)
     /// @param _mode Prohibits borrowing if true, and allows borrowing otherwise
-    function setIncreaseDebtForbidden(bool _mode)
-        external
-        configuratorOnly // F:[CC-2]
-    {
+    function setIncreaseDebtForbidden(bool _mode) external {
+        if (_mode && !_acl.isPausableAdmin(msg.sender))
+            revert CallerNotPausableAdminException();
+        else if (!_mode && !_acl.isUnpausableAdmin(msg.sender))
+            revert CallerNotUnPausableAdminException();
+
         _setIncreaseDebtForbidden(_mode);
     }
 
@@ -802,6 +808,23 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (maxEnabledTokens != maxEnabledTokensCurrent) {
             creditManager.setMaxEnabledTokens(maxEnabledTokens); // F: [CC-37]
             emit MaxEnabledTokensUpdated(maxEnabledTokens); // F: [CC-37]
+        }
+    }
+
+    function setBotList(address botList) external configuratorOnly {
+        _setBotList(botList);
+    }
+
+    function _setBotList(address botList) internal {
+        address currentBotList = creditFacade().botList();
+
+        if (botList == address(0)) {
+            revert ZeroAddressException();
+        }
+
+        if (botList != currentBotList) {
+            creditFacade().setBotList(botList);
+            emit BotListUpdated(botList);
         }
     }
 

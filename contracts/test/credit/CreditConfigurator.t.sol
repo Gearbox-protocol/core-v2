@@ -9,6 +9,9 @@ import { CreditManager } from "../../credit/CreditManager.sol";
 import { CreditConfigurator, CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
 import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICreditManagerV2.sol";
 import { ICreditConfiguratorEvents } from "../../interfaces/ICreditConfigurator.sol";
+import { IAdapter } from "../../interfaces/adapters/IAdapter.sol";
+import { UniversalAdapter } from "../../adapters/UniversalAdapter.sol";
+import { BotList } from "../../support/BotList.sol";
 
 //
 import { PercentageMath, PERCENTAGE_FACTOR, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
@@ -17,7 +20,7 @@ import { AddressList } from "../../libraries/AddressList.sol";
 
 // EXCEPTIONS
 import { ICreditConfiguratorExceptions } from "../../interfaces/ICreditConfigurator.sol";
-import { ZeroAddressException, AddressIsNotContractException, CallerNotConfiguratorException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../../interfaces/IErrors.sol";
+import { ZeroAddressException, AddressIsNotContractException, CallerNotConfiguratorException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../../interfaces/IErrors.sol";
 import { ICreditManagerV2Exceptions } from "../../interfaces/ICreditManagerV2.sol";
 
 // TEST
@@ -364,6 +367,7 @@ contract CreditConfiguratorTest is
             maxBorrowedAmount: uint128(150000 * WAD),
             collateralTokens: cTokens,
             degenNFT: address(0),
+            blacklistHelper: address(0),
             expirable: false,
             skipInit: false
         });
@@ -372,6 +376,7 @@ contract CreditConfiguratorTest is
         creditFacade = new CreditFacade(
             address(creditManager),
             creditOpts.degenNFT,
+            creditOpts.blacklistHelper,
             creditOpts.expirable
         );
 
@@ -471,12 +476,28 @@ contract CreditConfiguratorTest is
         creditConfigurator.upgradeCreditConfigurator(DUMB_ADDRESS);
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.setIncreaseDebtForbidden(false);
-
-        evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.setLimitPerBlock(0);
 
+        evm.expectRevert(CallerNotConfiguratorException.selector);
+        creditConfigurator.setBotList(FRIEND);
+
         evm.stopPrank();
+    }
+
+    function test_CC_02A_setIncreaseDebtForbidden_reverts_on_non_pausable_unpausable_admin()
+        public
+    {
+        evm.expectRevert(CallerNotPausableAdminException.selector);
+        creditConfigurator.setIncreaseDebtForbidden(true);
+
+        evm.expectRevert(CallerNotUnPausableAdminException.selector);
+        creditConfigurator.setIncreaseDebtForbidden(false);
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setIncreaseDebtForbidden(true);
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setIncreaseDebtForbidden(false);
     }
 
     //
@@ -1228,6 +1249,7 @@ contract CreditConfiguratorTest is
                         CreditFacade initialCf = new CreditFacade(
                             address(creditManager),
                             address(0),
+                            address(0),
                             true
                         );
 
@@ -1247,6 +1269,7 @@ contract CreditConfiguratorTest is
 
                     CreditFacade cf = new CreditFacade(
                         address(creditManager),
+                        address(0),
                         address(0),
                         isExpirable
                     );
@@ -1356,6 +1379,45 @@ contract CreditConfiguratorTest is
                     );
                 }
             }
+        }
+    }
+
+    /// @dev [CC-30A]: uupgradeCreditFacade transfers bot list
+    function test_CC_30A_botList_is_transferred_on_CreditFacade_upgrade()
+        public
+    {
+        for (uint256 ms = 0; ms < 2; ms++) {
+            bool migrateSettings = ms != 0;
+
+            setUp();
+
+            address botList = address(
+                new BotList(address(cct.addressProvider()))
+            );
+
+            evm.prank(CONFIGURATOR);
+            creditConfigurator.setBotList(botList);
+
+            CreditFacade cf = new CreditFacade(
+                address(creditManager),
+                address(0),
+                address(0),
+                false
+            );
+
+            evm.prank(CONFIGURATOR);
+            creditConfigurator.upgradeCreditFacade(
+                address(cf),
+                migrateSettings
+            );
+
+            address botList2 = cf.botList();
+
+            assertEq(
+                botList2,
+                migrateSettings ? botList : address(0),
+                "Bot list was not transferred"
+            );
         }
     }
 

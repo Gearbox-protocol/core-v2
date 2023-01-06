@@ -156,6 +156,7 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
         CreditFacade fakeCF = new CreditFacade(
             address(fakeCM),
             DUMB_ADDRESS,
+            address(0),
             false
         );
 
@@ -163,7 +164,12 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
         evm.prank(CONFIGURATOR);
         degenNFT.addCreditFacade(address(fakeCF));
 
-        fakeCF = new CreditFacade(address(creditManager), DUMB_ADDRESS, false);
+        fakeCF = new CreditFacade(
+            address(creditManager),
+            DUMB_ADDRESS,
+            address(0),
+            false
+        );
 
         evm.expectRevert(InvalidCreditFacadeException.selector);
         evm.prank(CONFIGURATOR);
@@ -172,6 +178,7 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
         fakeCF = new CreditFacade(
             address(creditManager),
             address(degenNFT),
+            address(0),
             false
         );
 
