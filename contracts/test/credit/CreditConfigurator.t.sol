@@ -1667,6 +1667,7 @@ contract CreditConfiguratorTest is
             maxBorrowedAmount: uint128(150000 * WAD),
             collateralTokens: cTokens,
             degenNFT: address(0),
+            blacklistHelper: address(0),
             expirable: false,
             skipInit: true
         });
