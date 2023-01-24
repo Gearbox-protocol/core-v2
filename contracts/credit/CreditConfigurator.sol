@@ -213,8 +213,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (token == underlying) revert SetLTForUnderlyingException(); // F:[CC-5]
 
         (, uint16 ltUnderlying) = creditManager.collateralTokens(0);
-        // Sanity checks for the liquidation threshold. It should be > 0 and less than the LT of the underlying
-        if (liquidationThreshold == 0 || liquidationThreshold > ltUnderlying)
+        // Sanity check for the liquidation threshold. The LT should be less than underlying
+        if (liquidationThreshold > ltUnderlying)
             revert IncorrectLiquidationThresholdException(); // F:[CC-5]
 
         uint16 currentLT = creditManager.liquidationThresholds(token);

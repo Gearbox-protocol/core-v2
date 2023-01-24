@@ -581,9 +581,6 @@ contract CreditConfiguratorTest is
 
         address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
 
-        evm.expectRevert(IncorrectLiquidationThresholdException.selector);
-        creditConfigurator.setLiquidationThreshold(usdcToken, 0);
-
         uint16 maxAllowedLT = creditManager.liquidationThresholds(underlying);
         evm.expectRevert(IncorrectLiquidationThresholdException.selector);
         creditConfigurator.setLiquidationThreshold(usdcToken, maxAllowedLT + 1);
