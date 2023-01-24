@@ -62,7 +62,8 @@ contract CreditConfig is DSTest, ICreditConfig {
                 collateralTokens: getCollateralTokens(),
                 degenNFT: address(0),
                 blacklistHelper: address(0),
-                expirable: false
+                expirable: false,
+                skipInit: false
             });
     }
 
