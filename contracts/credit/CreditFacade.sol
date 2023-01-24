@@ -465,9 +465,25 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             _checkIfEmergencyLiquidator(false);
         }
 
+        bool blacklisted;
+
+        // If the borrower is blacklisted, transfer the account to a special recovery contract,
+        // so that the attempt to transfer remaining funds to a blacklisted borrower does not
+        // break the liquidation. The borrower can retrieve the funds from the recovery contract afterwards.
+        if (
+            isBlacklistableUnderlying &&
+            IBlacklistHelper(blacklistHelper).isBlacklisted(
+                underlying,
+                borrower
+            )
+        ) {
+            creditManager.transferAccountOwnership(borrower, blacklistHelper);
+            blacklisted = true;
+        }
+
         // Liquidates the CA and sends the remaining funds to the borrower
         uint256 remainingFunds = creditManager.closeCreditAccount(
-            borrower,
+            blacklisted ? blacklistHelper : borrower,
             ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT,
             totalValue,
             msg.sender,
@@ -475,6 +491,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             skipTokenMask,
             convertWETH
         ); // F:[FA-49]
+
+        /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
+        /// borrower can recover funds to a different address
+        if (blacklisted && remainingFunds > 1) {
+            IBlacklistHelper(blacklistHelper).addClaimable(
+                underlying,
+                borrower,
+                remainingFunds
+            );
+        }
 
         // Emits event
         emit LiquidateExpiredCreditAccount(
