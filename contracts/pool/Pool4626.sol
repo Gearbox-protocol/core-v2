@@ -8,15 +8,17 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
 import { IWETH } from "../interfaces/external/IWETH.sol";
+import { IERC4626 } from "../interfaces/IERC4626.sol";
 
 import { AddressProvider } from "../core/AddressProvider.sol";
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ContractsRegister } from "../core/ContractsRegister.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 import { IInterestRateModel } from "../interfaces/IInterestRateModel.sol";
-import { IPool4626 } from "../interfaces/IPool4626.sol";
+import { IPool4626, Pool4626Opts } from "../interfaces/IPool4626.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
 
 import { RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE } from "../libraries/Constants.sol";
@@ -26,18 +28,32 @@ import { FixedPointMathLib } from "../libraries/SolmateMath.sol";
 // EXCEPTIONS
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
+import "hardhat/console.sol";
+
 struct CreditManagerDebt {
     uint128 totalBorrowed;
     uint128 limit;
 }
 
-/// @title Pool contract compatible with ERC4626
+/// @title Core pool contract compatible with ERC4626
 /// @notice Implements pool & diesel token business logic
-contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
+contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     using FixedPointMathLib for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
     using Address for address payable;
+
+    /// @dev Address provider
+    address public immutable override addressProvider;
+
+    /// @dev Address of the protocol treasury
+    address public immutable treasuryAddress;
+
+    /// @dev Asset is fee token
+    bool public immutable isFeeToken;
+
+    /// @dev Asset is fee token
+    address public immutable wethAddress;
 
     /// @dev The pool's underlying asset
     address public immutable override underlyingToken;
@@ -45,20 +61,45 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
     /// @dev Diesel token Decimals
     uint8 internal immutable _decimals;
 
-    /// @dev The limit on expected (total) liquidity
-    uint256 public override expectedLiquidityLimit;
+    /// @dev Contract version
+    uint256 public constant override version = 2_01;
+
+    // [SLOT #1]
 
     /// @dev Expected liquidity at last update (LU)
     uint128 internal _expectedLiquidityLU;
 
+    /// @dev The current borrow rate
+    uint128 internal _borrowAPY_RAY;
+
+    // [SLOT #2]
+
     /// @dev Total borrowed amount
     uint128 internal _totalBorrowed;
 
-    /// @dev Address provider
-    address public immutable override addressProvider;
+    /// @dev The cumulative interest index at last update
+    uint128 internal _cumulativeIndex_RAY;
+
+    // [SLOT #3]
+
+    /// @dev Timestamp of last update
+    uint64 public override timestampLU;
 
     /// @dev Interest rate model
     IInterestRateModel public interestRateModel;
+
+    /// @dev Withdrawal fee in PERCENTAGE FORMAT
+    uint16 public override withdrawFee;
+
+    /// LIMITS
+
+    // [SLOT #4]
+
+    /// @dev Total borrowed amount
+    uint128 internal _totalBorrowedLimit;
+
+    /// @dev The limit on expected (total) liquidity
+    uint128 internal _expectedLiquidityLimit;
 
     /// @dev Map from Credit Manager addresses to the status of their ability to borrow
     mapping(address => CreditManagerDebt) internal creditManagersDebt;
@@ -66,87 +107,55 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
     /// @dev The list of all Credit Managers
     EnumerableSet.AddressSet internal creditManagerSet;
 
-    /// @dev Address of the protocol treasury
-    address public immutable treasuryAddress;
-
-    /// @dev The cumulative interest index at last update
-    uint256 public override _cumulativeIndex_RAY;
-
-    /// @dev The current borrow rate
-    uint128 internal _borrowAPY_RAY;
-
-    /// @dev Timestamp of last update
-    uint64 public override _timestampLU;
-
-    /// @dev Withdrawal fee in PERCENTAGE FORMAT
-    uint16 public override withdrawFee;
-
-    /// @dev Contract version
-    uint256 public constant override version = 2_01;
-
-    /// @dev Asset is fee token
-    bool internal immutable isFeeToken;
-
-    /// @dev Asset is fee token
-    address internal immutable wethAddress;
-
     //
     // CONSTRUCTOR
     //
 
     /// @dev Constructor
-    /// @param _addressProvider Address provider
-    /// @param _underlyingToken Address of the underlying token
-    /// @param _interestRateModelAddress Address of the initial interest rate model
-    constructor(
-        address _addressProvider,
-        address _underlyingToken,
-        address _interestRateModelAddress,
-        uint256 _expectedLiquidityLimit,
-        bool _isFeeToken
-    )
-        ACLTrait(_addressProvider)
+    /// @param opts Core pool options
+    constructor(Pool4626Opts memory opts)
+        ACLNonReentrantTrait(opts.addressProvider)
         ERC20(
             string(
                 abi.encodePacked(
                     "diesel ",
-                    _underlyingToken != address(0)
-                        ? IERC20Metadata(_underlyingToken).name()
+                    opts.underlyingToken != address(0)
+                        ? IERC20Metadata(opts.underlyingToken).name()
                         : ""
                 )
             ),
             string(
                 abi.encodePacked(
                     "d",
-                    _underlyingToken != address(0)
-                        ? IERC20Metadata(_underlyingToken).symbol()
+                    opts.underlyingToken != address(0)
+                        ? IERC20Metadata(opts.underlyingToken).symbol()
                         : ""
                 )
             )
-        )
+        ) // F:[P4-01]
     {
         // Additional check that receiver is not address(0)
         if (
-            _addressProvider == address(0) ||
-            _underlyingToken == address(0) ||
-            _interestRateModelAddress == address(0)
+            opts.addressProvider == address(0) ||
+            opts.underlyingToken == address(0)
         ) {
             revert ZeroAddressException();
         }
 
-        addressProvider = _addressProvider;
-        underlyingToken = _underlyingToken;
-        _decimals = IERC20Metadata(_underlyingToken).decimals();
+        addressProvider = opts.addressProvider; // F:[P4-01]
+        underlyingToken = opts.underlyingToken; // F:[P4-01]
+        _decimals = IERC20Metadata(opts.underlyingToken).decimals(); // F:[P4-01]
 
-        treasuryAddress = AddressProvider(_addressProvider)
-            .getTreasuryContract();
+        treasuryAddress = AddressProvider(opts.addressProvider)
+            .getTreasuryContract(); // F:[P4-01]
 
-        _timestampLU = uint64(block.timestamp);
-        _cumulativeIndex_RAY = RAY;
-        _updateInterestRateModel(_interestRateModelAddress);
-        expectedLiquidityLimit = _expectedLiquidityLimit;
-        isFeeToken = _isFeeToken;
-        wethAddress = AddressProvider(_addressProvider).getWethToken();
+        timestampLU = uint64(block.timestamp); // F:[P4-01]
+        _cumulativeIndex_RAY = uint128(RAY); // F:[P4-01]
+        _updateInterestRateModel(opts.interestRateModel); // F:[P4-01]
+        _setExpectedLiquidityLimit(opts.expectedLiquidityLimit); // F:[P4-01]
+        _setTotalBorrowedLimit(opts.expectedLiquidityLimit);
+        isFeeToken = opts.isFeeToken; // F:[P4-01]
+        wethAddress = AddressProvider(opts.addressProvider).getWethToken(); // F:[P4-01]
     }
 
     //
@@ -172,7 +181,7 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         nonReentrant
         returns (uint256 shares)
     {
-        shares = _deposit(assets, receiver);
+        shares = _deposit(assets, receiver); // F:[P4-4]
     }
 
     /// @dev Deposit liquidity to the pool with referral code
@@ -184,15 +193,9 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         uint256 assets,
         address receiver,
         uint256 referralCode
-    )
-        external
-        override
-        whenNotPaused // T:[PS-4]
-        nonReentrant
-        returns (uint256 shares)
-    {
+    ) external override whenNotPaused nonReentrant returns (uint256 shares) {
         shares = _deposit(assets, receiver);
-        emit DepositReferral(msg.sender, receiver, assets, referralCode); // T:[PS-2, 7]
+        emit DepositReferral(msg.sender, receiver, assets, referralCode); // F:[P4-4]
     }
 
     /// @dev Deposit ETH liquidity to the WETH pool only with referral code
@@ -235,7 +238,7 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         if (receiver == address(0)) revert ZeroAddressException();
 
         assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
-        uint256 assetsTransferred = _feeSafeTransfer(assets);
+        uint256 assetsTransferred = _safeDepositAssets(assets);
 
         if (assetsTransferred != assets) {
             assets = assetsTransferred;
@@ -254,13 +257,31 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
     {
         if (receiver == address(0)) revert ZeroAddressException();
 
-        assets = _feeSafeTransfer(assets);
+        assets = _safeDepositAssets(assets);
         shares = convertToShares(assets);
 
         _addLiquidity(receiver, assets, shares);
     }
 
-    function _feeSafeTransfer(uint256 amount) internal returns (uint256) {
+    function _addLiquidity(
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal {
+        if (expectedLiquidity() + assets > uint256(_expectedLiquidityLimit)) {
+            revert ExpectedLiquidityLimitException();
+        }
+
+        int256 assetsSigned = int256(assets);
+
+        _updateParameters(assetsSigned, assetsSigned, false);
+
+        _mint(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
+    function _safeDepositAssets(uint256 amount) internal returns (uint256) {
         uint256 balanceBefore;
         if (isFeeToken) {
             balanceBefore = IERC20(underlyingToken).balanceOf(address(this));
@@ -276,22 +297,6 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
                 ? IERC20(underlyingToken).balanceOf(address(this)) -
                     balanceBefore
                 : amount;
-    }
-
-    function _addLiquidity(
-        address receiver,
-        uint256 assets,
-        uint256 shares
-    ) internal {
-        if (expectedLiquidity() + assets > expectedLiquidityLimit) {
-            revert ExpectedLiquidityLimitException();
-        }
-
-        _expectedLiquidityLU += uint128(assets); // T:[PS-2, 7]
-        _updateBorrowRate(availableLiquidity() + assets); // T:[PS-2, 7]
-        _mint(receiver, shares); // T:[PS-2, 7]
-
-        emit Deposit(msg.sender, receiver, assets, shares); // T:[PS-2, 7]
     }
 
     /// @dev Removes liquidity from pool
@@ -374,32 +379,42 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
             }
         }
 
-        _expectedLiquidityLU -= uint128(assets); // T:[PS-3, 8]
-
-        _updateBorrowRate(availableLiquidity() - assets); // T:[PS-3,8 ]
+        _updateParameters(-int256(assets), -int256(assets), false);
 
         if (withdrawFee > 0) {
-            uint256 fee = (assets * withdrawFee) / PERCENTAGE_FACTOR;
-            assets -= fee;
+            unchecked {
+                /// It's safe because we made a check that assets < uint128, and withDrawFee is < 10K
+                uint256 fee = (assets * withdrawFee) / PERCENTAGE_FACTOR;
+                assets -= fee;
 
-            IERC20(underlyingToken).safeTransfer(treasuryAddress, fee);
-        } // T:[PS-3, 34]
+                IERC20(underlyingToken).safeTransfer(treasuryAddress, fee);
+            }
+        }
 
-        _burn(msg.sender, shares); // T:[PS-3, 8]
+        _burn(msg.sender, shares);
 
+        _withdrawAssets(receiver, assets, convertWETH);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    }
+
+    /// @dev Send assets back to user
+    function _withdrawAssets(
+        address receiver,
+        uint256 assets,
+        bool convertWETH
+    ) internal virtual {
         if (convertWETH) {
             _unwrapWETH(receiver, assets);
         } else {
-            IERC20(underlyingToken).safeTransfer(receiver, assets); // T:[PS-3, 34]
+            IERC20(underlyingToken).safeTransfer(receiver, assets);
         }
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares); // T:[PS-3, 8]
     }
 
     /// @dev Internal implementation for unwrapETH
     function _unwrapWETH(address to, uint256 amount) internal {
-        IWETH(wethAddress).withdraw(amount); // T: [WG-7]
-        payable(to).sendValue(amount); // T: [WG-7]
+        IWETH(wethAddress).withdraw(amount);
+        payable(to).sendValue(amount);
     }
 
     //
@@ -407,10 +422,9 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
     //
 
     /// @dev Returns the current exchange rate of Diesel tokens to underlying
-    /// More info: https://dev.gearbox.fi/developers/pools/economy#diesel-rate
     function getDieselRate_RAY() public view override returns (uint256) {
-        if (totalSupply() == 0) return RAY; // T:[PS-1]
-        return (expectedLiquidity() * RAY) / totalSupply(); // T:[PS-6]
+        if (totalSupply() == 0) return RAY; // F:[P4-1]
+        return (expectedLiquidity() * RAY) / totalSupply(); // F:[P4-4]
     }
 
     /// @dev The address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
@@ -423,6 +437,7 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         return expectedLiquidity();
     }
 
+    /// @dev Rerutn diesel token decimals
     function decimals() public view virtual override returns (uint8) {
         return _decimals;
     }
@@ -442,7 +457,7 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         override
         returns (uint256 shares)
     {
-        return (assets * RAY) / getDieselRate_RAY(); // T:[PS-24]
+        return (assets * RAY) / getDieselRate_RAY();
     }
 
     /// @dev Converts a quantity of Diesel tokens to the underlying
@@ -471,9 +486,9 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
 
     function maxDeposit(address) external view returns (uint256) {
         return
-            (expectedLiquidityLimit == type(uint256).max)
+            (_expectedLiquidityLimit == type(uint128).max)
                 ? type(uint256).max
-                : expectedLiquidityLimit - expectedLiquidity();
+                : _expectedLiquidityLimit - expectedLiquidity();
     }
 
     /// Allows an on-chain or off-chain user to simulate the effects of their deposit at the current block, given current on-chain conditions.
@@ -498,9 +513,9 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
     /// MUST NOT revert.
 
     function maxMint(address) external view returns (uint256) {
-        uint256 limit = expectedLiquidityLimit;
+        uint128 limit = _expectedLiquidityLimit;
         return
-            (limit == type(uint256).max)
+            (limit == type(uint128).max)
                 ? type(uint256).max
                 : convertToShares(limit - expectedLiquidity());
     }
@@ -574,7 +589,7 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
     /// after all users close their Credit accounts and fully repay debts
     function expectedLiquidity() public view override returns (uint256) {
         // timeDifference = blockTime - previous timeStamp
-        uint256 timeDifference = block.timestamp - _timestampLU;
+        uint256 timeDifference = block.timestamp - timestampLU;
 
         //                                    currentBorrowRate * timeDifference
         //  interestAccrued = totalBorrow *  ------------------------------------
@@ -584,13 +599,20 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
             _borrowAPY_RAY *
             timeDifference) /
             RAY /
-            SECONDS_PER_YEAR; // T:[PS-29]
+            SECONDS_PER_YEAR;
+        // T:[PS-29]
 
         return _expectedLiquidityLU + interestAccrued; // T:[PS-29]
     }
 
     /// @dev Returns available liquidity in the pool (pool balance)
-    function availableLiquidity() public view override returns (uint256) {
+    function availableLiquidity()
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         return IERC20(underlyingToken).balanceOf(address(this));
     }
 
@@ -607,29 +629,32 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         override
         whenNotPaused // T:[PS-4]
     {
+        // Checks credit manager specific limi is not cross and udpate it
         CreditManagerDebt storage cmDebt = creditManagersDebt[msg.sender];
-        uint256 limit = cmDebt.limit;
 
-        if (cmDebt.totalBorrowed + borrowedAmount > limit) {
+        if (
+            cmDebt.totalBorrowed + borrowedAmount > cmDebt.limit ||
+            borrowedAmount == 0
+        ) {
             revert CreditManagerCantBorrowException();
-        } else {
-            if (limit != type(uint256).max) {
-                unchecked {
-                    cmDebt.totalBorrowed += uint128(borrowedAmount);
-                }
-            }
         }
+        cmDebt.totalBorrowed += uint128(borrowedAmount);
 
         // Increase total borrowed amount
-        _totalBorrowed += uint128(borrowedAmount); // T:[PS-16]
+        _totalBorrowed += uint128(borrowedAmount);
+
+        // Reverts if total borrow more than limit
+        if (_totalBorrowed > _totalBorrowedLimit) {
+            revert CreditManagerCantBorrowException();
+        }
+
+        // Update borrow Rate, reverts of Uoptimal limit is set up
+        _updateParameters(0, -int256(borrowedAmount), true);
 
         // Transfer funds to credit account
-        IERC20(underlyingToken).safeTransfer(creditAccount, borrowedAmount); // T:[PS-14]
+        IERC20(underlyingToken).safeTransfer(creditAccount, borrowedAmount);
 
-        // Update borrow Rate
-        _updateBorrowRate(availableLiquidity()); // T:[PS-17]
-
-        emit Borrow(msg.sender, creditAccount, borrowedAmount); // T:[PS-15]
+        emit Borrow(msg.sender, creditAccount, borrowedAmount);
     }
 
     /// @dev Registers Credit Account's debt repayment and updates parameters.
@@ -646,26 +671,22 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         override
         whenNotPaused // T:[PS-4]
     {
-        if (!creditManagerSet.contains(msg.sender)) {
+        // Updates credit manager specific totalBorrowed
+        CreditManagerDebt storage cmDebt = creditManagersDebt[msg.sender];
+
+        if (cmDebt.limit + cmDebt.totalBorrowed == 0) {
             revert CreditManagerOnlyException();
         }
 
-        _expectedLiquidityLU =
-            _expectedLiquidityLU +
-            uint128(profit) -
-            uint128(loss);
+        console.log("1");
 
-        CreditManagerDebt storage cmDebt = creditManagersDebt[msg.sender];
+        // Updates borrow rate
+        _updateParameters(int256(profit) - int256(loss), 0, false);
 
-        if (cmDebt.limit != type(uint256).max) {
-            cmDebt.totalBorrowed -= uint128(borrowedAmount);
-        }
-
-        // Update borrow rate
-        _updateBorrowRate(availableLiquidity());
-
-        // Updating total borrowed
+        // Updates total borrowed
         _totalBorrowed -= uint128(borrowedAmount);
+
+        cmDebt.totalBorrowed -= uint128(borrowedAmount);
 
         // For fee surplus we mint tokens for treasury
         if (profit > 0) {
@@ -674,48 +695,46 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
             // If returned money < borrowed amount + interest accrued
             // it tries to compensate loss by burning diesel (LP) tokens
             // from treasury fund
-            uint256 sharesToBurn = convertToShares(loss); // T:[PS-19,20]
-            uint256 sharesInTreasury = balanceOf(treasuryAddress); // T:[PS-19,20]
+            uint256 sharesToBurn = convertToShares(loss);
+            uint256 sharesInTreasury = balanceOf(treasuryAddress);
 
             if (sharesInTreasury < sharesToBurn) {
                 sharesToBurn = sharesInTreasury;
                 emit UncoveredLoss(
                     msg.sender,
                     loss - convertToAssets(sharesInTreasury)
-                ); // T:[PS-23]
+                );
             }
 
             // If treasury has enough funds, it just burns needed amount
             // to keep diesel rate on the same level
-            _burn(treasuryAddress, sharesToBurn); // T:[PS-19, 20]
+            _burn(treasuryAddress, sharesToBurn);
         }
 
-        emit Repay(msg.sender, borrowedAmount, profit, loss); // T:[PS-18]
+        emit Repay(msg.sender, borrowedAmount, profit, loss);
     }
 
     //
     // INTEREST RATE MANAGEMENT
     //
 
-    /**
-     * @dev Calculates the most current value of the cumulative interest index
-     *
-     *                              /     currentBorrowRate * timeDifference \
-     *  newIndex  = currentIndex * | 1 + ------------------------------------ |
-     *                              \              SECONDS_PER_YEAR          /
-     *
-     * @return current cumulative index in RAY
-     */
+    /// @dev Calculates the most current value of the cumulative interest index
+    ///
+    ///                              /     currentBorrowRate * timeDifference \
+    ///  newIndex  = currentIndex * | 1 + ------------------------------------ |
+    ///                              \              SECONDS_PER_YEAR          /
+    ///
+    /// @return Current cumulative index in RAY
     function calcLinearCumulative_RAY() public view override returns (uint256) {
         //solium-disable-next-line
-        uint256 timeDifference = block.timestamp - _timestampLU; // T:[PS-28]
+        uint256 timeDifference = block.timestamp - timestampLU;
 
         return
             calcLinearIndex_RAY(
                 _cumulativeIndex_RAY,
                 _borrowAPY_RAY,
                 timeDifference
-            ); // T:[PS-28]
+            );
     }
 
     /// @dev Calculates a new cumulative index value from the initial value, borrow rate and time elapsed
@@ -733,25 +752,44 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         //
         uint256 linearAccumulated_RAY = RAY +
             (currentBorrowRate_RAY * timeDifference) /
-            SECONDS_PER_YEAR; // T:[GM-2]
+            SECONDS_PER_YEAR;
 
-        return (cumulativeIndex_RAY * linearAccumulated_RAY) / RAY; // T:[GM-2]
+        return (cumulativeIndex_RAY * linearAccumulated_RAY) / RAY;
     }
 
-    /// @dev Updates the borrow rate when liquidity parameters are changed
-    /// @param _availableLiquidity Available liquidity used in calculations
-    function _updateBorrowRate(uint256 _availableLiquidity) internal {
+    /// @dev Updates core popo when liquidity parameters are changed
+    function _updateParameters(
+        int256 expectedLiquidityChanged,
+        int256 availableLiquidityChanged,
+        bool checkOptimalBorrowing
+    ) internal {
+        uint128 expectedLiquidityLUcached;
+
+        if (expectedLiquidityChanged == 0) {
+            expectedLiquidityLUcached = _expectedLiquidityLU;
+        } else {
+            expectedLiquidityLUcached = uint128(
+                int128(_expectedLiquidityLU) + int128(expectedLiquidityChanged)
+            );
+            _expectedLiquidityLU = expectedLiquidityLUcached;
+        }
+
         // Update cumulativeIndex
-        _cumulativeIndex_RAY = calcLinearCumulative_RAY(); // T:[PS-27]
+        _cumulativeIndex_RAY = uint128(calcLinearCumulative_RAY());
 
         // update borrow APY
         _borrowAPY_RAY = uint128(
             interestRateModel.calcBorrowRate(
-                _expectedLiquidityLU,
-                _availableLiquidity
+                expectedLiquidityLUcached,
+                availableLiquidityChanged == 0
+                    ? availableLiquidity()
+                    : uint256(
+                        int256(availableLiquidity()) + availableLiquidityChanged
+                    ),
+                checkOptimalBorrowing
             )
         );
-        _timestampLU = uint64(block.timestamp);
+        timestampLU = uint64(block.timestamp);
     }
 
     // GETTERS
@@ -776,10 +814,17 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         external
         configuratorOnly
     {
-        require(
-            address(this) == ICreditManagerV2(_creditManager).pool(),
-            Errors.POOL_INCOMPATIBLE_CREDIT_ACCOUNT_MANAGER
-        );
+        if (
+            !ContractsRegister(
+                AddressProvider(addressProvider).getContractsRegister()
+            ).isCreditManager(_creditManager)
+        ) {
+            revert CreditManagerNotRegsiterException();
+        }
+
+        if (address(this) != ICreditManagerV2(_creditManager).pool()) {
+            revert IncompatibleCreditManagerException();
+        }
 
         creditManagerSet.add(_creditManager);
         emit NewCreditManagerConnected(_creditManager);
@@ -787,12 +832,12 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
 
     /// @dev Forbids a Credit Manager to borrow
     /// @param _creditManager Address of the Credit Manager
-    function chnageCreditManagerLimit(address _creditManager, uint128 _limit)
+    function setCreditManagerLimit(address _creditManager, uint256 _limit)
         external
         controllerOnly
     {
         CreditManagerDebt storage cmDebt = creditManagersDebt[_creditManager];
-        cmDebt.limit = _limit;
+        cmDebt.limit = convertToU128(_limit);
         emit BorrowLimitChanged(_creditManager, _limit);
     }
 
@@ -809,19 +854,30 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
     function _updateInterestRateModel(address _interestRateModel) internal {
         if (_interestRateModel == address(0)) revert ZeroAddressException();
 
-        interestRateModel = IInterestRateModel(_interestRateModel); // T:[PS-25]
-        _updateBorrowRate(availableLiquidity()); // T:[PS-26]
-        emit NewInterestRateModel(_interestRateModel); // T:[PS-25]
+        interestRateModel = IInterestRateModel(_interestRateModel);
+        _updateParameters(0, 0, false);
+
+        emit NewInterestRateModel(_interestRateModel);
     }
 
     /// @dev Sets a new expected liquidity limit
-    /// @param newLimit New expected liquidity limit
-    function setExpectedLiquidityLimit(uint256 newLimit)
-        external
-        controllerOnly // T:[PS-9]
-    {
-        expectedLiquidityLimit = newLimit; // T:[PS-30]
-        emit NewExpectedLiquidityLimit(newLimit); // T:[PS-30]
+    /// @param limit New expected liquidity limit
+    function setExpectedLiquidityLimit(uint256 limit) external controllerOnly {
+        _setExpectedLiquidityLimit(limit);
+    }
+
+    function _setExpectedLiquidityLimit(uint256 limit) internal {
+        _expectedLiquidityLimit = convertToU128(limit);
+        emit NewExpectedLiquidityLimit(limit);
+    }
+
+    function setTotalBorrowedLimit(uint256 limit) external controllerOnly {
+        _setTotalBorrowedLimit(limit);
+    }
+
+    function _setTotalBorrowedLimit(uint256 limit) internal {
+        _totalBorrowedLimit = convertToU128(limit);
+        emit NewTotalBorrowedLimit(limit);
     }
 
     /// @dev Sets a new withdrawal fee
@@ -858,6 +914,62 @@ contract Pool4626 is ERC20, IPool4626, ACLTrait, ReentrancyGuard {
         returns (uint256)
     {
         CreditManagerDebt storage cmDebt = creditManagersDebt[_creditManager];
-        return cmDebt.limit;
+        return convertToU256(cmDebt.limit);
+    }
+
+    /// @dev How much current credit manager can borrow
+    function creditManagerCanBorrow(address _creditManager)
+        external
+        view
+        returns (uint256 canBorrow)
+    {
+        if (_totalBorrowed > _totalBorrowedLimit) return 0;
+        unchecked {
+            canBorrow = _totalBorrowedLimit == type(uint128).max
+                ? type(uint256).max
+                : _totalBorrowedLimit - _totalBorrowed;
+        }
+
+        uint256 available = interestRateModel.availableToBorrow(
+            availableLiquidity(),
+            expectedLiquidity()
+        );
+
+        if (canBorrow > available) {
+            canBorrow = available;
+        }
+
+        CreditManagerDebt memory cmDebt = creditManagersDebt[_creditManager];
+        if (cmDebt.totalBorrowed >= cmDebt.limit) {
+            return 0;
+        }
+
+        unchecked {
+            uint256 cmLimit = cmDebt.limit - cmDebt.totalBorrowed;
+            if (canBorrow > cmLimit) {
+                canBorrow = cmLimit;
+            }
+        }
+    }
+
+    function expectedLiquidityLimit() external view override returns (uint256) {
+        return convertToU256(_expectedLiquidityLimit);
+    }
+
+    function expectedLiquidityLU() external view returns (uint256) {
+        return convertToU256(_expectedLiquidityLU);
+    }
+
+    function totalBorrowedLimit() external view override returns (uint256) {
+        return convertToU256(_totalBorrowedLimit);
+    }
+
+    function convertToU256(uint128 limit) internal pure returns (uint256) {
+        return (limit == type(uint128).max) ? type(uint256).max : limit;
+    }
+
+    function convertToU128(uint256 limit) internal pure returns (uint128) {
+        return
+            (limit == type(uint256).max) ? type(uint128).max : uint128(limit);
     }
 }

@@ -9,7 +9,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 // INTERFACES
 import { IAccountFactory } from "../interfaces/IAccountFactory.sol";
@@ -52,7 +52,7 @@ struct Slot1 {
 /// @notice Encapsulates the business logic for managing Credit Accounts
 ///
 /// More info: https://dev.gearbox.fi/developers/credit/credit_manager
-contract CreditManager is ICreditManagerV2, ACLTrait {
+contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     using SafeERC20 for IERC20;
     using Address for address payable;
     using SafeCast for uint256;
@@ -149,18 +149,6 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     // MODIFIERS
     //
 
-    /// @dev Protects against reentrancy.
-    /// @notice Custom ReentrancyGuard implementation is used to optimize storage reads.
-    modifier nonReentrant() {
-        if (entered) {
-            revert ReentrancyLockException();
-        }
-
-        entered = true;
-        _;
-        entered = false;
-    }
-
     /// @dev Restricts calls to Credit Facade or allowed adapters
     modifier adaptersOrCreditFacadeOnly() {
         if (
@@ -194,7 +182,7 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     /// @dev Constructor
     /// @param _pool Address of the pool to borrow funds from
     constructor(address _pool)
-        ACLTrait(address(IPoolService(_pool).addressProvider()))
+        ACLNonReentrantTrait(address(IPoolService(_pool).addressProvider()))
     {
         IAddressProvider addressProvider = IPoolService(_pool)
             .addressProvider();

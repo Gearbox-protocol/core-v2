@@ -3,8 +3,16 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IERC4626 } from "./IERC4626.sol";
+import { IERC4626, IERC4626Events } from "./IERC4626.sol";
 import { IVersion } from "./IVersion.sol";
+
+struct Pool4626Opts {
+    address addressProvider;
+    address underlyingToken;
+    address interestRateModel;
+    uint256 expectedLiquidityLimit;
+    bool isFeeToken;
+}
 
 interface IPool4626Exceptions {
     error ExpectedLiquidityLimitException();
@@ -14,9 +22,12 @@ interface IPool4626Exceptions {
     error IncorrectWithdrawalFeeException();
     error ZeroAssetsException();
     error AssetIsNotWETHException();
+    error IncompatibleCreditManagerException();
+    error CreditManagerNotRegsiterException();
+    error AdditionalYieldPoolException();
 }
 
-interface IPool4626Events {
+interface IPool4626Events is IERC4626Events {
     /// @dev Emits on new liquidity being added to the pool
     event DepositReferral(
         address indexed sender,
@@ -45,6 +56,8 @@ interface IPool4626Events {
 
     /// @dev Emits on connecting a new Credit Manager
     event NewCreditManagerConnected(address indexed creditManager);
+
+    event NewTotalBorrowedLimit(uint256 limit);
 
     /// @dev Emits when a Credit Manager is forbidden to borrow
     event BorrowLimitChanged(address indexed creditManager, uint256 newLimit);
@@ -155,10 +168,9 @@ interface IPool4626 is
     function withdrawFee() external view returns (uint16);
 
     /// @dev Timestamp of the pool's last update
-    function _timestampLU() external view returns (uint64);
+    function timestampLU() external view returns (uint64);
 
-    /// @dev Interest index at the last pool update
-    function _cumulativeIndex_RAY() external view returns (uint256);
+    function totalBorrowedLimit() external view returns (uint256);
 
     /// @dev Address provider
     function addressProvider() external view returns (address);

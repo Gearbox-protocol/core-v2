@@ -5,11 +5,11 @@ pragma solidity ^0.8.10;
 
 import { IContractsRegister } from "../interfaces/IContractsRegister.sol";
 import { Errors } from "../libraries/Errors.sol";
-import { ACLTrait } from "./ACLTrait.sol";
+import { ACLNonReentrantTrait } from "./ACLNonReentrantTrait.sol";
 
 /// @title Pool & Credit Manager registry
 /// @notice Stores addresses of Pools and Credit Managers
-contract ContractsRegister is IContractsRegister, ACLTrait {
+contract ContractsRegister is IContractsRegister, ACLNonReentrantTrait {
     /// @dev List of all registered pools
     address[] public override pools;
 
@@ -25,7 +25,9 @@ contract ContractsRegister is IContractsRegister, ACLTrait {
     /// @dev Contract version
     uint256 public constant version = 1;
 
-    constructor(address addressProvider) ACLTrait(addressProvider) {}
+    constructor(address addressProvider)
+        ACLNonReentrantTrait(addressProvider)
+    {}
 
     /// @dev Adds a pool to the list
     /// @param newPoolAddress Address of the new pool

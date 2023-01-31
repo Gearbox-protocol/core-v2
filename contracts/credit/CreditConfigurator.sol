@@ -13,7 +13,7 @@ import { WAD } from "../libraries/Constants.sol";
 import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
 
 // CONTRACTS
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { CreditFacade } from "./CreditFacade.sol";
 import { CreditManager } from "./CreditManager.sol";
 
@@ -33,7 +33,7 @@ import { ICreditManagerV2, ICreditManagerV2Exceptions } from "../interfaces/ICre
 /// @dev All functions can only by called by he Configurator as per ACL.
 /// CreditManager blindly executes all requests from CreditConfigurator, so all sanity checks
 /// are performed here.
-contract CreditConfigurator is ICreditConfigurator, ACLTrait {
+contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Address for address;
 
@@ -69,7 +69,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         CreditFacade _creditFacade,
         CreditManagerOpts memory opts
     )
-        ACLTrait(
+        ACLNonReentrantTrait(
             address(
                 IPoolService(_creditManager.poolService()).addressProvider()
             )
