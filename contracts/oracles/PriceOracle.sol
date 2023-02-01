@@ -10,7 +10,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
 import { PriceFeedChecker } from "./PriceFeedChecker.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 // CONSTANTS
 
@@ -27,7 +27,7 @@ uint256 constant DECIMALS_SHIFT = 162;
 
 /// @title Price Oracle based on Chainlink's price feeds
 /// @notice Works as router and provide cross rates using converting via USD
-contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
+contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     using Address for address;
 
     /// @dev Map of token addresses to corresponding price feeds and their parameters,
@@ -38,7 +38,7 @@ contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
     uint256 public constant version = 2;
 
     constructor(address addressProvider, PriceFeedConfig[] memory defaults)
-        ACLTrait(addressProvider)
+        ACLNonReentrantTrait(addressProvider)
     {
         uint256 len = defaults.length;
         for (uint256 i = 0; i < len; ) {

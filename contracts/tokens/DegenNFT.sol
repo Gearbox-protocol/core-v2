@@ -12,14 +12,14 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { AddressProvider } from "../core/AddressProvider.sol";
 import { ContractsRegister } from "../core/ContractsRegister.sol";
 
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { NotImplementedException } from "../interfaces/IErrors.sol";
 
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
 import { ICreditFacade } from "../interfaces/ICreditFacade.sol";
 import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
 
-contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
+contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
     using Address for address;
 
     /// @dev Stores the total number of tokens on holder accounts
@@ -64,7 +64,7 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
         string memory _name,
         string memory _symbol
     )
-        ACLTrait(_addressProvider)
+        ACLNonReentrantTrait(_addressProvider)
         ERC721(_name, _symbol) // F:[DNFT-1]
     {
         contractsRegister = ContractsRegister(

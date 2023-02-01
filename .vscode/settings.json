@@ -3,7 +3,7 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[solidity]": {
-    "editor.defaultFormatter": "esbenp.forge"
+    "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
   },
 
   "editor.defaultFormatter": "esbenp.prettier-vscode",
