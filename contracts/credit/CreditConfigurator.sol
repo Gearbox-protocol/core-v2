@@ -24,7 +24,7 @@ import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 
 // EXCEPTIONS
-import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../interfaces/IErrors.sol";
+import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException } from "../interfaces/IErrors.sol";
 import { ICreditManagerV2, ICreditManagerV2Exceptions } from "../interfaces/ICreditManagerV2.sol";
 
 /// @title CreditConfigurator
@@ -611,10 +611,10 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @dev Enables or disables borrowing
     /// In Credit Facade (and, consequently, the Credit Manager)
     /// @param _mode Prohibits borrowing if true, and allows borrowing otherwise
-    function setIncreaseDebtForbidden(bool _mode)
-        external
-        configuratorOnly // F:[CC-2]
-    {
+    function setIncreaseDebtForbidden(bool _mode) external {
+        if (!_acl.isPausableAdmin(msg.sender)) {
+            revert CallerNotPausableAdminException();
+        }
         _setIncreaseDebtForbidden(_mode);
     }
 
@@ -659,10 +659,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @notice Upgradeable contracts are contracts with an upgradeable proxy
     /// Or other practices and patterns potentially detrimental to security
     /// Contracts from the list have certain restrictions applied to them
-    function addContractToUpgradeable(address addr)
-        external
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
-    {
+    function addContractToUpgradeable(address addr) external configuratorOnly {
         _addContractToUpgradeable(addr); // F: [CC-35]
     }
 
@@ -714,7 +711,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/credit/liquidation#liquidating-accounts-by-expiration
     function setExpirationDate(uint40 newExpirationDate)
         external
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
+        configuratorOnly // F: [CC-38]
     {
         _setExpirationDate(newExpirationDate); // F: [CC-34]
     }
