@@ -28,7 +28,7 @@ import { FixedPointMathLib } from "../libraries/SolmateMath.sol";
 // EXCEPTIONS
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
-import "hardhat/console.sol";
+import "forge-std/console.sol";
 
 struct CreditManagerDebt {
     uint128 totalBorrowed;
@@ -106,6 +106,11 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
 
     /// @dev The list of all Credit Managers
     EnumerableSet.AddressSet internal creditManagerSet;
+
+    modifier wethPoolOnly() {
+        if (underlyingToken != wethAddress) revert AssetIsNotWETHException();
+        _;
+    }
 
     //
     // CONSTRUCTOR
@@ -207,19 +212,11 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         payable
         override
         whenNotPaused // T:[PS-4]
-        nonReentrant
+        // nonReentrant moved to internal function to make check for receive() and this function in one place
+        wethPoolOnly
         returns (uint256 shares)
     {
-        if (underlyingToken != wethAddress) revert AssetIsNotWETHException();
-        if (receiver == address(0)) revert ZeroAddressException();
-
-        IWETH(wethAddress).deposit{ value: msg.value }();
-
-        uint256 assets = msg.value;
-        shares = convertToShares(assets);
-
-        _addLiquidity(receiver, assets, shares);
-        emit DepositReferral(msg.sender, receiver, assets, referralCode); // T:[PS-2, 7]
+        shares = _depositETHReferral(receiver, referralCode); // T:[PS-2, 7]
     }
 
     /// @dev Mints exactly shares Vault shares to receiver by depositing assets of underlying tokens.
@@ -248,6 +245,12 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         _addLiquidity(receiver, assets, shares);
     }
 
+    receive() external payable wethPoolOnly whenNotPaused {
+        if (msg.sender != wethAddress) {
+            _depositETHReferral(msg.sender, 0);
+        }
+    }
+
     //
     // LIQUIDITY INTERNAL
     //
@@ -261,6 +264,20 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         shares = convertToShares(assets);
 
         _addLiquidity(receiver, assets, shares);
+    }
+
+    function _depositETHReferral(address receiver, uint256 referralCode)
+        internal
+        nonReentrant // non-reentrancy check moved here to be able to use it in receive() and depositWithdrawal functions
+        returns (uint256 shares)
+    {
+        IWETH(wethAddress).deposit{ value: msg.value }();
+
+        uint256 assets = msg.value;
+        shares = convertToShares(assets);
+
+        _addLiquidity(receiver, assets, shares);
+        emit DepositReferral(msg.sender, receiver, assets, referralCode); // T:[PS-2, 7]
     }
 
     function _addLiquidity(
@@ -321,8 +338,14 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         uint256 assets,
         address receiver,
         address owner
-    ) external override whenNotPaused nonReentrant returns (uint256 shares) {
-        if (underlyingToken != wethAddress) revert AssetIsNotWETHException();
+    )
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        wethPoolOnly
+        returns (uint256 shares)
+    {
         shares = previewWithdraw(assets);
         _removeLiquidity(assets, shares, receiver, owner, true);
     }
@@ -352,8 +375,14 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         uint256 shares,
         address receiver,
         address owner
-    ) external override whenNotPaused nonReentrant returns (uint256 assets) {
-        if (underlyingToken != wethAddress) revert AssetIsNotWETHException();
+    )
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        wethPoolOnly
+        returns (uint256 assets)
+    {
         assets = convertToAssets(shares);
 
         // Check for rounding error since we round down in previewRedeem.
@@ -424,7 +453,8 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     /// @dev Returns the current exchange rate of Diesel tokens to underlying
     function getDieselRate_RAY() public view override returns (uint256) {
         if (totalSupply() == 0) return RAY; // F:[P4-1]
-        return (expectedLiquidity() * RAY) / totalSupply(); // F:[P4-4]
+
+        return (uint256(expectedLiquidity()) * RAY) / totalSupply(); // F:[P4-4]
     }
 
     /// @dev The address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
@@ -595,7 +625,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         //  interestAccrued = totalBorrow *  ------------------------------------
         //                                             SECONDS_PER_YEAR
         //
-        uint256 interestAccrued = (_totalBorrowed *
+        uint256 interestAccrued = (uint256(_totalBorrowed) *
             _borrowAPY_RAY *
             timeDifference) /
             RAY /
@@ -674,19 +704,9 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         // Updates credit manager specific totalBorrowed
         CreditManagerDebt storage cmDebt = creditManagersDebt[msg.sender];
 
-        if (cmDebt.limit + cmDebt.totalBorrowed == 0) {
+        if (uint256(cmDebt.limit) + uint256(cmDebt.totalBorrowed) == 0) {
             revert CreditManagerOnlyException();
         }
-
-        console.log("1");
-
-        // Updates borrow rate
-        _updateParameters(int256(profit) - int256(loss), 0, false);
-
-        // Updates total borrowed
-        _totalBorrowed -= uint128(borrowedAmount);
-
-        cmDebt.totalBorrowed -= uint128(borrowedAmount);
 
         // For fee surplus we mint tokens for treasury
         if (profit > 0) {
@@ -710,6 +730,14 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
             // to keep diesel rate on the same level
             _burn(treasuryAddress, sharesToBurn);
         }
+
+        // Updates borrow rate
+        _updateParameters(int256(profit) - int256(loss), 0, false);
+
+        // Updates total borrowed
+        _totalBorrowed -= uint128(borrowedAmount);
+
+        cmDebt.totalBorrowed -= uint128(borrowedAmount);
 
         emit Repay(msg.sender, borrowedAmount, profit, loss);
     }
@@ -763,16 +791,12 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         int256 availableLiquidityChanged,
         bool checkOptimalBorrowing
     ) internal {
-        uint128 expectedLiquidityLUcached;
+        uint128 expectedLiquidityLUcached = uint128(
+            int128(uint128(expectedLiquidity())) +
+                int128(expectedLiquidityChanged)
+        );
 
-        if (expectedLiquidityChanged == 0) {
-            expectedLiquidityLUcached = _expectedLiquidityLU;
-        } else {
-            expectedLiquidityLUcached = uint128(
-                int128(_expectedLiquidityLU) + int128(expectedLiquidityChanged)
-            );
-            _expectedLiquidityLU = expectedLiquidityLUcached;
-        }
+        _expectedLiquidityLU = expectedLiquidityLUcached;
 
         // Update cumulativeIndex
         _cumulativeIndex_RAY = uint128(calcLinearCumulative_RAY());
@@ -808,12 +832,13 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     // CONFIGURATION
     //
 
-    /// @dev Connects a new Credit manager to pool
+    /// @dev Forbids a Credit Manager to borrow
     /// @param _creditManager Address of the Credit Manager
-    function connectCreditManager(address _creditManager)
+    function setCreditManagerLimit(address _creditManager, uint256 _limit)
         external
-        configuratorOnly
+        controllerOnly
     {
+        /// Reverts if _creditManager is not registered in ContractRE#gister
         if (
             !ContractsRegister(
                 AddressProvider(addressProvider).getContractsRegister()
@@ -822,20 +847,17 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
             revert CreditManagerNotRegsiterException();
         }
 
-        if (address(this) != ICreditManagerV2(_creditManager).pool()) {
-            revert IncompatibleCreditManagerException();
+        /// Checks if creditManager is already in list
+        if (!creditManagerSet.contains(_creditManager)) {
+            /// Reverts if c redit manager has different underlying asset
+            if (address(this) != ICreditManagerV2(_creditManager).pool()) {
+                revert IncompatibleCreditManagerException();
+            }
+
+            creditManagerSet.add(_creditManager);
+            emit NewCreditManagerConnected(_creditManager);
         }
 
-        creditManagerSet.add(_creditManager);
-        emit NewCreditManagerConnected(_creditManager);
-    }
-
-    /// @dev Forbids a Credit Manager to borrow
-    /// @param _creditManager Address of the Credit Manager
-    function setCreditManagerLimit(address _creditManager, uint256 _limit)
-        external
-        controllerOnly
-    {
         CreditManagerDebt storage cmDebt = creditManagersDebt[_creditManager];
         cmDebt.limit = convertToU128(_limit);
         emit BorrowLimitChanged(_creditManager, _limit);

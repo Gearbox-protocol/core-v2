@@ -18,7 +18,8 @@
   "scripts": {
     "prepare": "husky install",
     "prettier": "prettier --write .",
-    "prettier:ci": "npx prettier --check ."
+    "prettier:ci": "npx prettier --check .",
+    "forge-install": "forge install --no-commit foundry-rs/forge-std"
   },
   "devDependencies": {
     "@chainlink/contracts": "^0.4.0",
