@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 
 import { IUniversalAdapter, RevocationPair } from "../interfaces/adapters/IUniversalAdapter.sol";
 import { AdapterType } from "../interfaces/adapters/IAdapter.sol";
-import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
+import { ICreditManagerV2Common } from "../interfaces/ICreditManagerV2.sol";
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UNIVERSAL_CONTRACT } from "../libraries/Constants.sol";
@@ -17,7 +17,7 @@ contract UniversalAdapter is IUniversalAdapter {
     address public immutable targetContract = UNIVERSAL_CONTRACT;
 
     /// @dev The credit manager this universal adapter connects to
-    ICreditManagerV2 public immutable override creditManager;
+    ICreditManagerV2Common public immutable override creditManager;
 
     AdapterType public constant _gearboxAdapterType = AdapterType.UNIVERSAL;
     uint16 public constant _gearboxAdapterVersion = 1;
@@ -26,7 +26,7 @@ contract UniversalAdapter is IUniversalAdapter {
     /// @param _creditManager Address of the Credit Manager
     constructor(address _creditManager) {
         if (_creditManager == address(0)) revert ZeroAddressException();
-        creditManager = ICreditManagerV2(_creditManager);
+        creditManager = ICreditManagerV2Common(_creditManager);
     }
 
     /// @dev Sets allowances to zero for the provided spender/token pairs, for msg.sender's CA

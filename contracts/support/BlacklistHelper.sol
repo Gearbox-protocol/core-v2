@@ -8,7 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 import { ACLTrait } from "../core/ACLTrait.sol";
 import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
-import { ICreditFacade } from "../interfaces/ICreditFacade.sol";
+import { ICreditFacadeCommon } from "../interfaces/ICreditFacade.sol";
 
 interface IBlacklistableUSDC {
     function isBlacklisted(address _account) external view returns (bool);
@@ -106,7 +106,7 @@ contract BlacklistHelper is ACLTrait, IBlacklistHelper {
     /// @dev Adds a new Credit Facade to `supported` list
     /// @param _creditFacade Address of the Credit Facade
     function addCreditFacade(address _creditFacade) external configuratorOnly {
-        if (!ICreditFacade(_creditFacade).isBlacklistableUnderlying()) {
+        if (!ICreditFacadeCommon(_creditFacade).isBlacklistableUnderlying()) {
             revert CreditFacadeNonBlacklistable();
         }
 

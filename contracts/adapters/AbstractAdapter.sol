@@ -4,21 +4,21 @@
 pragma solidity ^0.8.10;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
+import { ICreditManagerV2Common } from "../interfaces/ICreditManagerV2.sol";
 import { IAdapter } from "../interfaces/adapters/IAdapter.sol";
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
 abstract contract AbstractAdapter is IAdapter {
     using Address for address;
 
-    ICreditManagerV2 public immutable override creditManager;
+    ICreditManagerV2Common public immutable override creditManager;
     address public immutable override targetContract;
 
     constructor(address _creditManager, address _targetContract) {
         if (_creditManager == address(0) || _targetContract == address(0))
             revert ZeroAddressException(); // F:[AA-2]
 
-        creditManager = ICreditManagerV2(_creditManager); // F:[AA-1]
+        creditManager = ICreditManagerV2Common(_creditManager); // F:[AA-1]
         targetContract = _targetContract; // F:[AA-1]
     }
 

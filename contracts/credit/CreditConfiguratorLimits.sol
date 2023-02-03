@@ -14,18 +14,18 @@ import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
 
 // CONTRACTS
 import { ACLTrait } from "../core/ACLTrait.sol";
-import { CreditFacade } from "./CreditFacade.sol";
-import { CreditManager } from "./CreditManager.sol";
+import { CreditFacadeLimits } from "./CreditFacadeLimits.sol";
+import { CreditManagerLimits } from "./CreditManagerLimits.sol";
 
 // INTERFACES
-import { ICreditConfigurator, CollateralToken, CreditManagerOpts } from "../interfaces/ICreditConfigurator.sol";
+import { ICreditConfiguratorLimits, CollateralToken, CreditManagerOpts } from "../interfaces/ICreditConfigurator.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 
 // EXCEPTIONS
-import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../interfaces/IErrors.sol";
-import { ICreditManagerV2, ICreditManagerV2ExceptionsCommon } from "../interfaces/ICreditManagerV2.sol";
+import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException, NotImplementedException } from "../interfaces/IErrors.sol";
+import { ICreditManagerV2Limits, ICreditManagerV2ExceptionsCommon } from "../interfaces/ICreditManagerV2.sol";
 
 /// @title CreditConfigurator
 /// @notice This contract is used to configure CreditManagers and is the only one with the priviledge
@@ -33,7 +33,7 @@ import { ICreditManagerV2, ICreditManagerV2ExceptionsCommon } from "../interface
 /// @dev All functions can only by called by he Configurator as per ACL.
 /// CreditManager blindly executes all requests from CreditConfigurator, so all sanity checks
 /// are performed here.
-contract CreditConfigurator is ICreditConfigurator, ACLTrait {
+contract CreditConfiguratorLimits is ICreditConfiguratorLimits, ACLTrait {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Address for address;
 
@@ -41,7 +41,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     IAddressProvider public override addressProvider;
 
     /// @dev Address of the Credit Manager
-    CreditManager public override creditManager;
+    CreditManagerLimits public override creditManager;
 
     /// @dev Address of the Credit Manager's underlying asset
     address public override underlying;
@@ -61,12 +61,12 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// 3. Connects creditFacade and priceOracle to the Credit Manager
     /// 4. Sets itself as creditConfigurator in Credit Manager
     ///
-    /// @param _creditManager CreditManager contract instance
+    /// @param _creditManager CreditManagerLimits contract instance
     /// @param _creditFacade CreditFacade contract instance
     /// @param opts Configuration parameters for CreditManager
     constructor(
-        CreditManager _creditManager,
-        CreditFacade _creditFacade,
+        CreditManagerLimits _creditManager,
+        CreditFacadeLimits _creditFacade,
         CreditManagerOpts memory opts
     )
         ACLTrait(
@@ -226,50 +226,106 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         }
     }
 
-    /// @dev Allow a known collateral token if it was forbidden before.
-    /// @param token Address of collateral token
-    function allowToken(address token)
+    /// @dev Sets a limit on a max number of CAs that have a token enabled
+    /// @param token Token for which the limit is set
+    /// @param maxEnabledLimit The initial limit to set for the token
+    function limitToken(address token, uint16 maxEnabledLimit)
         external
-        configuratorOnly // F:[CC-2]
+        configuratorOnly
     {
-        // Gets token masks. Reverts if the token was not added as collateral or is the underlying
-        uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token); // F:[CC-7]
+        // Gets token mask. Reverts if the token was not added as collateral or is the underlying
+        uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token);
 
-        // Gets current forbidden mask
-        uint256 forbiddenTokenMask = creditManager.forbiddenTokenMask(); // F:[CC-8,9]
+        // Gets current limited mask
+        uint256 limitedTokenMask = creditManager.limitedTokenMask();
 
-        // If the token was forbidden before, flips the corresponding bit in the mask,
-        // otherwise no actions done.
-        // Skipping case: F:[CC-8]
-        if (forbiddenTokenMask & tokenMask != 0) {
-            forbiddenTokenMask ^= tokenMask; // F:[CC-9]
-            creditManager.setForbidMask(forbiddenTokenMask); // F:[CC-9]
-            emit TokenAllowed(token); // F:[CC-9]
+        // Sanity check to ensure that the limit fits into uint16
+        if (maxEnabledLimit > 65000) {
+            revert IncorrectLimitedTokenParamException();
+        }
+
+        // If the token was not limited before, flips the corresponding bit in the mask
+        // and sets the limit,
+        // otherwise no actions done
+        if (limitedTokenMask & tokenMask == 0) {
+            creditManager.setTokenAsLimited(tokenMask);
+            creditManager.setTokenLimit(tokenMask, maxEnabledLimit);
+            emit TokenLimited(token);
+            emit NewTokenLimitSet(token, maxEnabledLimit);
         }
     }
 
-    /// @dev Forbids a collateral token.
-    /// Forbidden tokens are counted as collateral during health checks, however, they cannot be enabled
-    /// or received as a result of adapter operation anymore. This means that a token can never be
-    /// acquired through adapter operations after being forbidden.
-    /// @param token Address of collateral token to forbid
-    function forbidToken(address token)
+    /// @dev Sets a token limit for an already limited token
+    /// @param token Address of the limited token
+    /// @param newLimit New limit to be set
+    function setTokenLimit(address token, uint16 newLimit)
         external
-        configuratorOnly // F:[CC-2]
+        configuratorOnly
     {
-        // Gets token masks. Reverts if the token was not added as collateral or is the underlying
-        uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token); // F:[CC-7]
+        // Gets token mask. Reverts if the token was not added as collateral or is the underlying
+        uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token);
 
-        // Gets current forbidden mask
-        uint256 forbiddenTokenMask = creditManager.forbiddenTokenMask();
+        // Gets current limited mask
+        uint256 limitedTokenMask = creditManager.limitedTokenMask();
 
-        // If the token was not forbidden before, flips the corresponding bit in the mask,
-        // otherwise no actions done.
-        // Skipping case: F:[CC-10]
-        if (forbiddenTokenMask & tokenMask == 0) {
-            forbiddenTokenMask |= tokenMask; // F:[CC-11]
-            creditManager.setForbidMask(forbiddenTokenMask); // F:[CC-11]
-            emit TokenForbidden(token); // F:[CC-11]
+        // Sanity check to ensure that the limit fits into uint16
+        if (newLimit > 65000) {
+            revert IncorrectLimitedTokenParamException();
+        }
+
+        // If the token is limited, sets a new limit, otherwise reverts
+        if (limitedTokenMask & tokenMask > 0) {
+            creditManager.setTokenLimit(tokenMask, newLimit);
+            emit NewTokenLimitSet(token, newLimit);
+        } else {
+            revert TokenIsNotLimitedException();
+        }
+    }
+
+    /// @dev Sets an extra fee for an already limited token
+    /// @param token Address of the limite token
+    /// @param extraFee Value of the extra fee, in bps
+    function setTokenExtraFee(address token, uint16 extraFee)
+        external
+        configuratorOnly
+    {
+        // Gets token mask. Reverts if the token was not added as collateral or is the underlying
+        uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token);
+
+        // Gets current limited mask
+        uint256 limitedTokenMask = creditManager.limitedTokenMask();
+
+        // Sanity check to ensure that the fee value fits into uint16
+        if (extraFee > 65000) {
+            revert IncorrectLimitedTokenParamException();
+        }
+
+        // If the token is limited, sets a new extra fee, otherwise reverts
+        if (limitedTokenMask & tokenMask > 0) {
+            creditManager.setTokenExtraFee(tokenMask, extraFee);
+            emit NewTokenExtraFeeSet(token, extraFee);
+        } else {
+            revert TokenIsNotLimitedException();
+        }
+    }
+
+    /// @dev Removes token limiter and all params related to token limits
+    /// @param token Token to remove the limit for
+    function removeTokenLimit(address token) external configuratorOnly {
+        // Gets token mask. Reverts if the token was not added as collateral or is the underlying
+        uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token);
+
+        // Gets current limited mask
+        uint256 limitedTokenMask = creditManager.limitedTokenMask();
+
+        // If the token was limited before, flips the corresponding bit in the mask
+        // and sets params to zero,
+        // otherwise no actions done
+        if (limitedTokenMask & tokenMask > 0) {
+            creditManager.removeTokenLimit(tokenMask);
+            emit TokenLimitRemoved(token);
+            emit NewTokenLimitSet(token, 0);
+            emit NewTokenExtraFeeSet(token, 0);
         }
     }
 
@@ -652,8 +708,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             revert AddressIsNotContractException(_contract); // F:[CC-12A,29]
 
         // Checks that the contract has a creditManager() function, which returns a correct value
-        try CreditFacade(_contract).creditManager() returns (
-            ICreditManagerV2 cm
+        try CreditFacadeLimits(_contract).creditManager() returns (
+            ICreditManagerV2Limits cm
         ) {
             if (cm != creditManager) revert IncompatibleContractException(); // F:[CC-12B,29]
         } catch {
@@ -875,6 +931,17 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         }
     }
 
+    /// @dev Updates virtual debt for a list of Credit Accounts
+    /// @param updatedCreditAccounts List of accounts to recalculate virtual debt for
+    /// @notice Can be optionally called after changing the extra fee for a token,
+    ///         to immediately apply the new fee to affected accounts
+    function forceUpdateVirtualDebt(address[] memory updatedCreditAccounts)
+        external
+        configuratorOnly
+    {
+        creditManager.forceUpdateVirtualDebt(updatedCreditAccounts);
+    }
+
     //
     // GETTERS
     //
@@ -897,7 +964,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     }
 
     /// @dev Returns the Credit Facade currently connected to the Credit Manager
-    function creditFacade() public view override returns (CreditFacade) {
-        return CreditFacade(creditManager.creditFacade());
+    function creditFacade() public view override returns (CreditFacadeLimits) {
+        return CreditFacadeLimits(creditManager.creditFacade());
     }
 }

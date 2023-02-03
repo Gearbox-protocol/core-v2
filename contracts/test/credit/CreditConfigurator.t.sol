@@ -21,7 +21,7 @@ import { AddressList } from "../../libraries/AddressList.sol";
 // EXCEPTIONS
 import { ICreditConfiguratorExceptions } from "../../interfaces/ICreditConfigurator.sol";
 import { ZeroAddressException, AddressIsNotContractException, CallerNotConfiguratorException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../../interfaces/IErrors.sol";
-import { ICreditManagerV2Exceptions } from "../../interfaces/ICreditManagerV2.sol";
+import { ICreditManagerV2ExceptionsCommon } from "../../interfaces/ICreditManagerV2.sol";
 
 // TEST
 import "../lib/constants.sol";
@@ -611,22 +611,22 @@ contract CreditConfiguratorTest is
         evm.startPrank(CONFIGURATOR);
 
         evm.expectRevert(
-            ICreditManagerV2Exceptions.TokenNotAllowedException.selector
+            ICreditManagerV2ExceptionsCommon.TokenNotAllowedException.selector
         );
         creditConfigurator.allowToken(DUMB_ADDRESS);
 
         evm.expectRevert(
-            ICreditManagerV2Exceptions.TokenNotAllowedException.selector
+            ICreditManagerV2ExceptionsCommon.TokenNotAllowedException.selector
         );
         creditConfigurator.allowToken(underlying);
 
         evm.expectRevert(
-            ICreditManagerV2Exceptions.TokenNotAllowedException.selector
+            ICreditManagerV2ExceptionsCommon.TokenNotAllowedException.selector
         );
         creditConfigurator.forbidToken(DUMB_ADDRESS);
 
         evm.expectRevert(
-            ICreditManagerV2Exceptions.TokenNotAllowedException.selector
+            ICreditManagerV2ExceptionsCommon.TokenNotAllowedException.selector
         );
         creditConfigurator.forbidToken(underlying);
 

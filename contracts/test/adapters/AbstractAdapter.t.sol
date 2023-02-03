@@ -9,7 +9,7 @@ import { AccountFactory } from "../../core/AccountFactory.sol";
 import { CreditFacade } from "../../credit/CreditFacade.sol";
 
 import { ICreditFacade, MultiCall } from "../../interfaces/ICreditFacade.sol";
-import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICreditManagerV2.sol";
+import { ICreditManagerV2, ICreditManagerV2Events, ICreditManagerV2Common } from "../../interfaces/ICreditManagerV2.sol";
 import { ICreditFacadeEvents, ICreditFacadeExceptions } from "../../interfaces/ICreditFacade.sol";
 
 import "../lib/constants.sol";
@@ -18,7 +18,7 @@ import { CreditFacadeTestHelper } from "../helpers/CreditFacadeTestHelper.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException } from "../../interfaces/IErrors.sol";
-import { ICreditManagerV2Exceptions } from "../../interfaces/ICreditManagerV2.sol";
+import { ICreditManagerV2ExceptionsCommon } from "../../interfaces/ICreditManagerV2.sol";
 
 // MOCKS
 import { AdapterMock } from "../mocks/adapters/AdapterMock.sol";
@@ -128,7 +128,9 @@ contract AbstractAdapterTest is
         );
 
         evm.expectRevert(
-            ICreditManagerV2Exceptions.HasNoOpenedAccountException.selector
+            ICreditManagerV2ExceptionsCommon
+                .HasNoOpenedAccountException
+                .selector
         );
         adapterMock.executeMaxAllowanceFastCheck(
             usdc,
@@ -139,7 +141,9 @@ contract AbstractAdapterTest is
         );
 
         evm.expectRevert(
-            ICreditManagerV2Exceptions.HasNoOpenedAccountException.selector
+            ICreditManagerV2ExceptionsCommon
+                .HasNoOpenedAccountException
+                .selector
         );
         adapterMock.safeExecuteFastCheck(usdc, dai, DUMB_CALLDATA, true, false);
     }
@@ -158,7 +162,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.executeOrder.selector,
+                ICreditManagerV2Common.executeOrder.selector,
                 USER,
                 address(targetMock),
                 DUMB_CALLDATA
@@ -168,7 +172,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.fastCollateralCheck.selector,
+                ICreditManagerV2Common.fastCollateralCheck.selector,
                 ca,
                 usdc,
                 dai,
@@ -214,7 +218,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.executeOrder.selector,
+                ICreditManagerV2Common.executeOrder.selector,
                 address(creditFacade),
                 address(targetMock),
                 DUMB_CALLDATA
@@ -224,7 +228,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.disableToken.selector,
+                ICreditManagerV2Common.disableToken.selector,
                 ca,
                 usdc
             )
@@ -233,7 +237,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.checkAndEnableToken.selector,
+                ICreditManagerV2Common.checkAndEnableToken.selector,
                 ca,
                 dai
             )
@@ -314,7 +318,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.executeOrder.selector,
+                ICreditManagerV2Common.executeOrder.selector,
                 USER,
                 address(targetMock),
                 DUMB_CALLDATA
@@ -324,7 +328,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.fastCollateralCheck.selector,
+                ICreditManagerV2Common.fastCollateralCheck.selector,
                 ca,
                 usdc,
                 dai,
@@ -364,7 +368,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.executeOrder.selector,
+                ICreditManagerV2Common.executeOrder.selector,
                 address(creditFacade),
                 address(targetMock),
                 DUMB_CALLDATA
@@ -374,7 +378,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.disableToken.selector,
+                ICreditManagerV2Common.disableToken.selector,
                 ca,
                 usdc
             )
@@ -383,7 +387,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.checkAndEnableToken.selector,
+                ICreditManagerV2Common.checkAndEnableToken.selector,
                 ca,
                 dai
             )
@@ -435,7 +439,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.executeOrder.selector,
+                ICreditManagerV2Common.executeOrder.selector,
                 USER,
                 address(targetMock),
                 DUMB_CALLDATA
@@ -453,7 +457,7 @@ contract AbstractAdapterTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.fullCollateralCheck.selector,
+                ICreditManagerV2Common.fullCollateralCheck.selector,
                 ca
             )
         );

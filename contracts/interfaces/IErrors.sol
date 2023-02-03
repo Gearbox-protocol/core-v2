@@ -31,3 +31,5 @@ error CallerNotPausableAdminException();
 error CallerNotUnPausableAdminException();
 
 error TokenIsNotAddedToCreditManagerException(address token);
+
+error CallerNotCreditManagerException();

@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 
 import { Balance } from "../libraries/Balances.sol";
 import { MultiCall } from "../libraries/MultiCall.sol";
-import { ICreditManagerV2, ICreditManagerV2Exceptions } from "./ICreditManagerV2.sol";
+import { ICreditManagerV2, ICreditManagerV2Limits, ICreditManagerV2Exceptions, ICreditManagerV2LimitsExceptions } from "./ICreditManagerV2.sol";
 import { IVersion } from "./IVersion.sol";
 
 interface ICreditFacadeExtended {
@@ -55,7 +55,7 @@ interface ICreditFacadeExtended {
     function decreaseDebt(uint256 amount) external;
 }
 
-interface ICreditFacadeEvents {
+interface ICreditFacadeEventsCommon {
     /// @dev Emits when a new Credit Account is opened through the
     ///      Credit Facade
     event OpenCreditAccount(
@@ -120,7 +120,11 @@ interface ICreditFacadeEvents {
     event TokenDisabled(address indexed borrower, address indexed token);
 }
 
-interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
+interface ICreditFacadeEvents is ICreditFacadeEventsCommon {}
+
+interface ICreditFacadeLimitsEvents is ICreditFacadeEventsCommon {}
+
+interface ICreditFacadeExceptionsCommon {
     /// @dev Thrown if the CreditFacade is not expirable, and an aciton is attempted that
     ///      requires expirability
     error NotAllowedWhenNotExpirableException();
@@ -185,11 +189,17 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     error NotApprovedBotException();
 }
 
-interface ICreditFacade is
-    ICreditFacadeEvents,
-    ICreditFacadeExceptions,
-    IVersion
-{
+interface ICreditFacadeExceptions is
+    ICreditFacadeExceptionsCommon,
+    ICreditManagerV2Exceptions
+{}
+
+interface ICreditFacadeLimitsExceptions is
+    ICreditFacadeExceptionsCommon,
+    ICreditManagerV2LimitsExceptions
+{}
+
+interface ICreditFacadeCommon is IVersion {
     //
     // CREDIT ACCOUNT MANAGEMENT
     //
@@ -408,14 +418,6 @@ interface ICreditFacade is
         view
         returns (uint256 hf);
 
-    /// @dev Returns true if token is a collateral token and is not forbidden,
-    /// otherwise returns false
-    /// @param token Token to check
-    function isTokenAllowed(address token) external view returns (bool);
-
-    /// @dev Returns the CreditManager connected to this Credit Facade
-    function creditManager() external view returns (ICreditManagerV2);
-
     /// @dev Returns true if 'from' is allowed to transfer Credit Accounts to 'to'
     /// @param from Sender address to check allowance for
     /// @param to Receiver address to check allowance for
@@ -454,4 +456,40 @@ interface ICreditFacade is
 
     /// @dev Whether the underlying of connected Credit Manager is blacklistable
     function isBlacklistableUnderlying() external view returns (bool);
+}
+
+interface ICreditFacade is
+    ICreditFacadeCommon,
+    ICreditFacadeEvents,
+    ICreditFacadeExceptions
+{
+    //
+    // GETTERS
+    //
+
+    /// @dev Returns the CreditManager connected to this Credit Facade
+    function creditManager() external view returns (ICreditManagerV2);
+
+    /// @dev Returns true if token is a collateral token and is not forbidden,
+    /// otherwise returns false
+    /// @param token Token to check
+    function isTokenAllowed(address token) external view returns (bool);
+}
+
+interface ICreditFacadeLimits is
+    ICreditFacadeCommon,
+    ICreditFacadeLimitsEvents,
+    ICreditFacadeLimitsExceptions
+{
+    //
+    // GETTERS
+    //
+
+    /// @dev Returns the CreditManager connected to this Credit Facade
+    function creditManager() external view returns (ICreditManagerV2Limits);
+
+    /// @dev Returns true if token is a collateral token and a limited token,
+    /// otherwise returns false
+    /// @param token Token to check
+    function isTokenLimited(address token) external view returns (bool limited);
 }

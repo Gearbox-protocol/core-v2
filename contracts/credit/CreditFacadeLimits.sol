@@ -13,8 +13,8 @@ import { MultiCall } from "../libraries/MultiCall.sol";
 import { Balance, BalanceOps } from "../libraries/Balances.sol";
 
 /// INTERFACES
-import { ICreditFacade, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
-import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
+import { ICreditFacadeLimits, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
+import { ICreditManagerV2Limits, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
 import { IWETH } from "../interfaces/external/IWETH.sol";
@@ -52,12 +52,12 @@ struct Limits {
 /// - Through CreditFacade, which provides all the required account management function: open / close / liquidate / manageDebt,
 /// as well as Multicalls that allow to perform multiple actions within a single transaction, with a single health check
 /// - Through adapters, which call the Credit Manager directly, but only allow interactions with specific target contracts
-contract CreditFacade is ICreditFacade, ReentrancyGuard {
+contract CreditFacadeLimits is ICreditFacadeLimits, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Address for address;
 
     /// @dev Credit Manager connected to this Credit Facade
-    ICreditManagerV2 public immutable creditManager;
+    ICreditManagerV2Limits public immutable creditManager;
 
     /// @dev Whether the whitelisted mode is active
     bool public immutable whitelisted;
@@ -126,9 +126,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Additional check that _creditManager is not address(0)
         if (_creditManager == address(0)) revert ZeroAddressException(); // F:[FA-1]
 
-        creditManager = ICreditManagerV2(_creditManager); // F:[FA-1A]
-        underlying = ICreditManagerV2(_creditManager).underlying(); // F:[FA-1A]
-        wethAddress = ICreditManagerV2(_creditManager).wethAddress(); // F:[FA-1A]
+        creditManager = ICreditManagerV2Limits(_creditManager); // F:[FA-1A]
+        underlying = ICreditManagerV2Limits(_creditManager).underlying(); // F:[FA-1A]
+        wethAddress = ICreditManagerV2Limits(_creditManager).wethAddress(); // F:[FA-1A]
 
         degenNFT = _degenNFT; // F:[FA-1A]
         whitelisted = _degenNFT != address(0); // F:[FA-1A]
@@ -542,9 +542,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Checks that the borrowed amount does not violate the per block limit
         _checkAndUpdateBorrowedBlockLimit(amount); // F:[FA-18A]
 
-        // Checks that there are no forbidden tokens, as borrowing
-        // is prohibited when forbidden tokens are enabled on the account
-        _checkForbiddenTokens(creditAccount);
+        // Checks that there are no over-limit tokens, as borrowing
+        // is prohibited when over-limit tokens are enabled on the account
+        _checkTokensOverLimit(creditAccount);
 
         // Requests the Credit Manager to borrow additional funds from the pool
         uint256 newBorrowedAmount = creditManager.manageDebt(
@@ -561,27 +561,20 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     }
 
     /// @dev Checks that there are no intersections between the user's enabled tokens
-    /// and the set of forbidden tokens
-    /// @notice The main purpose of forbidding tokens is to prevent exposing
-    /// pool funds to dangerous or exploited collateral, without immediately
-    /// liquidating accounts that hold the forbidden token
-    /// There are two ways pool funds can be exposed:
-    ///     - The CA owner tries to swap borrowed funds to the forbidden asset:
-    ///       this will be blocked by checkAndEnableToken, which is invoked for tokenOut
-    ///       after every operation;
-    ///     - The CA owner with an already enabled forbidden token transfers it
-    ///       to the account - they can't use addCollateral / enableToken due to checkAndEnableToken,
-    ///       but can transfer the token directly when it is enabled and it will be counted in the collateral -
-    ///       an borrows against it. This check is used to prevent this.
-    /// If the owner has a forbidden token and want to take more debt, they must first
-    /// dispose of the token and disable it.
-    function _checkForbiddenTokens(address creditAccount) internal view {
+    /// and the set of tokens over the limit
+    /// @notice It is possible for the current count of accounts with a limited tokens
+    ///         to be lower than the limit, in the case when the limit is lowered below
+    ///         the current count by governance. When the token is over the limit, is essentially becomes
+    ///         the same as "forbidden" in the ordinary CA, so we want to prevent additional
+    ///         borrowing in the same way. Therefore the check for forbidden tokens is replaced
+    ///         with a check for over the limit token.
+    function _checkTokensOverLimit(address creditAccount) internal view {
         uint256 enabledTokenMask = creditManager.enabledTokensMap(
             creditAccount
         );
-        uint256 forbiddenTokenMask = creditManager.forbiddenTokenMask();
+        uint256 tokensOverLimitMask = creditManager.tokensOverLimitMask();
 
-        if (enabledTokenMask & forbiddenTokenMask > 0) {
+        if (enabledTokenMask & tokensOverLimitMask > 0) {
             revert ActionProhibitedWithForbiddenTokensException();
         }
     }
@@ -1231,19 +1224,19 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     // GETTERS
     //
 
-    /// @dev Returns true if token is a collateral token and is not forbidden,
+    /// @dev Returns true if token is a collateral token and a limited token,
     /// otherwise returns false
     /// @param token Token to check
-    function isTokenAllowed(address token)
+    function isTokenLimited(address token)
         public
         view
         override
-        returns (bool allowed)
+        returns (bool limited)
     {
         uint256 tokenMask = creditManager.tokenMasksMap(token); // F:[FA-40]
-        allowed =
+        limited =
             (tokenMask != 0) &&
-            (creditManager.forbiddenTokenMask() & tokenMask == 0); // F:[FA-40]
+            (creditManager.limitedTokenMask() & tokenMask == 0);
     }
 
     /// @dev Calculates total value for provided Credit Account in underlying

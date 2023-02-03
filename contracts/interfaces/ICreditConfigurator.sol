@@ -3,7 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 import { IAddressProvider } from "./IAddressProvider.sol";
+import { CreditManagerLimits } from "../credit/CreditManagerLimits.sol";
 import { CreditManager } from "../credit/CreditManager.sol";
+import { CreditFacadeLimits } from "../credit/CreditFacadeLimits.sol";
 import { CreditFacade } from "../credit/CreditFacade.sol";
 import { IVersion } from "./IVersion.sol";
 
@@ -33,7 +35,7 @@ struct CreditManagerOpts {
     bool skipInit;
 }
 
-interface ICreditConfiguratorEvents {
+interface ICreditConfiguratorEventsCommon {
     /// @dev Emits when a collateral token's liquidation threshold is changed
     event TokenLiquidationThresholdUpdated(
         address indexed token,
@@ -42,9 +44,6 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when a new or a previously forbidden token is allowed
     event TokenAllowed(address indexed token);
-
-    /// @dev Emits when a collateral token is forbidden
-    event TokenForbidden(address indexed token);
 
     /// @dev Emits when a contract <> adapter pair is linked for a Credit Manager
     event ContractAllowed(address indexed protocol, address indexed adapter);
@@ -104,8 +103,26 @@ interface ICreditConfiguratorEvents {
     event BotListUpdated(address);
 }
 
-/// @dev CreditConfigurator Exceptions
-interface ICreditConfiguratorExceptions {
+interface ICreditConfiguratorEvents is ICreditConfiguratorEventsCommon {
+    /// @dev Emits when a collateral token is forbidden
+    event TokenForbidden(address indexed token);
+}
+
+interface ICreditConfiguratorLimitsEvents is ICreditConfiguratorEventsCommon {
+    /// @dev Emits when a collateral token is marked as limited and a limit is set
+    event TokenLimited(address indexed token);
+
+    /// @dev Emits when a new limit is set for a particular token
+    event NewTokenLimitSet(address indexed token, uint16);
+
+    /// @dev Emits when a new extra fee value is set for a particular token
+    event NewTokenExtraFeeSet(address indexed token, uint16);
+
+    /// @dev Emits when token limit is removed
+    event TokenLimitRemoved(address indexed token);
+}
+
+interface ICreditConfiguratorExceptionsCommon {
     /// @dev Thrown if the underlying's LT is set directly
     /// @notice Underlying LT is derived from fee parameters and is set automatically
     ///         on updating fees
@@ -143,11 +160,22 @@ interface ICreditConfiguratorExceptions {
     error MigratableParameterAlreadySet();
 }
 
-interface ICreditConfigurator is
-    ICreditConfiguratorEvents,
-    ICreditConfiguratorExceptions,
-    IVersion
+/// @dev CreditConfigurator Exceptions
+interface ICreditConfiguratorExceptions is ICreditConfiguratorExceptionsCommon {
+
+}
+
+interface ICreditConfiguratorLimitsExceptions is
+    ICreditConfiguratorExceptionsCommon
 {
+    /// @dev Thrown if an incorrect limited token param is set for a token
+    error IncorrectLimitedTokenParamException();
+
+    /// @dev Thrown if attempting to set a limited token param for a non-limited token
+    error TokenIsNotLimitedException();
+}
+
+interface ICreditConfiguratorCommon is IVersion {
     //
     // PARAMETER MIGRATION FUNCTIONS
     //
@@ -173,17 +201,6 @@ interface ICreditConfigurator is
     /// @param liquidationThreshold in PERCENTAGE_FORMAT (100% = 10000)
     function setLiquidationThreshold(address token, uint16 liquidationThreshold)
         external;
-
-    /// @dev Allow a known collateral token if it was forbidden before.
-    /// @param token Address of collateral token
-    function allowToken(address token) external;
-
-    /// @dev Forbids a collateral token.
-    /// Forbidden tokens are counted as collateral during health checks, however, they cannot be enabled
-    /// or received as a result of adapter operation anymore. This means that a token can never be
-    /// acquired through adapter operations after being forbidden.
-    /// @param token Address of collateral token to forbid
-    function forbidToken(address token) external;
 
     /// @dev Adds pair [contract <-> adapter] to the list of allowed contracts
     /// or updates adapter address if a contract already has a connected adapter
@@ -286,15 +303,79 @@ interface ICreditConfigurator is
     /// @dev Address provider (needed for upgrading the Price Oracle)
     function addressProvider() external view returns (IAddressProvider);
 
-    /// @dev Returns the Credit Facade currently connected to the Credit Manager
-    function creditFacade() external view returns (CreditFacade);
-
-    /// @dev Address of the Credit Manager
-    function creditManager() external view returns (CreditManager);
-
     /// @dev Address of the Credit Manager's underlying asset
     function underlying() external view returns (address);
 
     /// @dev Returns all allowed contracts
     function allowedContracts() external view returns (address[] memory);
+}
+
+interface ICreditConfigurator is
+    ICreditConfiguratorCommon,
+    ICreditConfiguratorEvents,
+    ICreditConfiguratorExceptions
+{
+    //
+    // STATE-CHANGING FUNCTIONS
+    //
+
+    /// @dev Allow a known collateral token if it was forbidden before.
+    /// @param token Address of collateral token
+    function allowToken(address token) external;
+
+    /// @dev Forbids a collateral token.
+    /// Forbidden tokens are counted as collateral during health checks, however, they cannot be enabled
+    /// or received as a result of adapter operation anymore. This means that a token can never be
+    /// acquired through adapter operations after being forbidden.
+    /// @param token Address of collateral token to forbid
+    function forbidToken(address token) external;
+
+    //
+    // GETTERS
+    //
+
+    /// @dev Address of the Credit Manager
+    function creditManager() external view returns (CreditManager);
+
+    /// @dev Returns the Credit Facade currently connected to the Credit Manager
+    function creditFacade() external view returns (CreditFacade);
+}
+
+interface ICreditConfiguratorLimits is
+    ICreditConfiguratorCommon,
+    ICreditConfiguratorLimitsEvents,
+    ICreditConfiguratorLimitsExceptions
+{
+    //
+    // STATE-CHANGING FUNCTIONS
+    //
+
+    /// @dev Sets a limit on a max number of CAs that have a token enabled
+    /// @param token Token for which the limit is set
+    /// @param maxEnabledLimit The initial limit to set for the token
+    function limitToken(address token, uint16 maxEnabledLimit) external;
+
+    /// @dev Sets a token limit for an already limited token
+    /// @param token Address of the limited token
+    /// @param newLimit New limit to be set
+    function setTokenLimit(address token, uint16 newLimit) external;
+
+    /// @dev Sets an extra fee for an already limited token
+    /// @param token Address of the limite token
+    /// @param extraFee Value of the extra fee, in bps
+    function setTokenExtraFee(address token, uint16 extraFee) external;
+
+    /// @dev Removes token limiter and all params related to token limits
+    /// @param token Token to remove the limit for
+    function removeTokenLimit(address token) external;
+
+    //
+    // GETTERS
+    //
+
+    /// @dev Address of the Credit Manager
+    function creditManager() external view returns (CreditManagerLimits);
+
+    /// @dev Returns the Credit Facade currently connected to the Credit Manager
+    function creditFacade() external view returns (CreditFacadeLimits);
 }

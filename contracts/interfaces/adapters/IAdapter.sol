@@ -2,7 +2,7 @@
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
-import { ICreditManagerV2 } from "../ICreditManagerV2.sol";
+import { ICreditManagerV2Common } from "../ICreditManagerV2.sol";
 
 enum AdapterType {
     ABSTRACT,
@@ -32,7 +32,7 @@ interface IAdapterExceptions {
 
 interface IAdapter is IAdapterExceptions {
     /// @dev Returns the Credit Manager connected to the adapter
-    function creditManager() external view returns (ICreditManagerV2);
+    function creditManager() external view returns (ICreditManagerV2Common);
 
     /// @dev Returns the address of the contract the adapter is interacting with
     function targetContract() external view returns (address);

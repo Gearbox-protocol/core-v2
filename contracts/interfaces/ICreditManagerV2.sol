@@ -13,7 +13,15 @@ enum ClosureAction {
     LIQUIDATE_PAUSED
 }
 
-interface ICreditManagerV2Events {
+struct CollateralTokenData {
+    address token;
+    uint16 liquidationThreshold;
+    uint16 currentEnabled;
+    uint16 maxEnabledLimit;
+    uint16 extraFeeRate;
+}
+
+interface ICreditManagerV2EventsCommon {
     /// @dev Emits when a call to an external contract is made through the Credit Manager
     event ExecuteOrder(address indexed borrower, address indexed target);
 
@@ -21,7 +29,7 @@ interface ICreditManagerV2Events {
     event NewConfigurator(address indexed newConfigurator);
 }
 
-interface ICreditManagerV2Exceptions {
+interface ICreditManagerV2ExceptionsCommon {
     /// @dev Thrown if an access-restricted function is called by an address that is not
     ///      the connected Credit Facade, or an allowed adapter
     error AdaptersOrCreditFacadeOnlyException();
@@ -62,21 +70,28 @@ interface ICreditManagerV2Exceptions {
     error TooManyTokensException();
 
     /// @dev Thrown if more than the maximal number of tokens were enabled on a Credit Account,
-    ///      and there are not enough unused token to disable
+    ///      and there are not enough unused tokens to disable
     error TooManyEnabledTokensException();
 
     /// @dev Thrown when a reentrancy into the contract is attempted
     error ReentrancyLockException();
 }
 
+interface ICreditManagerV2Events is ICreditManagerV2EventsCommon {}
+
+interface ICreditManagerV2Exceptions is ICreditManagerV2ExceptionsCommon {}
+
+interface ICreditManagerV2LimitsEvents is ICreditManagerV2EventsCommon {}
+
+interface ICreditManagerV2LimitsExceptions is ICreditManagerV2ExceptionsCommon {
+    /// @dev Thrown when a transaction ended with one or more limited tokens over the limit
+    error TokenLimitBreachedException();
+}
+
 /// @notice All Credit Manager functions are access-restricted and can only be called
 ///         by the Credit Facade or allowed adapters. Users are not allowed to
 ///         interact with the Credit Manager directly
-interface ICreditManagerV2 is
-    ICreditManagerV2Events,
-    ICreditManagerV2Exceptions,
-    IVersion
-{
+interface ICreditManagerV2Common is IVersion {
     //
     // CREDIT ACCOUNT MANAGEMENT
     //
@@ -331,9 +346,6 @@ interface ICreditManagerV2 is
     /// @param token Token to returns the mask for
     function tokenMasksMap(address token) external view returns (uint256);
 
-    /// @dev Bit mask encoding a set of forbidden tokens
-    function forbiddenTokenMask() external view returns (uint256);
-
     /// @dev Maps allowed adapters to their respective target contracts.
     function adapterToContract(address adapter) external view returns (address);
 
@@ -417,4 +429,51 @@ interface ICreditManagerV2 is
     function checkEmergencyPausable(address caller, bool state)
         external
         returns (bool);
+}
+
+interface ICreditManagerV2 is
+    ICreditManagerV2Common,
+    ICreditManagerV2Exceptions,
+    ICreditManagerV2Events
+{
+    /// @dev Bit mask encoding a set of forbidden tokens
+    function forbiddenTokenMask() external view returns (uint256);
+}
+
+interface ICreditManagerV2Limits is
+    ICreditManagerV2Common,
+    ICreditManagerV2LimitsExceptions,
+    ICreditManagerV2LimitsEvents
+{
+    /// @dev Bit mask encoding a set of tokens currently over the limit
+    ///      This can happen when the token limit is lowered below the current count
+    function tokensOverLimitMask() external view returns (uint256);
+
+    /// @dev Bit mask encoding a set of limited tokens
+    function limitedTokenMask() external view returns (uint256);
+
+    /// @dev Maps Credit Accounts to their virtual borrow amounts
+    ///      Virtual borrow amounts are used to apply additional fees for exposure to risky assets
+    ///      Virtual amount accrues interest, but isn't repaid to the pool
+    function virtualBorrowedAmounts(address creditAccount)
+        external
+        view
+        returns (uint256);
+
+    /// @dev Returns all parameters for a particular collateral token
+    /// @return limited Whether the token is marked as limited
+    /// @return liquidationThreshold Token's LT
+    /// @return currentEnabledCount How many accounts currently have the token enabled (only tracked for limited tokens, otherwise 0)
+    /// @return maxEnabledCount The maximum limit on the accounts that can have a token enabled
+    /// @return extraFeeRate The interest multiplier paid for the user to have the token enabled on the account (only for limited tokens)
+    function collateralTokenData(address token)
+        external
+        view
+        returns (
+            bool limited,
+            uint16 liquidationThreshold,
+            uint16 currentEnabledCount,
+            uint16 maxEnabledCount,
+            uint16 extraFeeRate
+        );
 }
