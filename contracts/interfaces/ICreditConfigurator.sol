@@ -128,9 +128,6 @@ interface ICreditConfiguratorExceptions {
 
     /// @dev Thrown if attempting to forbid an adapter that is not allowed for the Credit Manager
     error ContractIsNotAnAllowedAdapterException();
-
-    /// @dev Thrown if attempting to forbid or migrate a target contract that is not allowed for the Credit Manager
-    error ContractIsNotAnAllowedTargetException();
 }
 
 interface ICreditConfigurator is
