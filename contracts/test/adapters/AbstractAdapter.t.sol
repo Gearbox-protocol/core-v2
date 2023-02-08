@@ -6,6 +6,7 @@ pragma solidity ^0.8.10;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { AccountFactory } from "../../core/AccountFactory.sol";
+import { CreditFacade } from "../../credit/CreditFacade.sol";
 
 import { ICreditFacade, MultiCall } from "../../interfaces/ICreditFacade.sol";
 import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICreditManagerV2.sol";
@@ -99,12 +100,6 @@ contract AbstractAdapterTest is
             address(adapterMock.creditManager()),
             address(creditManager),
             "Incorrect Credit Manager"
-        );
-
-        assertEq(
-            adapterMock.creditFacade(),
-            creditManager.creditFacade(),
-            "Incorrect Credit Facade"
         );
 
         assertEq(
@@ -490,9 +485,30 @@ contract AbstractAdapterTest is
             0,
             "Incorrect health factor"
         );
+    }
 
-        /// If the system will run fullcollateral check it would fail
-        evm.prank(address(creditFacade));
+    /// @dev [AA-09]: AbstractAdapter works correctly after changing CreditFacade
+    function test_AA_09_adapter_correctly_detects_CreditFacade_change() public {
+        (address ca, ) = _openTestCreditAccount();
+
+        _makeAccountsLiquitable();
+
+        evm.expectRevert(NotEnoughCollateralException.selector);
+        adapterMock.fullCheck(ca);
+
+        evm.startPrank(CONFIGURATOR);
+
+        CreditFacade newCreditFacade = new CreditFacade(
+            address(creditManager),
+            address(0),
+            false
+        );
+
+        creditConfigurator.upgradeCreditFacade(address(newCreditFacade), true);
+
+        evm.stopPrank();
+
+        evm.prank(address(newCreditFacade));
         adapterMock.fullCheck(ca);
     }
 }

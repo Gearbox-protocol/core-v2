@@ -24,7 +24,7 @@ import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 
 // EXCEPTIONS
-import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../interfaces/IErrors.sol";
+import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../interfaces/IErrors.sol";
 import { ICreditManagerV2, ICreditManagerV2Exceptions } from "../interfaces/ICreditManagerV2.sol";
 
 /// @title CreditConfigurator
@@ -82,44 +82,67 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         addressProvider = IPoolService(_creditManager.poolService())
             .addressProvider(); // F:[CC-1]
 
-        /// Sets limits, fees and fastCheck parameters for the Credit Manager
-        _setParams(
-            DEFAULT_FEE_INTEREST,
-            DEFAULT_FEE_LIQUIDATION,
-            PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM,
-            DEFAULT_FEE_LIQUIDATION_EXPIRED,
-            PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
-        ); // F:[CC-1]
+        address currentConfigurator = creditManager.creditConfigurator(); // F: [CC-41]
 
-        /// Adds collateral tokens and sets their liquidation thresholds
-        /// The underlying must not be in this list, since its LT is set separately in _setParams
-        uint256 len = opts.collateralTokens.length;
-        for (uint256 i = 0; i < len; ) {
-            address token = opts.collateralTokens[i].token;
+        if (currentConfigurator != address(this)) {
+            /// DEPLOYED FOR EXISTING CREDIT MANAGER
 
-            addCollateralToken(token); // F:[CC-1]
+            address[] memory allowedContractsPrev = CreditConfigurator(
+                currentConfigurator
+            ).allowedContracts(); // F: [CC-41]
 
-            _setLiquidationThreshold(
-                token,
-                opts.collateralTokens[i].liquidationThreshold
+            uint256 allowedContractsLen = allowedContractsPrev.length;
+            for (uint256 i = 0; i < allowedContractsLen; ) {
+                allowedContractsSet.add(allowedContractsPrev[i]); // F: [CC-41]
+
+                unchecked {
+                    ++i;
+                }
+            }
+        } else {
+            /// DEPLOYED FOR NEW CREDIT MANAGER
+
+            /// Sets limits, fees and fastCheck parameters for the Credit Manager
+            _setParams(
+                DEFAULT_FEE_INTEREST,
+                DEFAULT_FEE_LIQUIDATION,
+                PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM,
+                DEFAULT_FEE_LIQUIDATION_EXPIRED,
+                PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
             ); // F:[CC-1]
 
-            unchecked {
-                ++i;
+            /// Adds collateral tokens and sets their liquidation thresholds
+            /// The underlying must not be in this list, since its LT is set separately in _setParams
+            uint256 len = opts.collateralTokens.length;
+            for (uint256 i = 0; i < len; ) {
+                address token = opts.collateralTokens[i].token;
+
+                addCollateralToken(token); // F:[CC-1]
+
+                _setLiquidationThreshold(
+                    token,
+                    opts.collateralTokens[i].liquidationThreshold
+                ); // F:[CC-1]
+
+                unchecked {
+                    ++i;
+                }
             }
+
+            // Connects creditFacade and priceOracle
+            creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
+
+            emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
+            emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
+
+            _setLimitPerBlock(
+                uint128(
+                    DEFAULT_LIMIT_PER_BLOCK_MULTIPLIER * opts.maxBorrowedAmount
+                )
+            ); // F:[CC-1]
+
+            _setLimits(opts.minBorrowedAmount, opts.maxBorrowedAmount); // F:[CC-1]
         }
-
-        // Connects creditFacade and priceOracle
-        creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
-
-        emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
-        emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
-
-        _setLimitPerBlock(
-            uint128(DEFAULT_LIMIT_PER_BLOCK_MULTIPLIER * opts.maxBorrowedAmount)
-        ); // F:[CC-1]
-
-        _setLimits(opts.minBorrowedAmount, opts.maxBorrowedAmount); // F:[CC-1]
     }
 
     //
@@ -183,8 +206,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (token == underlying) revert SetLTForUnderlyingException(); // F:[CC-5]
 
         (, uint16 ltUnderlying) = creditManager.collateralTokens(0);
-        // Sanity checks for the liquidation threshold. It should be > 0 and less than the LT of the underlying
-        if (liquidationThreshold == 0 || liquidationThreshold > ltUnderlying)
+        // Sanity check for the liquidation threshold. The LT should be less than underlying
+        if (liquidationThreshold > ltUnderlying)
             revert IncorrectLiquidationThresholdException(); // F:[CC-5]
 
         uint16 currentLT = creditManager.liquidationThresholds(token);
@@ -304,6 +327,14 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (creditManager.adapterToContract(adapter) != address(0))
             revert AdapterUsedTwiceException(); // F:[CC-14]
 
+        // If there is an existing adapter for the target contract, it has to be removed
+        address currentAdapter = creditManager.contractToAdapter(
+            targetContract
+        );
+        if (currentAdapter != address(0)) {
+            creditManager.changeContractAllowance(currentAdapter, address(0)); // F: [CC-15A]
+        }
+
         // Sets a link between adapter and targetContract in creditFacade and creditManager
         creditManager.changeContractAllowance(adapter, targetContract); // F:[CC-15]
 
@@ -340,6 +371,26 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         allowedContractsSet.remove(targetContract); // F:[CC-17]
 
         emit ContractForbidden(targetContract); // F:[CC-17]
+    }
+
+    /// @dev Removes the link between passed adapter and its contract
+    ///      Useful to remove "orphaned" adapters, i.e. adapters that were replaced but still point
+    ///      to the contract for some reason. This allows users to still execute actions through the old adapter,
+    ///      even though that is not intended.
+    function forbidAdapter(address adapter) external override configuratorOnly {
+        /// Sanity check that zero address was not passed
+        if (adapter == address(0)) revert ZeroAddressException(); // F: [CC-40]
+
+        /// If the adapter already has no linked target contract, then there is nothing to change
+        address targetContract = creditManager.adapterToContract(adapter);
+        if (targetContract == address(0)) {
+            revert ContractIsNotAnAllowedAdapterException(); // F: [CC-40]
+        }
+
+        /// Removes the adapter => target contract link only
+        creditManager.changeContractAllowance(adapter, address(0)); // F: [CC-40]
+
+        emit AdapterForbidden(adapter); // F: [CC-40]
     }
 
     //
@@ -602,10 +653,12 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @dev Enables or disables borrowing
     /// In Credit Facade (and, consequently, the Credit Manager)
     /// @param _mode Prohibits borrowing if true, and allows borrowing otherwise
-    function setIncreaseDebtForbidden(bool _mode)
-        external
-        configuratorOnly // F:[CC-2]
-    {
+    function setIncreaseDebtForbidden(bool _mode) external {
+        if (_mode && !_acl.isPausableAdmin(msg.sender))
+            revert CallerNotPausableAdminException();
+        else if (!_mode && !_acl.isUnpausableAdmin(msg.sender))
+            revert CallerNotUnPausableAdminException();
+
         _setIncreaseDebtForbidden(_mode);
     }
 

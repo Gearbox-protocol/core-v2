@@ -19,9 +19,6 @@ contract UniversalAdapter is IUniversalAdapter {
     /// @dev The credit manager this universal adapter connects to
     ICreditManagerV2 public immutable override creditManager;
 
-    /// @dev The credit facade attached to the credit manager
-    address public immutable override creditFacade;
-
     AdapterType public constant _gearboxAdapterType = AdapterType.UNIVERSAL;
     uint16 public constant _gearboxAdapterVersion = 1;
 
@@ -29,9 +26,7 @@ contract UniversalAdapter is IUniversalAdapter {
     /// @param _creditManager Address of the Credit Manager
     constructor(address _creditManager) {
         if (_creditManager == address(0)) revert ZeroAddressException();
-
         creditManager = ICreditManagerV2(_creditManager);
-        creditFacade = ICreditManagerV2(_creditManager).creditFacade();
     }
 
     /// @dev Sets allowances to zero for the provided spender/token pairs, for msg.sender's CA

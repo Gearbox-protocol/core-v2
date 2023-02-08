@@ -48,6 +48,9 @@ interface ICreditConfiguratorEvents {
     /// @dev Emits when a 3rd-party contract is forbidden
     event ContractForbidden(address indexed protocol);
 
+    /// @dev Emits when a particular adapter for a target contract is forbidden
+    event AdapterForbidden(address indexed adapter);
+
     /// @dev Emits when debt principal limits are changed
     event LimitsUpdated(uint256 minBorrowedAmount, uint256 maxBorrowedAmount);
 
@@ -168,6 +171,11 @@ interface ICreditConfigurator is
     /// @dev Forbids contract as a target for calls from Credit Accounts
     /// @param targetContract Address of a contract to be forbidden
     function forbidContract(address targetContract) external;
+
+    /// @dev Forbids adapter (and only the adapter - the target contract is not affected)
+    /// @param adapter Address of adapter to disable
+    /// @notice Used to clean up orphaned adapters
+    function forbidAdapter(address adapter) external;
 
     /// @dev Sets borrowed amount limits in Credit Facade
     /// @param _minBorrowedAmount Minimum borrowed amount
