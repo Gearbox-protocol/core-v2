@@ -83,24 +83,16 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             .addressProvider(); // F:[CC-1]
 
         {
-            address currentConfigurator = creditManager.creditConfigurator();
+            address currentConfigurator = creditManager.creditConfigurator(); // F: [CC-41]
 
             if (currentConfigurator != address(this)) {
                 address[] memory allowedContractsPrev = CreditConfigurator(
                     currentConfigurator
-                ).allowedContracts();
+                ).allowedContracts(); // F: [CC-41]
 
                 uint256 allowedContractsLen = allowedContractsPrev.length;
                 for (uint256 i = 0; i < allowedContractsLen; ) {
-                    if (
-                        creditManager.contractToAdapter(
-                            allowedContractsPrev[i]
-                        ) == address(0)
-                    ) {
-                        revert ContractIsNotAnAllowedTargetException();
-                    }
-
-                    allowedContractsSet.add(allowedContractsPrev[i]);
+                    allowedContractsSet.add(allowedContractsPrev[i]); // F: [CC-41]
 
                     unchecked {
                         ++i;
