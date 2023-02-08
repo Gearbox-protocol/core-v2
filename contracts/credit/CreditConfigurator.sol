@@ -82,65 +82,67 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         addressProvider = IPoolService(_creditManager.poolService())
             .addressProvider(); // F:[CC-1]
 
-        {
-            address currentConfigurator = creditManager.creditConfigurator(); // F: [CC-41]
+        address currentConfigurator = creditManager.creditConfigurator(); // F: [CC-41]
 
-            if (currentConfigurator != address(this)) {
-                address[] memory allowedContractsPrev = CreditConfigurator(
-                    currentConfigurator
-                ).allowedContracts(); // F: [CC-41]
+        if (currentConfigurator != address(this)) {
+            /// DEPLOYED FOR EXISTING CREDIT MANAGER
 
-                uint256 allowedContractsLen = allowedContractsPrev.length;
-                for (uint256 i = 0; i < allowedContractsLen; ) {
-                    allowedContractsSet.add(allowedContractsPrev[i]); // F: [CC-41]
+            address[] memory allowedContractsPrev = CreditConfigurator(
+                currentConfigurator
+            ).allowedContracts(); // F: [CC-41]
 
-                    unchecked {
-                        ++i;
-                    }
+            uint256 allowedContractsLen = allowedContractsPrev.length;
+            for (uint256 i = 0; i < allowedContractsLen; ) {
+                allowedContractsSet.add(allowedContractsPrev[i]); // F: [CC-41]
+
+                unchecked {
+                    ++i;
                 }
-
-                return;
             }
-        }
+        } else {
+            /// DEPLOYED FOR NEW CREDIT MANAGER
 
-        /// Sets limits, fees and fastCheck parameters for the Credit Manager
-        _setParams(
-            DEFAULT_FEE_INTEREST,
-            DEFAULT_FEE_LIQUIDATION,
-            PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM,
-            DEFAULT_FEE_LIQUIDATION_EXPIRED,
-            PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
-        ); // F:[CC-1]
-
-        /// Adds collateral tokens and sets their liquidation thresholds
-        /// The underlying must not be in this list, since its LT is set separately in _setParams
-        uint256 len = opts.collateralTokens.length;
-        for (uint256 i = 0; i < len; ) {
-            address token = opts.collateralTokens[i].token;
-
-            addCollateralToken(token); // F:[CC-1]
-
-            _setLiquidationThreshold(
-                token,
-                opts.collateralTokens[i].liquidationThreshold
+            /// Sets limits, fees and fastCheck parameters for the Credit Manager
+            _setParams(
+                DEFAULT_FEE_INTEREST,
+                DEFAULT_FEE_LIQUIDATION,
+                PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM,
+                DEFAULT_FEE_LIQUIDATION_EXPIRED,
+                PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
             ); // F:[CC-1]
 
-            unchecked {
-                ++i;
+            /// Adds collateral tokens and sets their liquidation thresholds
+            /// The underlying must not be in this list, since its LT is set separately in _setParams
+            uint256 len = opts.collateralTokens.length;
+            for (uint256 i = 0; i < len; ) {
+                address token = opts.collateralTokens[i].token;
+
+                addCollateralToken(token); // F:[CC-1]
+
+                _setLiquidationThreshold(
+                    token,
+                    opts.collateralTokens[i].liquidationThreshold
+                ); // F:[CC-1]
+
+                unchecked {
+                    ++i;
+                }
             }
+
+            // Connects creditFacade and priceOracle
+            creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
+
+            emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
+            emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
+
+            _setLimitPerBlock(
+                uint128(
+                    DEFAULT_LIMIT_PER_BLOCK_MULTIPLIER * opts.maxBorrowedAmount
+                )
+            ); // F:[CC-1]
+
+            _setLimits(opts.minBorrowedAmount, opts.maxBorrowedAmount); // F:[CC-1]
         }
-
-        // Connects creditFacade and priceOracle
-        creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
-
-        emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
-        emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
-
-        _setLimitPerBlock(
-            uint128(DEFAULT_LIMIT_PER_BLOCK_MULTIPLIER * opts.maxBorrowedAmount)
-        ); // F:[CC-1]
-
-        _setLimits(opts.minBorrowedAmount, opts.maxBorrowedAmount); // F:[CC-1]
     }
 
     //
