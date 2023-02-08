@@ -365,8 +365,7 @@ contract CreditConfiguratorTest is
             maxBorrowedAmount: uint128(150000 * WAD),
             collateralTokens: cTokens,
             degenNFT: address(0),
-            expirable: false,
-            skipInit: false
+            expirable: false
         });
 
         creditManager = new CreditManager(address(cct.poolMock()));
@@ -1604,8 +1603,10 @@ contract CreditConfiguratorTest is
         );
     }
 
-    /// @dev [CC-41]: migrateAllowedContractsSet works correctly
-    function test_CC_41_migrateAllowedContractsSet_works_correctly() public {
+    /// @dev [CC-41]: allowedContracts migrate correctly
+    function test_CC_41_allowedContracts_are_migrated_correctly_for_new_CC()
+        public
+    {
         evm.prank(CONFIGURATOR);
         creditConfigurator.allowContract(TARGET_CONTRACT, address(adapter1));
 
@@ -1616,8 +1617,7 @@ contract CreditConfiguratorTest is
             maxBorrowedAmount: uint128(150000 * WAD),
             collateralTokens: cTokens,
             degenNFT: address(0),
-            expirable: false,
-            skipInit: true
+            expirable: false
         });
 
         CreditConfigurator newCC = new CreditConfigurator(
@@ -1626,30 +1626,24 @@ contract CreditConfiguratorTest is
             creditOpts
         );
 
-        address[] memory allowedContracts = creditConfigurator
-            .allowedContracts();
-
-        {
-            address[] memory allowedContractsFalse = new address[](2);
-            allowedContractsFalse[0] = allowedContracts[0];
-            allowedContractsFalse[1] = DUMB_ADDRESS;
-
-            evm.expectRevert(ContractIsNotAnAllowedTargetException.selector);
-            evm.prank(CONFIGURATOR);
-            newCC.migrateAllowedContractsSet(allowedContractsFalse);
-        }
-
-        evm.prank(CONFIGURATOR);
-        newCC.migrateAllowedContractsSet(allowedContracts);
-
         assertEq(
             creditConfigurator.allowedContracts().length,
             newCC.allowedContracts().length,
             "Incorrect new allowed contracts array"
         );
 
-        evm.expectRevert(MigratableParameterAlreadySet.selector);
-        evm.prank(CONFIGURATOR);
-        newCC.migrateAllowedContractsSet(allowedContracts);
+        uint256 len = newCC.allowedContracts().length;
+
+        for (uint256 i = 0; i < len; ) {
+            assertEq(
+                creditConfigurator.allowedContracts()[i],
+                newCC.allowedContracts()[i],
+                "Allowed contracts migrated incorrectly"
+            );
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 }

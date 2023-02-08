@@ -82,7 +82,34 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         addressProvider = IPoolService(_creditManager.poolService())
             .addressProvider(); // F:[CC-1]
 
-        if (opts.skipInit) return;
+        {
+            address currentConfigurator = creditManager.creditConfigurator();
+
+            if (currentConfigurator != address(this)) {
+                address[] memory allowedContractsPrev = CreditConfigurator(
+                    currentConfigurator
+                ).allowedContracts();
+
+                uint256 allowedContractsLen = allowedContractsPrev.length;
+                for (uint256 i = 0; i < allowedContractsLen; ) {
+                    if (
+                        creditManager.contractToAdapter(
+                            allowedContractsPrev[i]
+                        ) == address(0)
+                    ) {
+                        revert ContractIsNotAnAllowedTargetException();
+                    }
+
+                    allowedContractsSet.add(allowedContractsPrev[i]);
+
+                    unchecked {
+                        ++i;
+                    }
+                }
+
+                return;
+            }
+        }
 
         /// Sets limits, fees and fastCheck parameters for the Credit Manager
         _setParams(
@@ -122,34 +149,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         ); // F:[CC-1]
 
         _setLimits(opts.minBorrowedAmount, opts.maxBorrowedAmount); // F:[CC-1]
-    }
-
-    /// @dev Migration function used to populate the new CC's allowedContractsSet based on the previous CC's values
-    /// @param allowedContractsPrev List of allowed contracts to migrate
-    /// @notice Only callable once
-    function migrateAllowedContractsSet(address[] calldata allowedContractsPrev)
-        external
-        configuratorOnly
-    {
-        if (allowedContractsSet.length() != 0) {
-            revert MigratableParameterAlreadySet();
-        }
-
-        uint256 len = allowedContractsPrev.length;
-        for (uint256 i = 0; i < len; ) {
-            if (
-                creditManager.contractToAdapter(allowedContractsPrev[i]) ==
-                address(0)
-            ) {
-                revert ContractIsNotAnAllowedTargetException();
-            }
-
-            allowedContractsSet.add(allowedContractsPrev[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     //
@@ -339,7 +338,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             targetContract
         );
         if (currentAdapter != address(0)) {
-            creditManager.changeContractAllowance(currentAdapter, address(0));
+            creditManager.changeContractAllowance(currentAdapter, address(0)); // F: [CC-15A]
         }
 
         // Sets a link between adapter and targetContract in creditFacade and creditManager
@@ -386,18 +385,18 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     ///      even though that is not intended.
     function forbidAdapter(address adapter) external override configuratorOnly {
         /// Sanity check that zero address was not passed
-        if (adapter == address(0)) revert ZeroAddressException();
+        if (adapter == address(0)) revert ZeroAddressException(); // F: [CC-40]
 
         /// If the adapter already has no linked target contract, then there is nothing to change
         address targetContract = creditManager.adapterToContract(adapter);
         if (targetContract == address(0)) {
-            revert ContractIsNotAnAllowedAdapterException();
+            revert ContractIsNotAnAllowedAdapterException(); // F: [CC-40]
         }
 
         /// Removes the adapter => target contract link only
-        creditManager.changeContractAllowance(adapter, address(0));
+        creditManager.changeContractAllowance(adapter, address(0)); // F: [CC-40]
 
-        emit AdapterForbidden(adapter);
+        emit AdapterForbidden(adapter); // F: [CC-40]
     }
 
     //

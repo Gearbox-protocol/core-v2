@@ -27,8 +27,6 @@ struct CreditManagerOpts {
     address degenNFT;
     /// @dev Whether the Credit Manager is connected to an expirable pool (and the CreditFacade is expirable)
     bool expirable;
-    /// @dev Whether to skip normal initialization - used for new Credit Configurators that are deployed for existing CMs
-    bool skipInit;
 }
 
 interface ICreditConfiguratorEvents {
@@ -133,9 +131,6 @@ interface ICreditConfiguratorExceptions {
 
     /// @dev Thrown if attempting to forbid or migrate a target contract that is not allowed for the Credit Manager
     error ContractIsNotAnAllowedTargetException();
-
-    /// @dev Thrown if attempting to set a migratable parameter that is already non-zero
-    error MigratableParameterAlreadySet();
 }
 
 interface ICreditConfigurator is
@@ -143,16 +138,6 @@ interface ICreditConfigurator is
     ICreditConfiguratorExceptions,
     IVersion
 {
-    //
-    // PARAMETER MIGRATION FUNCTIONS
-    //
-
-    /// @dev Migration function used to populate the new CC's allowedContractsSet based on the previous CC's values
-    /// @param allowedContractsPrev List of allowed contracts to migrate
-    /// @notice Only callable once
-    function migrateAllowedContractsSet(address[] calldata allowedContractsPrev)
-        external;
-
     //
     // STATE-CHANGING FUNCTIONS
     //
