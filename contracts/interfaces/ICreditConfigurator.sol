@@ -26,8 +26,12 @@ struct CreditManagerOpts {
     CollateralToken[] collateralTokens;
     /// @dev Address of DegenNFT, address(0) if whitelisted mode is not used
     address degenNFT;
+    /// @dev Address of BlacklistHelper, address(0) if the underlying is not blacklistable
+    address blacklistHelper;
     /// @dev Whether the Credit Manager is connected to an expirable pool (and the CreditFacade is expirable)
     bool expirable;
+    /// @dev Whether to skip normal initialization - used for new Credit Configurators that are deployed for existing CMs
+    bool skipInit;
 }
 
 interface ICreditConfiguratorEvents {
@@ -48,6 +52,9 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when a 3rd-party contract is forbidden
     event ContractForbidden(address indexed protocol);
+
+    /// @dev Emits when a particular adapter for a target contract is forbidden
+    event AdapterForbidden(address indexed adapter);
 
     /// @dev Emits when debt principal limits are changed
     event LimitsUpdated(uint256 minBorrowedAmount, uint256 maxBorrowedAmount);
@@ -93,6 +100,9 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when an address is removed from the list of emergency liquidators
     event EmergencyLiquidatorRemoved(address);
+
+    /// @dev Emits when the bot list is updated in Credit Facade
+    event BotListUpdated(address);
 }
 
 /// @dev CreditConfigurator Exceptions
@@ -126,6 +136,12 @@ interface ICreditConfiguratorExceptions {
 
     /// @dev Thrown if attempting to forbid an adapter that is not allowed for the Credit Manager
     error ContractIsNotAnAllowedAdapterException();
+
+    /// @dev Thrown if attempting to forbid or migrate a target contract that is not allowed for the Credit Manager
+    error ContractIsNotAnAllowedTargetException();
+
+    /// @dev Thrown if attempting to set a migratable parameter that is already non-zero
+    error MigratableParameterAlreadySet();
 }
 
 interface ICreditConfigurator is
@@ -133,6 +149,16 @@ interface ICreditConfigurator is
     ICreditConfiguratorExceptions,
     IVersion
 {
+    //
+    // PARAMETER MIGRATION FUNCTIONS
+    //
+
+    /// @dev Migration function used to populate the new CC's allowedContractsSet based on the previous CC's values
+    /// @param allowedContractsPrev List of allowed contracts to migrate
+    /// @notice Only callable once
+    function migrateAllowedContractsSet(address[] calldata allowedContractsPrev)
+        external;
+
     //
     // STATE-CHANGING FUNCTIONS
     //
@@ -169,6 +195,11 @@ interface ICreditConfigurator is
     /// @dev Forbids contract as a target for calls from Credit Accounts
     /// @param targetContract Address of a contract to be forbidden
     function forbidContract(address targetContract) external;
+
+    /// @dev Forbids adapter (and only the adapter - the target contract is not affected)
+    /// @param adapter Address of adapter to disable
+    /// @notice Used to clean up orphaned adapters
+    function forbidAdapter(address adapter) external;
 
     /// @dev Sets borrowed amount limits in Credit Facade
     /// @param _minBorrowedAmount Minimum borrowed amount

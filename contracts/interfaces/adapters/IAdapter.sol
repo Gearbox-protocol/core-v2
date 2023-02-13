@@ -35,9 +35,6 @@ interface IAdapter is IAdapterExceptions {
     /// @dev Returns the Credit Manager connected to the adapter
     function creditManager() external view returns (ICreditManagerV2);
 
-    /// @dev Returns the Credit Facade connected to the adapter's Credit Manager
-    function creditFacade() external view returns (address);
-
     /// @dev Returns the address of the contract the adapter is interacting with
     function targetContract() external view returns (address);
 

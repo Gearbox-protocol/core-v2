@@ -13,7 +13,6 @@ abstract contract AbstractAdapter is IAdapter {
     using Address for address;
 
     ICreditManagerV2 public immutable override creditManager;
-    address public immutable override creditFacade;
     address public immutable override targetContract;
 
     constructor(address _creditManager, address _targetContract) {
@@ -22,7 +21,6 @@ abstract contract AbstractAdapter is IAdapter {
         } // F:[AA-2]
 
         creditManager = ICreditManagerV2(_creditManager); // F:[AA-1]
-        creditFacade = ICreditManagerV2(_creditManager).creditFacade(); // F:[AA-1]
         targetContract = _targetContract; // F:[AA-1]
     }
 
@@ -67,6 +65,8 @@ abstract contract AbstractAdapter is IAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
+        address creditFacade = creditManager.creditFacade();
+
         uint256 balanceInBefore;
         uint256 balanceOutBefore;
 
@@ -91,6 +91,7 @@ abstract contract AbstractAdapter is IAdapter {
 
         _fastCheck(
             creditAccount,
+            creditFacade,
             tokenIn,
             tokenOut,
             balanceInBefore,
@@ -137,6 +138,8 @@ abstract contract AbstractAdapter is IAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
+        address creditFacade = creditManager.creditFacade();
+
         uint256 balanceInBefore;
         uint256 balanceOutBefore;
 
@@ -161,6 +164,7 @@ abstract contract AbstractAdapter is IAdapter {
 
         _fastCheck(
             creditAccount,
+            creditFacade,
             tokenIn,
             tokenOut,
             balanceInBefore,
@@ -199,6 +203,7 @@ abstract contract AbstractAdapter is IAdapter {
     /// @dev Performs a fast check during ordinary adapter call, or skips
     /// it for multicalls (since a full collateral check is always performed after a multicall)
     /// @param creditAccount Credit Account for which the fast check is performed
+    /// @param creditFacade CreditFacade currently associated with CreditManager
     /// @param tokenIn Token that is spent by the operation
     /// @param tokenOut Token that is received as a result of operation
     /// @param balanceInBefore Balance of tokenIn before the operation
@@ -206,6 +211,7 @@ abstract contract AbstractAdapter is IAdapter {
     /// @param disableTokenIn Whether tokenIn needs to be disabled (required for multicalls, where the fast check is skipped)
     function _fastCheck(
         address creditAccount,
+        address creditFacade,
         address tokenIn,
         address tokenOut,
         uint256 balanceInBefore,
@@ -232,6 +238,8 @@ abstract contract AbstractAdapter is IAdapter {
     /// it for multicalls (since a full collateral check is always performed after a multicall)
     /// @param creditAccount Credit Account for which the full check is performed
     function _fullCheck(address creditAccount) internal {
+        address creditFacade = creditManager.creditFacade();
+
         if (msg.sender != creditFacade) {
             creditManager.fullCollateralCheck(creditAccount);
         }
@@ -244,6 +252,8 @@ abstract contract AbstractAdapter is IAdapter {
     /// @notice Used when new tokens are added on an account but no tokens are subtracted
     ///         (e.g., claiming rewards)
     function _checkAndOptimizeEnabledTokens(address creditAccount) internal {
+        address creditFacade = creditManager.creditFacade();
+
         if (msg.sender != creditFacade) {
             creditManager.checkAndOptimizeEnabledTokens(creditAccount);
         }
