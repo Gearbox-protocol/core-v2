@@ -91,7 +91,11 @@ interface ICreditManagerV2LimitsExceptions is ICreditManagerV2ExceptionsCommon {
 /// @notice All Credit Manager functions are access-restricted and can only be called
 ///         by the Credit Facade or allowed adapters. Users are not allowed to
 ///         interact with the Credit Manager directly
-interface ICreditManagerV2Common is IVersion {
+interface ICreditManagerV2Common is
+    ICreditManagerV2EventsCommon,
+    ICreditManagerV2ExceptionsCommon,
+    IVersion
+{
     //
     // CREDIT ACCOUNT MANAGEMENT
     //
@@ -284,7 +288,8 @@ interface ICreditManagerV2Common is IVersion {
         uint256 totalValue,
         ClosureAction closureActionType,
         uint256 borrowedAmount,
-        uint256 borrowedAmountWithInterest
+        uint256 borrowedAmountWithInterest,
+        uint256 borrowedAmountWithInterestAndFees
     )
         external
         view

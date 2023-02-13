@@ -26,14 +26,28 @@ contract CreditManagerTestInternal is CreditManager {
         cumulativeDropAtFastCheckRAY[creditAccount] = value;
     }
 
-    function calcNewCumulativeIndex(
+    function calcNewCumulativeIndexPrincipalPreserving(
+        uint256 borrowedAmount,
+        uint256 delta,
+        uint256 cumulativeIndexNow,
+        uint256 cumulativeIndexOpen
+    ) external pure returns (uint256 newCumulativeIndex) {
+        newCumulativeIndex = _calcNewCumulativeIndexPrincipalPreserving(
+            borrowedAmount,
+            delta,
+            cumulativeIndexNow,
+            cumulativeIndexOpen
+        );
+    }
+
+    function calcNewCumulativeIndexInterestPreserving(
         uint256 borrowedAmount,
         uint256 delta,
         uint256 cumulativeIndexNow,
         uint256 cumulativeIndexOpen,
         bool isIncrease
     ) external pure returns (uint256 newCumulativeIndex) {
-        newCumulativeIndex = _calcNewCumulativeIndex(
+        newCumulativeIndex = _calcNewCumulativeIndexInterestPreserving(
             borrowedAmount,
             delta,
             cumulativeIndexNow,
@@ -46,7 +60,8 @@ contract CreditManagerTestInternal is CreditManager {
         uint256 totalValue,
         ClosureAction closureActionType,
         uint256 borrowedAmount,
-        uint256 borrowedAmountWithInterest
+        uint256 borrowedAmountWithInterest,
+        uint256 borrowedAmountWithInterestAndFees
     )
         external
         view
@@ -62,7 +77,8 @@ contract CreditManagerTestInternal is CreditManager {
                 totalValue,
                 closureActionType,
                 borrowedAmount,
-                borrowedAmountWithInterest
+                borrowedAmountWithInterest,
+                borrowedAmountWithInterestAndFees
             );
     }
 
