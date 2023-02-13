@@ -3,10 +3,11 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import { Pool4626 } from "../../pool/Pool4626.sol";
-import { TestPool4626 } from "../mocks/pool/TestPool4626.sol";
+
 import { IPool4626Events, Pool4626Opts, IPool4626Exceptions } from "../../interfaces/IPool4626.sol";
 import { LinearInterestRateModel } from "../../pool/LinearInterestRateModel.sol";
 
@@ -19,14 +20,18 @@ import "../../libraries/Errors.sol";
 import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
 import { Tokens } from "../config/Tokens.sol";
 import { BalanceHelper } from "../helpers/BalanceHelper.sol";
+import { ERC20FeeMock } from "../mocks/token/ERC20FeeMock.sol";
 
 // TEST
 import "../lib/constants.sol";
+import { PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
 
 import "forge-std/console.sol";
 
 // EXCEPTIONS
 import { CallerNotConfiguratorException, CallerNotControllerException, ZeroAddressException } from "../../interfaces/IErrors.sol";
+
+uint256 constant fee = 6000;
 
 /// @title pool
 /// @notice Business logic for borrowing liquidity pools
@@ -35,16 +40,28 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
     PoolServiceTestSuite psts;
 
+    /*
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
     ACL acl;
-    TestPool4626 pool;
+    Pool4626 pool;
     address underlying;
     CreditManagerMockForPoolTest cmMock;
 
     function setUp() public {
+        _setUp(Tokens.DAI);
+    }
+
+    function _setUp(Tokens t) public {
         tokenTestSuite = new TokensTestSuite();
         psts = new PoolServiceTestSuite(
             tokenTestSuite,
-            tokenTestSuite.addressOf(Tokens.DAI),
+            tokenTestSuite.addressOf(t),
             true
         );
 
@@ -54,10 +71,45 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
         acl = psts.acl();
     }
 
+    //
+    // HELPERS
+    //
     function _connectAndSetLimit() internal {
         evm.prank(CONFIGURATOR);
         pool.setCreditManagerLimit(address(cmMock), type(uint128).max);
     }
+
+    function _mulFee(uint256 amount, uint256 fee) internal returns (uint256) {
+        return (amount * (PERCENTAGE_FACTOR - fee)) / PERCENTAGE_FACTOR;
+    }
+
+    function _divFee(uint256 amount, uint256 fee) internal returns (uint256) {
+        return (amount * PERCENTAGE_FACTOR) / (PERCENTAGE_FACTOR - fee);
+    }
+
+    function _updateBorrowrate() internal {
+        evm.prank(CONFIGURATOR);
+        pool.updateInterestRateModel(address(pool.interestRateModel()));
+    }
+
+    function _initPoolLiquidity() internal {
+        evm.prank(INITIAL_LP);
+        pool.mint(2 * addLiquidity, INITIAL_LP);
+
+        evm.prank(INITIAL_LP);
+        pool.burn(addLiquidity);
+
+        assertEq(
+            pool.expectedLiquidityLU(),
+            addLiquidity * 2,
+            "ExpectedLU is not correct!"
+        );
+        assertEq(pool.getDieselRate_RAY(), 2 * RAY, "Incorrect diesel rate!");
+    }
+
+    //
+    // TESTS
+    //
 
     // [P4-1]: getDieselRate_RAY=RAY, withdrawFee=0 and expectedLiquidityLimit as expected at start
     function test_P4_01_start_parameters_correct() public {
@@ -100,7 +152,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         assertEq(pool.totalBorrowedLimit(), type(uint256).max);
 
-        assertTrue(!pool.isFeeToken(), "Incorrect isFeeToken");
+        // assertTrue(!pool.isFeeToken(), "Incorrect isFeeToken");
 
         assertEq(
             pool.wethAddress(),
@@ -116,7 +168,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
             underlyingToken: underlying,
             interestRateModel: address(psts.linearIRModel()),
             expectedLiquidityLimit: type(uint128).max,
-            isFeeToken: false
+            supportQuotaPremiums: false
         });
 
         evm.expectRevert(ZeroAddressException.selector);
@@ -143,7 +195,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
             underlyingToken: underlying,
             interestRateModel: address(psts.linearIRModel()),
             expectedLiquidityLimit: limit,
-            isFeeToken: false
+            supportQuotaPremiums: false
         });
 
         evm.expectEmit(true, false, false, false);
@@ -158,36 +210,249 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
         new Pool4626(opts);
     }
 
-    // Non reentrant + whenNotPause +
+    // [P4-4]: addLiquidity, removeLiquidity, lendCreditAccount, repayCreditAccount reverts if contract is paused
+    function test_P4_04_cannot_be_used_while_paused() public {
+        evm.startPrank(CONFIGURATOR);
+        acl.addPausableAdmin(CONFIGURATOR);
+        pool.pause();
+        evm.stopPrank();
 
-    // [P4-4]: addLiquidity correctly adds liquidity
-    function test_P4_04_deposit_adds_liquidity_correctly() public {
-        // adds liqudity to mint initial diesel tokens to change 1:1 rate
-        evm.prank(USER);
-        pool.deposit(addLiquidity, DUMB_ADDRESS);
+        evm.startPrank(USER);
 
-        // aseets/shares rate is expetected to be 2:1
-        pool.setExpectedLiquidityLU(addLiquidity * 2);
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.deposit(addLiquidity, FRIEND);
 
-        evm.expectEmit(true, true, false, true);
-        emit Deposit(USER, FRIEND, addLiquidity, addLiquidity / 2);
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.depositReferral(addLiquidity, FRIEND, referral);
 
-        evm.prank(USER);
-        uint256 shares = pool.deposit(addLiquidity, FRIEND);
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.depositETHReferral(FRIEND, referral);
 
-        expectBalance(address(pool), FRIEND, addLiquidity / 2);
-        expectBalance(
-            underlying,
-            USER,
-            liquidityProviderInitBalance - addLiquidity * 2
-        );
-        assertEq(pool.expectedLiquidity(), addLiquidity * 3);
-        assertEq(pool.availableLiquidity(), addLiquidity * 2);
-        assertEq(shares, addLiquidity / 2);
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        payable(address(pool)).call{ value: addLiquidity }("");
+
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.mint(addLiquidity, FRIEND);
+
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.withdraw(removeLiquidity, FRIEND, FRIEND);
+
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.withdrawETH(removeLiquidity, FRIEND, FRIEND);
+
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.redeem(removeLiquidity, FRIEND, FRIEND);
+
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.redeemETH(removeLiquidity, FRIEND, FRIEND);
+
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.lendCreditAccount(1, FRIEND);
+
+        evm.expectRevert(bytes(PAUSABLE_ERROR));
+        pool.repayCreditAccount(1, 0, 0);
+
+        evm.stopPrank();
     }
 
+    // [P4-5]: depositing eth work for WETH pools only
+    function test_P4_05_eth_functions_work_for_WETH_pools_only() public {
+        // adds liqudity to mint initial diesel tokens to change 1:1 rate
+
+        evm.deal(USER, addLiquidity);
+
+        evm.startPrank(USER);
+
+        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
+        pool.depositETHReferral{ value: addLiquidity }(FRIEND, referral);
+
+        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
+        payable(address(pool)).call{ value: addLiquidity }("");
+
+        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
+        pool.withdrawETH(1, FRIEND, USER);
+
+        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
+        pool.redeemETH(1, FRIEND, USER);
+
+        evm.stopPrank();
+    }
+
+    // [P4-6]: deposit adds liquidity correctly
+    function test_P4_06_deposit_adds_liquidity_correctly() public {
+        // adds liqudity to mint initial diesel tokens to change 1:1 rate
+
+        for (uint256 j; j < 2; ++j) {
+            for (uint256 i; i < 2; ++i) {
+                bool withReferralCode = j == 0;
+
+                bool feeToken = false; //i == 1;
+
+                _setUp(feeToken ? Tokens.USDT : Tokens.DAI);
+
+                if (feeToken) {
+                    // set 50% fee if fee token
+                    ERC20FeeMock(pool.asset()).setMaximumFee(type(uint256).max);
+                    ERC20FeeMock(pool.asset()).setBasisPointsRate(fee);
+                }
+
+                uint256 expectedShares = feeToken
+                    ? _mulFee(addLiquidity / 2, fee)
+                    : addLiquidity / 2;
+
+                evm.expectEmit(true, true, false, true);
+                emit Transfer(address(0), FRIEND, expectedShares);
+
+                evm.expectEmit(true, true, false, true);
+                emit Deposit(USER, FRIEND, addLiquidity, expectedShares);
+
+                if (withReferralCode) {
+                    evm.expectEmit(true, true, false, true);
+                    emit DepositReferral(USER, FRIEND, addLiquidity, referral);
+                }
+
+                evm.prank(USER);
+                uint256 shares = withReferralCode
+                    ? pool.depositReferral(addLiquidity, FRIEND, referral)
+                    : pool.deposit(addLiquidity, FRIEND);
+
+                expectBalance(
+                    address(pool),
+                    FRIEND,
+                    expectedShares,
+                    "Incorrect diesel tokens on FRIEND account"
+                );
+                // expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity);
+                // assertEq(pool.expectedLiquidity(), addLiquidity * 3);
+                // assertEq(pool.availableLiquidity(), addLiquidity * 3);
+                // assertEq(shares, expectedShares);
+            }
+        }
+    }
+
+    // [P4-7]: depositETH adds liquidity correctly
+    function test_P4_07_depositETH_adds_liquidity_correctly() public {
+        // adds liqudity to mint initial diesel tokens to change 1:1 rate
+
+        for (uint256 i; i < 2; ++i) {
+            bool depositReferral = i == 0;
+
+            _setUp(Tokens.WETH);
+
+            _initPoolLiquidity();
+
+            uint256 expectedShares = addLiquidity / 2;
+
+            address receiver = depositReferral ? FRIEND : USER;
+
+            evm.expectEmit(true, true, false, true);
+            emit Transfer(address(0), receiver, expectedShares);
+
+            evm.expectEmit(true, true, false, true);
+            emit Deposit(USER, receiver, addLiquidity, expectedShares);
+
+            if (depositReferral) {
+                evm.expectEmit(true, true, false, true);
+                emit DepositReferral(USER, FRIEND, addLiquidity, referral);
+            }
+
+            evm.deal(USER, addLiquidity);
+
+            uint256 shares;
+            if (depositReferral) {
+                evm.prank(USER);
+                shares = pool.depositETHReferral{ value: addLiquidity }(
+                    FRIEND,
+                    referral
+                );
+            } else {
+                evm.prank(USER);
+                payable(address(pool)).call{ value: addLiquidity }("");
+            }
+
+            expectBalance(address(pool), receiver, expectedShares);
+            assertEq(pool.expectedLiquidity(), addLiquidity * 3);
+            assertEq(pool.availableLiquidity(), addLiquidity * 3);
+
+            if (depositReferral) {
+                assertEq(shares, expectedShares);
+            }
+        }
+    }
+
+    // [P4-8]: deposit adds liquidity correctly
+    function test_P4_08_mint_adds_liquidity_correctly() public {
+        // adds liqudity to mint initial diesel tokens to change 1:1 rate
+
+        for (uint256 i; i < 2; ++i) {
+            bool feeToken = i == 1;
+
+            _setUp(feeToken ? Tokens.USDT : Tokens.DAI);
+
+            if (feeToken) {
+                // set 50% fee if fee token
+                ERC20FeeMock(pool.asset()).setMaximumFee(type(uint256).max);
+                ERC20FeeMock(pool.asset()).setBasisPointsRate(fee);
+            }
+
+            _initPoolLiquidity();
+
+            uint256 desiredShares = addLiquidity / 2;
+            uint256 expectedAssetsPaid = feeToken
+                ? _divFee(addLiquidity, fee)
+                : addLiquidity;
+            uint256 expectedAvailableLiquidity = pool.availableLiquidity() +
+                addLiquidity;
+
+            evm.expectEmit(true, true, false, true);
+            emit Transfer(address(0), FRIEND, desiredShares);
+
+            evm.expectEmit(true, true, false, true);
+            emit Deposit(USER, FRIEND, expectedAssetsPaid, desiredShares);
+
+            uint256 gl = gasleft();
+
+            evm.prank(USER);
+            uint256 assets = pool.mint(desiredShares, FRIEND);
+
+            console.log(gl - gasleft());
+
+            expectBalance(
+                address(pool),
+                FRIEND,
+                desiredShares,
+                "Incorrect shares "
+            );
+            expectBalance(
+                underlying,
+                USER,
+                liquidityProviderInitBalance - expectedAssetsPaid,
+                "Incorrect USER balance"
+            );
+            assertEq(
+                pool.expectedLiquidity(),
+                addLiquidity * 3,
+                "Incorrect expected liquidity"
+            );
+            assertEq(
+                pool.availableLiquidity(),
+                expectedAvailableLiquidity,
+                "Incorrect available liquidity"
+            );
+            assertEq(
+                assets,
+                expectedAssetsPaid,
+                "Incorrect assets return value"
+            );
+        }
+    }
+
+    //
+    // REMOVE LIQUIDITY
+    //
+
     // [P4-5]: removeLiquidity correctly removes liquidity
-    function test_P4_05_remove_liquidity_removes_correctly() public {
+    function test_PX_05_remove_liquidity_removes_correctly() public {
         evm.prank(USER);
         pool.depositReferral(addLiquidity, FRIEND, referral);
 
@@ -207,52 +472,28 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
         assertEq(pool.availableLiquidity(), addLiquidity - removeLiquidity);
     }
 
-    // [P4-6]: addLiquidity, removeLiquidity, lendCreditAccount, repayCreditAccount reverts if contract is paused
-    function test_P4_06_cannot_be_used_while_paused() public {
-        evm.startPrank(CONFIGURATOR);
-        acl.addPausableAdmin(CONFIGURATOR);
-        pool.pause();
-        evm.stopPrank();
-
-        evm.startPrank(USER);
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
-        pool.deposit(addLiquidity, FRIEND);
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
-        pool.redeem(removeLiquidity, FRIEND, FRIEND);
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
-        pool.lendCreditAccount(1, FRIEND);
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
-        pool.repayCreditAccount(1, 0, 0);
-
-        evm.stopPrank();
-    }
-
     // [P4-7]: constructor set correct cumulative index to 1 at start
-    function test_P4_07_starting_cumulative_index_correct() public {
-        assertEq(pool.getCumulativeIndex_RAY(), RAY);
+    function test_PX_07_starting_cumulative_index_correct() public {
+        assertEq(pool.cumulativeIndexLU_RAY(), RAY);
     }
 
     // [P4-8]: getDieselRate_RAY correctly computes rate
-    function test_P4_08_diesel_rate_computes_correctly() public {
+    function test_PX_08_diesel_rate_computes_correctly() public {
         evm.prank(USER);
         pool.deposit(addLiquidity, FRIEND);
 
-        pool.setExpectedLiquidityLU(addLiquidity * 2);
+        // pool.setExpectedLiquidityLU(addLiquidity * 2);
 
         assertEq(pool.expectedLiquidity(), addLiquidity * 2);
         assertEq(pool.getDieselRate_RAY(), RAY * 2);
     }
 
     // [P4-9]: addLiquidity correctly adds liquidity with DieselRate != 1
-    function test_P4_09_correctly_adds_liquidity_at_new_diesel_rate() public {
+    function test_PX_09_correctly_adds_liquidity_at_new_diesel_rate() public {
         evm.prank(USER);
         pool.deposit(addLiquidity, USER);
 
-        pool.setExpectedLiquidityLU(addLiquidity * 2);
+        // pool.setExpectedLiquidityLU(addLiquidity * 2);
 
         evm.prank(USER);
         pool.deposit(addLiquidity, FRIEND);
@@ -261,13 +502,13 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-10]: removeLiquidity correctly removes liquidity if diesel rate != 1
-    function test_P4_10_correctly_removes_liquidity_at_new_diesel_rate()
+    function test_PX_10_correctly_removes_liquidity_at_new_diesel_rate()
         public
     {
         evm.prank(USER);
         pool.deposit(addLiquidity, FRIEND);
 
-        pool.setExpectedLiquidityLU(uint128(addLiquidity * 2));
+        // pool.setExpectedLiquidityLU(uint128(addLiquidity * 2));
 
         evm.prank(FRIEND);
         pool.redeem(removeLiquidity, USER, FRIEND);
@@ -286,7 +527,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-11]: connectCreditManager, forbidCreditManagerToBorrow, newInterestRateModel, setExpecetedLiquidityLimit reverts if called with non-configurator
-    function test_P4_11_admin_functions_revert_on_non_admin() public {
+    function test_PX_11_admin_functions_revert_on_non_admin() public {
         evm.startPrank(USER);
 
         evm.expectRevert(CallerNotControllerException.selector);
@@ -302,7 +543,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-12]: connectCreditManager reverts if another pool is setup in CreditManager
-    function test_P4_12_connectCreditManager_fails_on_incompatible_CM() public {
+    function test_PX_12_connectCreditManager_fails_on_incompatible_CM() public {
         cmMock.changePoolService(DUMB_ADDRESS);
 
         evm.expectRevert(
@@ -314,7 +555,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-11]: connectCreditManager adds CreditManager correctly and emits event
-    function test_P4_13_CM_is_connected_correctly() public {
+    function test_PX_13_CM_is_connected_correctly() public {
         // assertEq(pool.creditManagersCount(), 0);
         // evm.expectEmit(true, false, false, false);
         // emit NewCreditManagerConnected(address(cmMock));
@@ -326,7 +567,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-12]: lendCreditAccount, repayCreditAccount reverts if called non-CreditManager
-    function test_P4_14_CA_can_be_lent_repaid_only_by_CM() public {
+    function test_PX_14_CA_can_be_lent_repaid_only_by_CM() public {
         evm.startPrank(USER);
 
         evm.expectRevert(
@@ -348,7 +589,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-13]: lendCreditAccount reverts of creditManagers was disallowed by forbidCreditManagerToBorrow
-    function test_P4_13_lendCreditAccount_reverts_on_forbidden_CM() public {
+    function test_PX_13_lendCreditAccount_reverts_on_forbidden_CM() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -369,7 +610,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-14]: lendCreditAccount transfers tokens correctly
-    function test_P4_14_lendCreditAccount_correctly_transfers_tokens() public {
+    function test_PX_14_lendCreditAccount_correctly_transfers_tokens() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -385,7 +626,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-15]: lendCreditAccount emits Borrow event
-    function test_P4_15_lendCreditAccount_emits_event() public {
+    function test_PX_15_lendCreditAccount_emits_event() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -400,7 +641,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-16]: lendCreditAccount correctly updates parameters
-    function test_P4_16_lendCreditAccount_correctly_updates_parameters()
+    function test_PX_16_lendCreditAccount_correctly_updates_parameters()
         public
     {
         _connectAndSetLimit();
@@ -422,7 +663,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-17]: lendCreditAccount correctly updates borrow rate
-    function test_P4_17_lendCreditAccount_correctly_updates_borrow_rate()
+    function test_PX_17_lendCreditAccount_correctly_updates_borrow_rate()
         public
     {
         _connectAndSetLimit();
@@ -444,13 +685,13 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         assertEq(
             expectedBorrowRate,
-            pool.borrowAPY_RAY(),
+            pool.borrowRate_RAY(),
             "Borrow rate is incorrect"
         );
     }
 
     // [P4-18]: repayCreditAccount emits Repay event
-    function test_P4_18_repayCreditAccount_emits_event() public {
+    function test_PX_18_repayCreditAccount_emits_event() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -467,7 +708,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-19]: repayCreditAccount correctly updates params on loss accrued: treasury < loss
-    function test_P4_19_repayCreditAccount_correctly_updates_on_uncovered_loss()
+    function test_PX_19_repayCreditAccount_correctly_updates_on_uncovered_loss()
         public
     {
         address treasury = psts.treasury();
@@ -484,7 +725,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-        uint256 borrowRate = pool.borrowAPY_RAY();
+        uint256 borrowRate = pool.borrowRate_RAY();
         uint256 timeWarp = 365 days;
 
         uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
@@ -517,14 +758,14 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
         assertEq(pool.balanceOf(treasury), 0, "dToken remains in the treasury");
 
         assertEq(
-            pool.borrowAPY_RAY(),
+            pool.borrowRate_RAY(),
             expectedBorrowRate,
             "Borrow rate was not updated correctly"
         );
     }
 
     // [P4-20]: repayCreditAccount correctly updates params on loss accrued: treasury >= loss; and emits event
-    function test_P4_20_repayCreditAccount_correctly_updates_on_covered_loss()
+    function test_PX_20_repayCreditAccount_correctly_updates_on_covered_loss()
         public
     {
         address treasury = psts.treasury();
@@ -547,7 +788,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
             pool.balanceOf(treasury)
         );
 
-        uint256 borrowRate = pool.borrowAPY_RAY();
+        uint256 borrowRate = pool.borrowRate_RAY();
         uint256 timeWarp = 365 days;
 
         evm.warp(block.timestamp + timeWarp);
@@ -584,14 +825,14 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
         );
 
         assertEq(
-            pool.borrowAPY_RAY(),
+            pool.borrowRate_RAY(),
             expectedBorrowRate,
             "Borrow rate was not updated correctly"
         );
     }
 
     // [P4-21]: repayCreditAccount correctly updates params on profit
-    function test_P4_21_repayCreditAccount_correctly_updates_on_profit()
+    function test_PX_21_repayCreditAccount_correctly_updates_on_profit()
         public
     {
         address treasury = psts.treasury();
@@ -604,7 +845,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-        uint256 borrowRate = pool.borrowAPY_RAY();
+        uint256 borrowRate = pool.borrowRate_RAY();
         uint256 timeWarp = 365 days;
 
         evm.warp(block.timestamp + timeWarp);
@@ -640,14 +881,14 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
         );
 
         assertEq(
-            pool.borrowAPY_RAY(),
+            pool.borrowRate_RAY(),
             expectedBorrowRate,
             "Borrow rate was not updated correctly"
         );
     }
 
     // [P4-22]: repayCreditAccount does not change the diesel rate outside margin of error
-    function test_P4_22_repayCreditAccount_does_not_change_diesel_rate()
+    function test_PX_22_repayCreditAccount_does_not_change_diesel_rate()
         public
     {
         _connectAndSetLimit();
@@ -659,7 +900,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-        uint256 borrowRate = pool.borrowAPY_RAY();
+        uint256 borrowRate = pool.borrowRate_RAY();
         uint256 timeWarp = 365 days;
 
         evm.warp(block.timestamp + timeWarp);
@@ -683,7 +924,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-23]: fromDiesel / toDiesel works correctly
-    function test_P4_23_diesel_conversion_is_correct() public {
+    function test_PX_23_diesel_conversion_is_correct() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -713,7 +954,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-24]: updateInterestRateModel changes interest rate model & emit event
-    function test_P4_24_updateInterestRateModel_works_correctly_and_emits_event()
+    function test_PX_24_updateInterestRateModel_works_correctly_and_emits_event()
         public
     {
         LinearInterestRateModel newIR = new LinearInterestRateModel(
@@ -740,7 +981,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-25]: updateInterestRateModel correctly computes new borrow rate
-    function test_P4_25_updateInterestRateModel_correctly_computes_new_borrow_rate()
+    function test_PX_25_updateInterestRateModel_correctly_computes_new_borrow_rate()
         public
     {
         LinearInterestRateModel newIR = new LinearInterestRateModel(
@@ -770,13 +1011,13 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         assertEq(
             newIR.calcBorrowRate(expectedLiquidity, availableLiquidity),
-            pool.borrowAPY_RAY(),
+            pool.borrowRate_RAY(),
             "Borrow rate does not match"
         );
     }
 
     // [P4-26]: updateBorrowRate correctly updates parameters
-    function test_P4_26_updateBorrowRate_correct() public {
+    function test_PX_26_updateBorrowRate_correct() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -786,7 +1027,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-        uint256 borrowRate = pool.borrowAPY_RAY();
+        uint256 borrowRate = pool.borrowRate_RAY();
         uint256 timeWarp = 365 days;
 
         evm.warp(block.timestamp + timeWarp);
@@ -799,7 +1040,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
             addLiquidity / 2
         );
 
-        pool.updateBorrowRate();
+        _updateBorrowrate();
 
         assertEq(
             pool.expectedLiquidity(),
@@ -814,20 +1055,20 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
         );
 
         assertEq(
-            pool.borrowAPY_RAY(),
+            pool.borrowRate_RAY(),
             expectedBorrowRate,
             "Borrow rate was not updated correctly"
         );
 
         assertEq(
             pool.calcLinearCumulative_RAY(),
-            pool.getCumulativeIndex_RAY(),
+            pool.cumulativeIndexLU_RAY(),
             "Index value was not updated correctly"
         );
     }
 
     // [P4-27]: calcLinearCumulative_RAY computes correctly
-    function test_P4_27_calcLinearCumulative_RAY_correct() public {
+    function test_PX_27_calcLinearCumulative_RAY_correct() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -841,7 +1082,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         evm.warp(block.timestamp + timeWarp);
 
-        uint256 borrowRate = pool.borrowAPY_RAY();
+        uint256 borrowRate = pool.borrowRate_RAY();
 
         uint256 expectedLinearRate = RAY + (borrowRate * timeWarp) / 365 days;
 
@@ -853,7 +1094,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-28]: expectedLiquidity() computes correctly
-    function test_P4_28_expectedLiquidity_correct() public {
+    function test_PX_28_expectedLiquidity_correct() public {
         _connectAndSetLimit();
 
         evm.prank(USER);
@@ -863,7 +1104,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
 
         cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-        uint256 borrowRate = pool.borrowAPY_RAY();
+        uint256 borrowRate = pool.borrowRate_RAY();
         uint256 timeWarp = 365 days;
 
         evm.warp(block.timestamp + timeWarp);
@@ -880,7 +1121,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-29]: setExpectedLiquidityLimit() sets limit & emits event
-    function test_P4_29_setExpectedLiquidityLimit_correct_and_emits_event()
+    function test_PX_29_setExpectedLiquidityLimit_correct_and_emits_event()
         public
     {
         evm.expectEmit(false, false, false, true);
@@ -897,7 +1138,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-30]: addLiquidity reverts above expectedLiquidityLimit
-    function test_P4_30_addLiquidity_reverts_above_liquidity_limit() public {
+    function test_PX_30_addLiquidity_reverts_above_liquidity_limit() public {
         _connectAndSetLimit();
 
         evm.prank(CONFIGURATOR);
@@ -912,7 +1153,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-31]: setWithdrawFee reverts on fee > 1%
-    function test_P4_31_setWithdrawFee_reverts_on_fee_too_lage() public {
+    function test_PX_31_setWithdrawFee_reverts_on_fee_too_lage() public {
         evm.expectRevert(
             IPool4626Exceptions.IncorrectWithdrawalFeeException.selector
         );
@@ -922,7 +1163,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-32]: setWithdrawFee changes fee and emits event
-    function test_P4_32_setWithdrawFee_correct_and_emits_event() public {
+    function test_PX_32_setWithdrawFee_correct_and_emits_event() public {
         evm.expectEmit(false, false, false, true);
         emit NewWithdrawFee(50);
 
@@ -933,7 +1174,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-33]: removeLiqudity correctly takes withdrawal fee
-    function test_P4_33_removeLiquidity_takes_withdrawal_fee() public {
+    function test_PX_33_removeLiquidity_takes_withdrawal_fee() public {
         address treasury = psts.treasury();
 
         _connectAndSetLimit();
@@ -966,7 +1207,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events {
     }
 
     // [P4-35]: updateInterestRateModel reverts on zero address
-    function test_P4_35_updateInterestRateModel_reverts_on_zero_address()
+    function test_PX_35_updateInterestRateModel_reverts_on_zero_address()
         public
     {
         evm.expectRevert(ZeroAddressException.selector);

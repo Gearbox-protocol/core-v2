@@ -20,6 +20,7 @@ import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { IInterestRateModel } from "../interfaces/IInterestRateModel.sol";
 import { IPool4626, Pool4626Opts } from "../interfaces/IPool4626.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
+import { IGauge } from "../interfaces/IGauge.sol";
 
 import { RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE } from "../libraries/Constants.sol";
 import { Errors } from "../libraries/Errors.sol";
@@ -33,6 +34,18 @@ import "forge-std/console.sol";
 struct CreditManagerDebt {
     uint128 totalBorrowed;
     uint128 limit;
+}
+
+struct Quota {
+    uint96 totalQuoted;
+    uint96 limit;
+    uint40 lastUpdate;
+    uint16 rate; // current rate update
+}
+
+struct QuotaUpdate {
+    address token;
+    int96 quotaChage;
 }
 
 /// @title Core pool contract compatible with ERC4626
@@ -50,9 +63,6 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     address public immutable treasuryAddress;
 
     /// @dev Asset is fee token
-    bool public immutable isFeeToken;
-
-    /// @dev Asset is fee token
     address public immutable wethAddress;
 
     /// @dev The pool's underlying asset
@@ -60,6 +70,9 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
 
     /// @dev Diesel token Decimals
     uint8 internal immutable _decimals;
+
+    /// @dev True if pool supports risk assets
+    bool public immutable supportQuotaPremiums;
 
     /// @dev Contract version
     uint256 public constant override version = 2_01;
@@ -70,7 +83,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     uint128 internal _expectedLiquidityLU;
 
     /// @dev The current borrow rate
-    uint128 internal _borrowAPY_RAY;
+    uint128 internal _borrowRate_RAY;
 
     // [SLOT #2]
 
@@ -78,7 +91,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     uint128 internal _totalBorrowed;
 
     /// @dev The cumulative interest index at last update
-    uint128 internal _cumulativeIndex_RAY;
+    uint128 public cumulativeIndexLU_RAY;
 
     // [SLOT #3]
 
@@ -107,8 +120,31 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     /// @dev The list of all Credit Managers
     EnumerableSet.AddressSet internal creditManagerSet;
 
+    /// @dev The list of all Credit Managers
+    EnumerableSet.AddressSet internal quotaTokensSet;
+
+    /// @dev
+    mapping(address => Quota) public quotas;
+
+    /// @dev IGauge
+    IGauge public gauge;
+
     modifier wethPoolOnly() {
-        if (underlyingToken != wethAddress) revert AssetIsNotWETHException();
+        if (underlyingToken != wethAddress) revert AssetIsNotWETHException(); // F:[P4-5]
+        _;
+    }
+
+    modifier gaugeOnly() {
+        /// TODO: udpate exception
+        if (msg.sender == address(gauge)) revert AssetIsNotWETHException(); // F:[P4-5]
+        _;
+    }
+
+    modifier creditManagerWithActiveDebtOnly() {
+        if (cmDebt[msg.sender].totalBorrowed == 0) {
+            /// todo: add correct exception ??
+            revert CreditManagerOnlyException();
+        }
         _;
     }
 
@@ -142,9 +178,10 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         // Additional check that receiver is not address(0)
         if (
             opts.addressProvider == address(0) ||
-            opts.underlyingToken == address(0)
+            opts.underlyingToken == address(0) ||
+            opts.interestRateModel == address(0)
         ) {
-            revert ZeroAddressException();
+            revert ZeroAddressException(); // F:[P4-02]
         }
 
         addressProvider = opts.addressProvider; // F:[P4-01]
@@ -155,11 +192,14 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
             .getTreasuryContract(); // F:[P4-01]
 
         timestampLU = uint64(block.timestamp); // F:[P4-01]
-        _cumulativeIndex_RAY = uint128(RAY); // F:[P4-01]
-        _updateInterestRateModel(opts.interestRateModel); // F:[P4-01]
-        _setExpectedLiquidityLimit(opts.expectedLiquidityLimit); // F:[P4-01]
-        _setTotalBorrowedLimit(opts.expectedLiquidityLimit);
-        isFeeToken = opts.isFeeToken; // F:[P4-01]
+        cumulativeIndexLU_RAY = uint128(RAY); // F:[P4-01]
+
+        interestRateModel = IInterestRateModel(opts.interestRateModel);
+        emit NewInterestRateModel(opts.interestRateModel); // F:[P4-03]
+
+        _setExpectedLiquidityLimit(opts.expectedLiquidityLimit); // F:[P4-01, 03]
+        _setTotalBorrowedLimit(opts.expectedLiquidityLimit); // F:[P4-03]
+        supportQuotaPremiums = opts.supportQuotaPremiums; // F:[P4-01]
         wethAddress = AddressProvider(opts.addressProvider).getWethToken(); // F:[P4-01]
     }
 
@@ -182,11 +222,11 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     function deposit(uint256 assets, address receiver)
         external
         override
-        whenNotPaused
+        whenNotPaused // F:[P4-4]
         nonReentrant
         returns (uint256 shares)
     {
-        shares = _deposit(assets, receiver); // F:[P4-4]
+        shares = _deposit(assets, receiver); // F:[P4-6]
     }
 
     /// @dev Deposit liquidity to the pool with referral code
@@ -197,26 +237,45 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     function depositReferral(
         uint256 assets,
         address receiver,
-        uint256 referralCode
-    ) external override whenNotPaused nonReentrant returns (uint256 shares) {
-        shares = _deposit(assets, receiver);
-        emit DepositReferral(msg.sender, receiver, assets, referralCode); // F:[P4-4]
+        uint16 referralCode
+    )
+        external
+        override
+        whenNotPaused // F:[P4-4]
+        nonReentrant
+        returns (uint256 shares)
+    {
+        shares = _deposit(assets, receiver); // F:[P4-6]
+        emit DepositReferral(msg.sender, receiver, assets, referralCode); // F:[P4-6]
     }
 
     /// @dev Deposit ETH liquidity to the WETH pool only with referral code
     /// @param receiver The address that will receive the dToken
     /// @param referralCode Code used to register the integrator originating the operation, for potential rewards.
     ///   0 if the action is executed directly by the user, without a facilitator.
-    function depositETHReferral(address receiver, uint256 referralCode)
+    function depositETHReferral(address receiver, uint16 referralCode)
         external
         payable
         override
-        whenNotPaused // T:[PS-4]
+        whenNotPaused // F:[P4-4]
         // nonReentrant moved to internal function to make check for receive() and this function in one place
-        wethPoolOnly
+        wethPoolOnly // F:[P4-6]
         returns (uint256 shares)
     {
-        shares = _depositETHReferral(receiver, referralCode); // T:[PS-2, 7]
+        shares = _depositETHReferral(receiver, referralCode); // F:[P4-7]
+    }
+
+    /// @dev Sending ETH directly works
+    /// TODO: check if someone will use pool address during CA closure or liquidation with ETH transfer
+    receive()
+        external
+        payable
+        wethPoolOnly // F:[P4-5]
+        whenNotPaused // F:[P4-4]
+    {
+        if (msg.sender != wethAddress) {
+            _depositETHReferral(msg.sender, 0); // F:[P4-7]
+        }
     }
 
     /// @dev Mints exactly shares Vault shares to receiver by depositing assets of underlying tokens.
@@ -227,28 +286,24 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     function mint(uint256 shares, address receiver)
         external
         override
-        whenNotPaused
+        whenNotPaused // F:[P4-4]
         nonReentrant
         returns (uint256 assets)
     {
         // Additional check that receiver is not address(0)
         if (receiver == address(0)) revert ZeroAddressException();
 
-        assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
-        uint256 assetsTransferred = _safeDepositAssets(assets);
+        // No need to check for rounding error, previewMint rounds up.
+        assets = previewMint(shares); // F:[P4-4]
 
+        uint256 assetsTransferred = _safeDepositAssets(assets); // F:[P4-8]
+
+        /// TODO: add check for fee token
         if (assetsTransferred != assets) {
-            assets = assetsTransferred;
-            shares = convertToShares(assets);
+            shares = convertToShares(assetsTransferred); // F:[P4-8]
         }
 
-        _addLiquidity(receiver, assets, shares);
-    }
-
-    receive() external payable wethPoolOnly whenNotPaused {
-        if (msg.sender != wethAddress) {
-            _depositETHReferral(msg.sender, 0);
-        }
+        _addLiquidity(receiver, assets, assetsTransferred, shares); // F:[P4-8]
     }
 
     //
@@ -260,13 +315,13 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     {
         if (receiver == address(0)) revert ZeroAddressException();
 
-        assets = _safeDepositAssets(assets);
-        shares = convertToShares(assets);
+        uint256 assetsReceived = _safeDepositAssets(assets);
+        shares = convertToShares(assetsReceived);
 
-        _addLiquidity(receiver, assets, shares);
+        _addLiquidity(receiver, assets, assetsReceived, shares);
     }
 
-    function _depositETHReferral(address receiver, uint256 referralCode)
+    function _depositETHReferral(address receiver, uint16 referralCode)
         internal
         nonReentrant // non-reentrancy check moved here to be able to use it in receive() and depositWithdrawal functions
         returns (uint256 shares)
@@ -276,44 +331,53 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         uint256 assets = msg.value;
         shares = convertToShares(assets);
 
-        _addLiquidity(receiver, assets, shares);
+        _addLiquidity(receiver, assets, assets, shares);
         emit DepositReferral(msg.sender, receiver, assets, referralCode); // T:[PS-2, 7]
     }
 
     function _addLiquidity(
         address receiver,
-        uint256 assets,
+        uint256 assetsSent,
+        uint256 assetsReceived,
         uint256 shares
     ) internal {
-        if (expectedLiquidity() + assets > uint256(_expectedLiquidityLimit)) {
+        /// Interst rate calculatiuon??
+        if (
+            expectedLiquidity() + assetsReceived >
+            uint256(_expectedLiquidityLimit)
+        ) {
             revert ExpectedLiquidityLimitException();
         }
 
-        int256 assetsSigned = int256(assets);
+        int256 assetsSigned = int256(assetsReceived); // F:[P4-4]
 
-        _updateParameters(assetsSigned, assetsSigned, false);
+        _updateBaseParameters(assetsSigned, assetsSigned, false); // F:[P4-4]
 
-        _mint(receiver, shares);
+        _mint(receiver, shares); // F:[P4-4]
 
-        emit Deposit(msg.sender, receiver, assets, shares);
+        emit Deposit(msg.sender, receiver, assetsSent, shares); // F:[P4-4]
     }
 
     function _safeDepositAssets(uint256 amount) internal returns (uint256) {
-        uint256 balanceBefore;
-        if (isFeeToken) {
-            balanceBefore = IERC20(underlyingToken).balanceOf(address(this));
-        }
-        IERC20(underlyingToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        ); // T:[PS-2, 7]
+        return _safeUnderlyingTransfer(address(this), amount);
+    }
 
-        return
-            isFeeToken
-                ? IERC20(underlyingToken).balanceOf(address(this)) -
-                    balanceBefore
-                : amount;
+    function _safeUnderlyingTransfer(address to, uint256 amount)
+        internal
+        virtual
+        returns (uint256)
+    {
+        IERC20(underlyingToken).safeTransferFrom(msg.sender, to, amount);
+        return amount;
+    }
+
+    function _amountWithFee(uint256 amount)
+        internal
+        view
+        virtual
+        returns (uint256)
+    {
+        return amount;
     }
 
     /// @dev Removes liquidity from pool
@@ -329,7 +393,13 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         uint256 assets,
         address receiver,
         address owner
-    ) external override whenNotPaused nonReentrant returns (uint256 shares) {
+    )
+        external
+        override
+        whenNotPaused // F:[P4-4]
+        nonReentrant
+        returns (uint256 shares)
+    {
         shares = previewWithdraw(assets);
         _removeLiquidity(assets, shares, receiver, owner, false);
     }
@@ -341,9 +411,9 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     )
         external
         override
-        whenNotPaused
+        whenNotPaused // F:[P4-4]
         nonReentrant
-        wethPoolOnly
+        wethPoolOnly // F:[P4-5]
         returns (uint256 shares)
     {
         shares = previewWithdraw(assets);
@@ -362,7 +432,13 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         uint256 shares,
         address receiver,
         address owner
-    ) external override whenNotPaused nonReentrant returns (uint256 assets) {
+    )
+        external
+        override
+        whenNotPaused // F:[P4-4]
+        nonReentrant
+        returns (uint256 assets)
+    {
         assets = convertToAssets(shares);
 
         // Check for rounding error since we round down in previewRedeem.
@@ -378,9 +454,9 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     )
         external
         override
-        whenNotPaused
+        whenNotPaused // F:[P4-4]
         nonReentrant
-        wethPoolOnly
+        wethPoolOnly // F:[P4-5]
         returns (uint256 assets)
     {
         assets = convertToAssets(shares);
@@ -408,15 +484,19 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
             }
         }
 
-        _updateParameters(-int256(assets), -int256(assets), false);
+        _updateBaseParameters(-int256(assets), -int256(assets), false);
 
         if (withdrawFee > 0) {
             unchecked {
                 /// It's safe because we made a check that assets < uint128, and withDrawFee is < 10K
-                uint256 fee = (assets * withdrawFee) / PERCENTAGE_FACTOR;
-                assets -= fee;
+                uint256 withdrawFeeAmount = (assets * withdrawFee) /
+                    PERCENTAGE_FACTOR;
+                assets -= withdrawFeeAmount;
 
-                IERC20(underlyingToken).safeTransfer(treasuryAddress, fee);
+                IERC20(underlyingToken).safeTransfer(
+                    treasuryAddress,
+                    withdrawFeeAmount
+                );
             }
         }
 
@@ -444,6 +524,15 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     function _unwrapWETH(address to, uint256 amount) internal {
         IWETH(wethAddress).withdraw(amount);
         payable(to).sendValue(amount);
+    }
+
+    function burn(uint256 shares)
+        external
+        override
+        whenNotPaused // TODO: Add test
+        nonReentrant
+    {
+        _burn(msg.sender, shares);
     }
 
     //
@@ -559,7 +648,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     function previewMint(uint256 shares) public view virtual returns (uint256) {
         uint256 supply = totalSupply(); // Saves an extra SLOAD if totalSupply is non-zero.
 
-        return supply == 0 ? shares : convertToAssets(shares); // We need to round up shares.mulDivUp(totalAssets(), supply);
+        return _amountWithFee(supply == 0 ? shares : convertToAssets(shares)); // We need to round up shares.mulDivUp(totalAssets(), supply);
     }
 
     /// @dev Maximum amount of the underlying asset that can be withdrawn from the owner balance in the Vault, through a withdraw call.
@@ -618,6 +707,13 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     /// @return expected liquidity - the amount of money that should be in the pool
     /// after all users close their Credit accounts and fully repay debts
     function expectedLiquidity() public view override returns (uint256) {
+        return
+            _expectedLiquidityLU +
+            _calcBaseInterestAccrued() +
+            (supportQuotaPremiums ? _calcQuotasPremiums() : 0); //
+    }
+
+    function _calcBaseInterestAccrued() internal view returns (uint256) {
         // timeDifference = blockTime - previous timeStamp
         uint256 timeDifference = block.timestamp - timestampLU;
 
@@ -625,14 +721,41 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         //  interestAccrued = totalBorrow *  ------------------------------------
         //                                             SECONDS_PER_YEAR
         //
-        uint256 interestAccrued = (uint256(_totalBorrowed) *
-            _borrowAPY_RAY *
-            timeDifference) /
+        return
+            (uint256(_totalBorrowed) * _borrowRate_RAY * timeDifference) /
             RAY /
             SECONDS_PER_YEAR;
-        // T:[PS-29]
+    }
 
-        return _expectedLiquidityLU + interestAccrued; // T:[PS-29]
+    function _calcQuotasPremiums()
+        internal
+        view
+        returns (uint256 quotaPremiums)
+    {
+        address[] memory quotaAddrs = quotaTokensSet.values();
+        uint256 quotasLen = quotaAddrs.length;
+        for (uint256 i; i < quotasLen; ) {
+            address token = quotaAddrs[i];
+            /// TODO: check gas usage with memory comparison / stact extraction
+            Quota storage q = quotas[token];
+            quotaPremiums += _calcQuotaPremium(q, token);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function _calcQuotaPremium(Quota storage q, address token)
+        internal
+        view
+        returns (uint256 premium)
+    {
+        return
+            (q.totalQuoted *
+                IGauge(gauge).getQuotaRate(token) *
+                (block.timestamp - q.lastUpdate)) /
+            (PERCENTAGE_FACTOR * SECONDS_PER_YEAR);
     }
 
     /// @dev Returns available liquidity in the pool (pool balance)
@@ -657,7 +780,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     function lendCreditAccount(uint256 borrowedAmount, address creditAccount)
         external
         override
-        whenNotPaused // T:[PS-4]
+        whenNotPaused // F:[P4-4]
     {
         // Checks credit manager specific limi is not cross and udpate it
         CreditManagerDebt storage cmDebt = creditManagersDebt[msg.sender];
@@ -679,7 +802,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         }
 
         // Update borrow Rate, reverts of Uoptimal limit is set up
-        _updateParameters(0, -int256(borrowedAmount), true);
+        _updateBaseParameters(0, -int256(borrowedAmount), true);
 
         // Transfer funds to credit account
         IERC20(underlyingToken).safeTransfer(creditAccount, borrowedAmount);
@@ -699,12 +822,14 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     )
         external
         override
-        whenNotPaused // T:[PS-4]
+        whenNotPaused // F:[P4-4]
     {
         // Updates credit manager specific totalBorrowed
         CreditManagerDebt storage cmDebt = creditManagersDebt[msg.sender];
 
-        if (uint256(cmDebt.limit) + uint256(cmDebt.totalBorrowed) == 0) {
+        uint128 totalBorrowed = cmDebt.totalBorrowed;
+        if (totalBorrowed == 0) {
+            /// todo: add correct exception ??
             revert CreditManagerOnlyException();
         }
 
@@ -732,12 +857,12 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         }
 
         // Updates borrow rate
-        _updateParameters(int256(profit) - int256(loss), 0, false);
+        _updateBaseParameters(int256(profit) - int256(loss), 0, false);
 
         // Updates total borrowed
         _totalBorrowed -= uint128(borrowedAmount);
 
-        cmDebt.totalBorrowed -= uint128(borrowedAmount);
+        cmDebt.totalBorrowed = totalBorrowed - uint128(borrowedAmount);
 
         emit Repay(msg.sender, borrowedAmount, profit, loss);
     }
@@ -759,8 +884,8 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
 
         return
             calcLinearIndex_RAY(
-                _cumulativeIndex_RAY,
-                _borrowAPY_RAY,
+                cumulativeIndexLU_RAY,
+                _borrowRate_RAY,
                 timeDifference
             );
     }
@@ -786,25 +911,26 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     }
 
     /// @dev Updates core popo when liquidity parameters are changed
-    function _updateParameters(
+    function _updateBaseParameters(
         int256 expectedLiquidityChanged,
         int256 availableLiquidityChanged,
         bool checkOptimalBorrowing
     ) internal {
         uint128 expectedLiquidityLUcached = uint128(
-            int128(uint128(expectedLiquidity())) +
+            int128(_expectedLiquidityLU + uint128(_calcBaseInterestAccrued())) +
                 int128(expectedLiquidityChanged)
         );
 
         _expectedLiquidityLU = expectedLiquidityLUcached;
 
         // Update cumulativeIndex
-        _cumulativeIndex_RAY = uint128(calcLinearCumulative_RAY());
+        cumulativeIndexLU_RAY = uint128(calcLinearCumulative_RAY());
 
         // update borrow APY
-        _borrowAPY_RAY = uint128(
+        _borrowRate_RAY = uint128(
             interestRateModel.calcBorrowRate(
-                expectedLiquidityLUcached,
+                expectedLiquidityLUcached +
+                    (supportQuotaPremiums ? _calcQuotasPremiums() : 0),
                 availableLiquidityChanged == 0
                     ? availableLiquidity()
                     : uint256(
@@ -816,11 +942,84 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         timestampLU = uint64(block.timestamp);
     }
 
+    /// TODO: add limit check!
+
+    /// CM only
+    function updateQuota(address token, int96 quotaChange)
+        external
+        override
+        creditManagerWithActiveDebtOnly
+        returns (int96 change)
+    {
+        return _updateQuota(token, quotaChange);
+    }
+
+    /// CM only
+    function updateQuotas(QuotaUpdate[] memory quotaUpdates)
+        external
+        override
+        creditManagerWithActiveDebtOnly
+        returns (int96[] memory changes)
+    {
+        uint256 len = quotaUpdates.length;
+        changes = new int96[](len);
+        unchecked {
+            for (uint256 i; i < len; ++i) {
+                changes[i] = _updateQuota(
+                    quotaUpdates[i].token,
+                    quotaUpdates[i].quotaChange
+                );
+            }
+        }
+    }
+
+    function _updateQuota(address token, int96 quotaChange)
+        internal
+        returns (int96 change)
+    {
+        Quota storage q = quotas[token];
+        _expectedLiquidityLU += uint128(_calcQuotaPremium(q, token));
+        q.lastUpdate = uint40(block.timestamp);
+        uint96 totalQuoted = q.totalQuoted;
+        if (quotaChange > 0) {
+            uint96 limit = q.limit;
+            if (totalQuoted > limit) return 0;
+            change = (totalQuoted + uint96(quotaChange) > limit)
+                ? int96(limit - totalQuoted)
+                : quotaChange;
+            q.totalQuoted = totalQuoted + uint96(change);
+        } else {
+            change = quotaChange;
+            q.totalQuoted = uint96(int96(totalQuoted) + change);
+        }
+    }
+
+    function updateQuotas() external gaugeOnly {
+        uint256 quotaPremiums;
+        if (supportQuotaPremiums) {
+            address[] memory quotaAddrs = quotaTokensSet.values();
+            uint256 quotasLen = quotaAddrs.length;
+            for (uint256 i; i < quotasLen; ) {
+                address token = quotaAddrs[i];
+                Quota storage q = quotas[token];
+                quotaPremiums += _calcQuotaPremium(q, token);
+
+                q.lastUpdate = uint40(block.timestamp);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        /// Add check that premiums are not higher than uint128
+        _expectedLiquidityLU += uint128(quotaPremiums);
+    }
+
     // GETTERS
 
     /// @dev Calculates the current borrow rate, RAY format
-    function borrowAPY_RAY() external view returns (uint256) {
-        return uint256(_borrowAPY_RAY);
+    function borrowRate_RAY() external view returns (uint256) {
+        return uint256(_borrowRate_RAY);
     }
 
     ///  @dev Total borrowed amount (includes principal only)
@@ -869,17 +1068,11 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         public
         configuratorOnly // T:[PS-9]
     {
-        _updateInterestRateModel(_interestRateModel);
-    }
-
-    /// @dev IMPLEMENTATION: updateInterestRateModel
-    function _updateInterestRateModel(address _interestRateModel) internal {
-        if (_interestRateModel == address(0)) revert ZeroAddressException();
+        if (_interestRateModel == address(0)) revert ZeroAddressException(); // F:[P4-2]
 
         interestRateModel = IInterestRateModel(_interestRateModel);
-        _updateParameters(0, 0, false);
 
-        emit NewInterestRateModel(_interestRateModel);
+        emit NewInterestRateModel(_interestRateModel); // F:[P4-03]
     }
 
     /// @dev Sets a new expected liquidity limit
@@ -890,7 +1083,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
 
     function _setExpectedLiquidityLimit(uint256 limit) internal {
         _expectedLiquidityLimit = convertToU128(limit);
-        emit NewExpectedLiquidityLimit(limit);
+        emit NewExpectedLiquidityLimit(limit); // F:[P4-03]
     }
 
     function setTotalBorrowedLimit(uint256 limit) external controllerOnly {
@@ -899,7 +1092,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
 
     function _setTotalBorrowedLimit(uint256 limit) internal {
         _totalBorrowedLimit = convertToU128(limit);
-        emit NewTotalBorrowedLimit(limit);
+        emit NewTotalBorrowedLimit(limit); // F:[P4-03]
     }
 
     /// @dev Sets a new withdrawal fee
