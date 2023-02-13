@@ -18,7 +18,7 @@ import { ContractsRegister } from "../core/ContractsRegister.sol";
 import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 import { IInterestRateModel } from "../interfaces/IInterestRateModel.sol";
-import { IPool4626, Pool4626Opts } from "../interfaces/IPool4626.sol";
+import { IPool4626, Pool4626Opts, QuotaUpdate } from "../interfaces/IPool4626.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
 import { IGauge } from "../interfaces/IGauge.sol";
 
@@ -41,11 +41,6 @@ struct Quota {
     uint96 limit;
     uint40 lastUpdate;
     uint16 rate; // current rate update
-}
-
-struct QuotaUpdate {
-    address token;
-    int96 quotaChage;
 }
 
 /// @title Core pool contract compatible with ERC4626
@@ -141,7 +136,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     }
 
     modifier creditManagerWithActiveDebtOnly() {
-        if (cmDebt[msg.sender].totalBorrowed == 0) {
+        if (creditManagersDebt[msg.sender].totalBorrowed == 0) {
             /// todo: add correct exception ??
             revert CreditManagerOnlyException();
         }

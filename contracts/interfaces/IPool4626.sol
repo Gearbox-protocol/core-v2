@@ -14,6 +14,11 @@ struct Pool4626Opts {
     bool supportQuotaPremiums;
 }
 
+struct QuotaUpdate {
+    address token;
+    int96 quotaChange;
+}
+
 interface IPool4626Exceptions {
     error ExpectedLiquidityLimitException();
 
