@@ -70,7 +70,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     bool public immutable supportQuotaPremiums;
 
     /// @dev Contract version
-    uint256 public constant override version = 2_01;
+    uint256 public constant override version = 2_1;
 
     // [SLOT #1]
 
