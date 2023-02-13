@@ -13,6 +13,8 @@ import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
 
 // MOCKS
 import { ERC20Mock } from "../mocks/token/ERC20Mock.sol";
+import { ERC20FeeMock } from "../mocks/token/ERC20FeeMock.sol";
+
 import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
 
 import "../lib/test.sol";
@@ -57,6 +59,8 @@ contract TokensTestSuite is DSTest, TokensData, TokensTestSuiteHelper {
                 token.symbol,
                 token.decimals
             );
+        } else if (token.index == Tokens.USDT) {
+            t = new ERC20FeeMock(token.symbol, token.symbol, token.decimals);
         } else {
             t = new ERC20Mock(token.symbol, token.symbol, token.decimals);
         }

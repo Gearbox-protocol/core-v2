@@ -474,7 +474,7 @@ contract CreditConfiguratorTest is
         evm.expectRevert(CallerNotPausableAdminException.selector);
         creditConfigurator.setIncreaseDebtForbidden(true);
 
-        evm.expectRevert(CallerNotUnPausableAdminException.selector);
+        evm.expectRevert(CallerNotPausableAdminException.selector);
         creditConfigurator.setIncreaseDebtForbidden(false);
 
         evm.prank(CONFIGURATOR);

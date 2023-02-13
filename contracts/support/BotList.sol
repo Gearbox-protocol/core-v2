@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { IBotList } from "../interfaces/IBotList.sol";
 
 import { ZeroAddressException, AddressIsNotContractException } from "../interfaces/IErrors.sol";
@@ -13,7 +13,7 @@ import { ZeroAddressException, AddressIsNotContractException } from "../interfac
 /// @title BotList
 /// @dev Used to store a mapping of borrowers => bots. A separate contract is used for transferability when
 ///      changing Credit Facades
-contract BotList is ACLTrait, IBotList {
+contract BotList is ACLNonReentrantTrait, IBotList {
     using Address for address;
 
     /// @dev Mapping from (borrower, bot) to bot approval status
@@ -22,7 +22,9 @@ contract BotList is ACLTrait, IBotList {
     /// @dev Whether the bot is forbidden system-wide
     mapping(address => bool) public forbiddenBot;
 
-    constructor(address _addressProvider) ACLTrait(_addressProvider) {}
+    constructor(address _addressProvider)
+        ACLNonReentrantTrait(_addressProvider)
+    {}
 
     /// @dev Adds or removes allowance for a bot to execute multicalls on behalf of sender
     /// @param bot Bot address

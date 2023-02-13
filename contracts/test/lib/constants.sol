@@ -18,6 +18,8 @@ address constant USER = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
 address constant CONFIGURATOR = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
 address constant LIQUIDATOR = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
 
+address constant INITIAL_LP = 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f;
+
 address constant FRIEND = 0x90F79bf6EB2c4f870365E785982E1f101E93b906;
 address constant FRIEND2 = 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65;
 
@@ -58,6 +60,7 @@ contract Roles is DSTest {
         evm.label(USER, "USER");
         evm.label(FRIEND, "FRIEND");
         evm.label(LIQUIDATOR, "LIQUIDATOR");
+        evm.label(INITIAL_LP, "INITIAL_LP");
 
         evm.label(DUMB_ADDRESS, "DUMB_ADDRESS");
         evm.label(ADAPTER, "ADAPTER");

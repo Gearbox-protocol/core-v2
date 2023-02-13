@@ -6,7 +6,7 @@ pragma solidity ^0.8.10;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
 import { ICreditFacade } from "../interfaces/ICreditFacade.sol";
 
@@ -21,7 +21,7 @@ interface IBlacklistableUSDT {
 /// @title Blacklist Helper
 /// @dev A contract used to enable successful liquidations when the borrower is blacklisted
 ///      while simultaneously allowing them to recover their funds under a different address
-contract BlacklistHelper is ACLTrait, IBlacklistHelper {
+contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
     using SafeERC20 for IERC20;
 
     /// @dev Address of USDC
@@ -51,7 +51,7 @@ contract BlacklistHelper is ACLTrait, IBlacklistHelper {
         address _addressProvider,
         address _usdc,
         address _usdt
-    ) ACLTrait(_addressProvider) {
+    ) ACLNonReentrantTrait(_addressProvider) {
         usdc = _usdc;
         usdt = _usdt;
     }

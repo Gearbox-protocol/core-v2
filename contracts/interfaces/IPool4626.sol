@@ -3,8 +3,21 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IERC4626 } from "./IERC4626.sol";
+import { IERC4626, IERC4626Events } from "./IERC4626.sol";
 import { IVersion } from "./IVersion.sol";
+
+struct Pool4626Opts {
+    address addressProvider;
+    address underlyingToken;
+    address interestRateModel;
+    uint256 expectedLiquidityLimit;
+    bool supportQuotaPremiums;
+}
+
+struct QuotaUpdate {
+    address token;
+    int96 quotaChange;
+}
 
 interface IPool4626Exceptions {
     error ExpectedLiquidityLimitException();
@@ -14,15 +27,18 @@ interface IPool4626Exceptions {
     error IncorrectWithdrawalFeeException();
     error ZeroAssetsException();
     error AssetIsNotWETHException();
+    error IncompatibleCreditManagerException();
+    error CreditManagerNotRegsiterException();
+    error AdditionalYieldPoolException();
 }
 
-interface IPool4626Events {
+interface IPool4626Events is IERC4626Events {
     /// @dev Emits on new liquidity being added to the pool
     event DepositReferral(
         address indexed sender,
         address indexed onBehalfOf,
         uint256 amount,
-        uint256 referralCode
+        uint16 referralCode
     );
 
     /// @dev Emits on a Credit Manager borrowing funds for a Credit Account
@@ -45,6 +61,8 @@ interface IPool4626Events {
 
     /// @dev Emits on connecting a new Credit Manager
     event NewCreditManagerConnected(address indexed creditManager);
+
+    event NewTotalBorrowedLimit(uint256 limit);
 
     /// @dev Emits when a Credit Manager is forbidden to borrow
     event BorrowLimitChanged(address indexed creditManager, uint256 newLimit);
@@ -74,10 +92,10 @@ interface IPool4626 is
     function depositReferral(
         uint256 assets,
         address receiver,
-        uint256 referralCode
+        uint16 referralCode
     ) external returns (uint256 shares);
 
-    function depositETHReferral(address receiver, uint256 referralCode)
+    function depositETHReferral(address receiver, uint16 referralCode)
         external
         payable
         returns (uint256 shares);
@@ -93,6 +111,8 @@ interface IPool4626 is
         address receiver,
         address owner
     ) external returns (uint256 assets);
+
+    function burn(uint256 shares) external;
 
     /// CREDIT MANAGERS FUNCTIONS
 
@@ -114,6 +134,19 @@ interface IPool4626 is
         uint256 loss
     ) external;
 
+    /// @dev Updates quota for particular token, returns how much quota was given
+    /// @param token Token address of quoted token
+    /// @param quotaChange Change in quota amount
+    /// @return change Quota change which was applied
+    function updateQuota(address token, int96 quotaChange)
+        external
+        returns (int96 change);
+
+    /// TODO: add description
+    function updateQuotas(QuotaUpdate[] memory quotaUpdates)
+        external
+        returns (int96[] memory changes);
+
     //
     // GETTERS
     //
@@ -131,7 +164,7 @@ interface IPool4626 is
     function calcLinearCumulative_RAY() external view returns (uint256);
 
     /// @dev Calculates the current borrow rate, RAY format
-    function borrowAPY_RAY() external view returns (uint256);
+    function borrowRate_RAY() external view returns (uint256);
 
     ///  @dev Total borrowed amount (includes principal only)
     function totalBorrowed() external view returns (uint256);
@@ -155,10 +188,9 @@ interface IPool4626 is
     function withdrawFee() external view returns (uint16);
 
     /// @dev Timestamp of the pool's last update
-    function _timestampLU() external view returns (uint64);
+    function timestampLU() external view returns (uint64);
 
-    /// @dev Interest index at the last pool update
-    function _cumulativeIndex_RAY() external view returns (uint256);
+    function totalBorrowedLimit() external view returns (uint256);
 
     /// @dev Address provider
     function addressProvider() external view returns (address);

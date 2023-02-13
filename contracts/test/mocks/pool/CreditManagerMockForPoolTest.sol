@@ -8,6 +8,7 @@ import "../../lib/constants.sol";
 
 contract CreditManagerMockForPoolTest {
     address public poolService;
+    address public pool;
     address public underlying;
 
     address public creditAccount = DUMB_ADDRESS;
@@ -18,6 +19,7 @@ contract CreditManagerMockForPoolTest {
 
     function changePoolService(address newPool) external {
         poolService = newPool;
+        pool = newPool;
     }
 
     /**

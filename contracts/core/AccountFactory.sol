@@ -13,14 +13,14 @@ import { ICreditAccount } from "../interfaces/ICreditAccount.sol";
 import { AddressProvider } from "./AddressProvider.sol";
 import { ContractsRegister } from "./ContractsRegister.sol";
 import { CreditAccount } from "../credit/CreditAccount.sol";
-import { ACLTrait } from "./ACLTrait.sol";
+import { ACLNonReentrantTrait } from "./ACLNonReentrantTrait.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import { Errors } from "../libraries/Errors.sol";
 
 /// @title Abstract reusable credit accounts factory
 /// @notice Creates, holds & lends credit accounts to Credit Managers
-contract AccountFactory is IAccountFactory, ACLTrait, ReentrancyGuard {
+contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     //
@@ -77,7 +77,7 @@ contract AccountFactory is IAccountFactory, ACLTrait, ReentrancyGuard {
      *
      * @param addressProvider Address of address repository
      */
-    constructor(address addressProvider) ACLTrait(addressProvider) {
+    constructor(address addressProvider) ACLNonReentrantTrait(addressProvider) {
         require(
             addressProvider != address(0),
             Errors.ZERO_ADDRESS_IS_NOT_ALLOWED

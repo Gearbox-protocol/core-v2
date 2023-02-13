@@ -29,7 +29,7 @@ import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
 /// @title Data compressor
 /// @notice Collects data from various contracts for use in the dApp
-/// Do not use for data from data compressor for state-changing functions
+/// Do not use for data from any onchain activities
 contract DataCompressor is IDataCompressor {
     using PercentageMath for uint256;
 
