@@ -46,7 +46,8 @@ contract CreditManagerTestInternal is CreditManager {
         uint256 totalValue,
         ClosureAction closureActionType,
         uint256 borrowedAmount,
-        uint256 borrowedAmountWithInterest
+        uint256 borrowedAmountWithInterest,
+        uint256 borrowedAmountWithInterestAndFees
     )
         external
         view
@@ -62,17 +63,25 @@ contract CreditManagerTestInternal is CreditManager {
                 totalValue,
                 closureActionType,
                 borrowedAmount,
-                borrowedAmountWithInterest
+                borrowedAmountWithInterest,
+                borrowedAmountWithInterestAndFees
             );
     }
 
-    function transferAssetsTo(
+    function beforeAccountClosure(
         address creditAccount,
-        address to,
+        address remainingAssetRecipient,
         bool convertWETH,
-        uint256 enabledTokenMask
+        uint256 enabledTokensMask,
+        uint256 skipTokenMask
     ) external {
-        _transferAssetsTo(creditAccount, to, convertWETH, enabledTokenMask);
+        _beforeAccountClosure(
+            creditAccount,
+            remainingAssetRecipient,
+            convertWETH,
+            enabledTokensMask,
+            skipTokenMask
+        );
     }
 
     function safeTokenTransfer(
