@@ -7,13 +7,34 @@ struct GaugeOpts {
     address addressProvider;
     address pool;
     uint256 firstEpochTimestamp;
+    address gearToken;
 }
 
 interface IGaugeExceptions {
     error TokenQuotaIsAlreadyAdded();
+
+    error NotEnoughBalance();
 }
 
-interface IGaugeEvents {}
+interface IGaugeEvents {
+    event Deposit(
+        address indexed caller,
+        address indexed owner,
+        uint256 assets
+    );
+
+    event Withdraw(
+        address indexed caller,
+        address indexed receiver,
+        uint256 assets
+    );
+
+    event VoteFor(address indexed token, uint96 votes, bool lpSide);
+
+    event UnvoteFrom(address indexed token, uint96 votes, bool lpSide);
+
+    event QuotaRateUpdated(address indexed token, uint16 rate);
+}
 
 /// @title IGauge
 

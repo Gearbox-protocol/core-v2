@@ -25,6 +25,9 @@ import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
 import "forge-std/console.sol";
 
+uint192 constant RAY_DIVIDED_BY_PERCENTAGE = uint192(RAY / PERCENTAGE_FACTOR);
+uint192 constant SECONDS_PER_YEAR_192 = uint192(SECONDS_PER_YEAR);
+
 struct QuotaParams {
     uint16 rate; // in PERCENTAGE_FACTOR format 10_000 = 100%
     uint192 cumulativeIndexLU_RAY; // max 10^57
@@ -38,9 +41,17 @@ struct QuotaRateParams {
     uint96 votesCaSide;
 }
 
+struct Stake {
+    uint96 deposited;
+    uint96 unstaking;
+    uint96 voted;
+    uint16 unstakedInEpoch;
+}
+
 /// @title Gauge fore new 4626 pools
 contract Gauge is IGauge, ACLNonReentrantTrait {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using SafeERC20 for IERC20;
 
     /// @dev Address provider
     address public immutable addressProvider;
@@ -50,6 +61,9 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
 
     /// @dev Timestamp when the first epoch started
     uint256 public immutable firstEpochTimestamp;
+
+    /// @dev Gear token
+    IERC20 public immutable gearToken;
 
     uint256 constant epochLength = 7 days;
 
@@ -64,6 +78,7 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
     EnumerableSet.AddressSet internal quotaTokenSet;
 
     /// timelock for GEAR per epoch
+    mapping(address => Stake) public stakes;
 
     //
     // CONSTRUCTOR
@@ -82,6 +97,7 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
         addressProvider = opts.addressProvider; // F:[P4-01]
         pool = Pool4626(payable(opts.pool)); // F:[P4-01]
         firstEpochTimestamp = opts.firstEpochTimestamp;
+        gearToken = IERC20(opts.gearToken);
     }
 
     function cumulativeIndex(address token)
@@ -90,24 +106,34 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
         override
         returns (uint256)
     {
-        QuotaParams storage qp = quotaParams[token];
-        return
-            qp.cumulativeIndexLU_RAY +
-            (RAY * uint256(qp.rate) * (block.timestamp - qp.lastUpdate)) /
-            SECONDS_PER_YEAR /
-            PERCENTAGE_FACTOR;
+        return _cumulativeIndexNow(quotaParams[token]);
     }
 
-    function _updateBorrowRate(address token, uint16 _rate) internal {
+    function _cumulativeIndexNow(QuotaParams storage qp)
+        internal
+        view
+        returns (uint192)
+    {
+        return
+            qp.cumulativeIndexLU_RAY +
+            (RAY_DIVIDED_BY_PERCENTAGE *
+                uint192((block.timestamp - qp.lastUpdate) * qp.rate)) /
+            SECONDS_PER_YEAR_192;
+    }
+
+    function _updateQuotaRate(address token, uint16 _rate) internal {
         QuotaParams storage qp = quotaParams[token];
         qp.cumulativeIndexLU_RAY = uint192(
-            qp.cumulativeIndexLU_RAY +
-                (RAY * uint256(qp.rate) * (block.timestamp - qp.lastUpdate)) /
-                SECONDS_PER_YEAR /
-                PERCENTAGE_FACTOR
+            (qp.cumulativeIndexLU_RAY *
+                (RAY +
+                    (RAY_DIVIDED_BY_PERCENTAGE *
+                        uint192((block.timestamp - qp.lastUpdate) * qp.rate)) /
+                    SECONDS_PER_YEAR_192)) / RAY
         );
         qp.lastUpdate = uint40(block.timestamp);
         qp.rate = _rate;
+
+        emit QuotaRateUpdated(token, _rate);
     }
 
     function getQuotaRate(address token) external view returns (uint256) {
@@ -150,28 +176,125 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
             uint256 len = tokens.length;
             for (uint256 i; i < len; ) {
                 address token = tokens[i];
-                QuotaParams storage qp = quotaParams[token];
-                QuotaRateParams storage quotaRateParam = quotaRateParams[token];
 
-                uint96 votesLpSide = quotaRateParam.votesLpSide;
-                uint96 votesCaSide = quotaRateParam.votesCaSide;
+                QuotaRateParams storage qrp = quotaRateParams[token];
+
+                uint96 votesLpSide = qrp.votesLpSide;
+                uint96 votesCaSide = qrp.votesCaSide;
+
                 uint96 totalVotes = votesLpSide + votesCaSide;
 
                 uint16 newRate = uint16(
                     totalVotes == 0
-                        ? quotaRateParam.minRiskRate
-                        : (quotaRateParam.minRiskRate *
+                        ? qrp.minRiskRate
+                        : (qrp.minRiskRate *
                             votesCaSide +
-                            quotaRateParam.maxRate *
+                            qrp.maxRate *
                             votesLpSide) / totalVotes
                 );
 
-                _updateBorrowRate(token, newRate);
+                _updateQuotaRate(token, newRate);
 
                 unchecked {
                     ++i;
                 }
             }
         }
+    }
+
+    function deposit(uint96 amount, address receiver) external nonReentrant {
+        // Transfer from
+        // add depositred
+        Stake storage stake = stakes[msg.sender];
+        stake.deposited += amount;
+
+        gearToken.safeTransferFrom(msg.sender, address(this), amount);
+        emit Deposit(msg.sender, receiver, amount);
+    }
+
+    function vote(
+        address token,
+        uint96 votes,
+        bool lpSide
+    ) external nonReentrant {
+        _checkAndUpdateEpoch();
+        Stake storage stake = stakes[msg.sender];
+        if (votes > stake.deposited + stake.unstaking) {
+            revert NotEnoughBalance();
+        }
+
+        unchecked {
+            if (stake.unstaking > 0) {
+                if (stake.unstaking > votes) {
+                    stake.unstaking -= votes;
+                } else {
+                    stake.unstaking = 0;
+                    stake.deposited -= votes - stake.unstaking;
+                }
+            } else {
+                stake.deposited -= votes;
+                stake.voted += votes;
+            }
+        }
+
+        QuotaRateParams storage qp = quotaRateParams[token];
+        if (lpSide) {
+            qp.votesLpSide += votes;
+        } else {
+            qp.votesCaSide += votes;
+        }
+
+        // emit
+        emit VoteFor(token, votes, lpSide);
+    }
+
+    function unvote(
+        address token,
+        uint96 votes,
+        bool lpSide
+    ) external nonReentrant {
+        _checkAndUpdateEpoch();
+        Stake storage stake = stakes[msg.sender];
+
+        if (votes > stake.deposited) {
+            revert NotEnoughBalance();
+        }
+
+        if (stake.unstaking > 0 && stake.unstakedInEpoch < currentEpoch) {
+            stake.deposited += stake.unstaking;
+            stake.unstaking = 0;
+        }
+
+        unchecked {
+            stake.unstaking += votes;
+            stake.voted -= votes;
+            stake.unstakedInEpoch = currentEpoch;
+        }
+
+        QuotaRateParams storage qp = quotaRateParams[token];
+        if (lpSide) {
+            qp.votesLpSide -= votes;
+        } else {
+            qp.votesCaSide -= votes;
+        }
+
+        emit UnvoteFrom(token, votes, lpSide);
+    }
+
+    function withdraw(uint96 amount, address receiver) external nonReentrant {
+        _checkAndUpdateEpoch();
+        Stake storage stake = stakes[msg.sender];
+        if (amount > stake.deposited) {
+            revert NotEnoughBalance();
+        }
+
+        unchecked {
+            stake.deposited -= amount;
+        }
+
+        gearToken.transfer(receiver, amount);
+
+        // emit event
+        emit Withdraw(msg.sender, receiver, amount);
     }
 }
