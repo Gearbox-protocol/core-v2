@@ -67,6 +67,9 @@ interface ICreditManagerV2Exceptions {
 
     /// @dev Thrown when a reentrancy into the contract is attempted
     error ReentrancyLockException();
+
+    /// @dev Thrown when attempting to access quota logic when the CM does not support quotas
+    error CMDoesNotSupportQuotasException();
 }
 
 /// @notice All Credit Manager functions are access-restricted and can only be called
@@ -261,6 +264,7 @@ interface ICreditManagerV2 is
     ///        * LIQUIDATE_PAUSED: The account is liquidated while the system is paused due to emergency (no liquidation premium)
     /// @param borrowedAmount Credit Account's debt principal
     /// @param borrowedAmountWithInterest Credit Account's debt principal + interest
+    /// @param borrowedAmountWithInterestAndFees Credit Account's debt principal + interest + fees
     /// @return amountToPool Amount of underlying to be sent to the pool
     /// @return remainingFunds Amount of underlying to be sent to the borrower (only applicable to liquidations)
     /// @return profit Protocol's profit from fees (if any)
@@ -269,7 +273,8 @@ interface ICreditManagerV2 is
         uint256 totalValue,
         ClosureAction closureActionType,
         uint256 borrowedAmount,
-        uint256 borrowedAmountWithInterest
+        uint256 borrowedAmountWithInterest,
+        uint256 borrowedAmountWithInterestAndFees
     )
         external
         view

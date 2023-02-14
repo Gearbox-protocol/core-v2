@@ -172,6 +172,9 @@ interface IPool4626 is
     /// @dev diesel rate in RAY format
     function getDieselRate_RAY() external view returns (uint256);
 
+    /// @dev Cumulative index for quota fees for a token (returns 0 if quotas are not supported)
+    function quotaCumulativeIndex(address) external view returns (uint256);
+
     /// @dev Address of the underlying
     function underlyingToken() external view returns (address);
 
@@ -183,6 +186,9 @@ interface IPool4626 is
 
     /// @dev Borrow limit for particular credit manager
     function creditManagerLimit(address) external view returns (uint256);
+
+    /// @dev Whether the pool supports quota premiums
+    function supportQuotaPremiums() external view returns (bool);
 
     /// @dev Withdrawal fee
     function withdrawFee() external view returns (uint16);

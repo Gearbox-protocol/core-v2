@@ -2477,14 +2477,15 @@ contract CreditFacadeTest is
         (
             uint256 borrowedAmount,
             uint256 borrowedAmountWithInterest,
-
+            uint256 borrowedAmountWithInterestAndFees
         ) = creditManager.calcCreditAccountAccruedInterest(creditAccount);
 
         (, uint256 remainingFunds, , ) = creditManager.calcClosePayments(
             balance,
             ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT,
             borrowedAmount,
-            borrowedAmountWithInterest
+            borrowedAmountWithInterest,
+            borrowedAmountWithInterestAndFees
         );
 
         // EXPECTED STACK TRACE & EVENTS

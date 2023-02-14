@@ -2684,12 +2684,14 @@ contract CreditManagerTest is
     //
     // CALC CLOSE PAYMENT PURE
     //
+
     struct CalcClosePaymentsPureTestCase {
         string name;
         uint256 totalValue;
         ClosureAction closureActionType;
         uint256 borrowedAmount;
         uint256 borrowedAmountWithInterest;
+        uint256 borrowedAmountWithInterestAndFees;
         uint256 amountToPool;
         uint256 remainingFunds;
         uint256 profit;
@@ -2715,6 +2717,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.CLOSE_ACCOUNT,
                 borrowedAmount: 1000,
                 borrowedAmountWithInterest: 1100,
+                borrowedAmountWithInterestAndFees: 1110,
                 amountToPool: 1110, // amountToPool = 1100 + 100 * 10% = 1110
                 remainingFunds: 0,
                 profit: 10, // profit: 100 (interest) * 10% = 10
@@ -2726,6 +2729,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_ACCOUNT,
                 borrowedAmount: 1000,
                 borrowedAmountWithInterest: 1100,
+                borrowedAmountWithInterestAndFees: 1110,
                 amountToPool: 1150, // amountToPool = 1100 + 100 * 10% + 2000 * 2% = 1150
                 remainingFunds: 749, //remainingFunds: 2000 * (100% - 5%) - 1150 - 1 = 749
                 profit: 50,
@@ -2737,6 +2741,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_ACCOUNT,
                 borrowedAmount: 900,
                 borrowedAmountWithInterest: 1900,
+                borrowedAmountWithInterestAndFees: 2000,
                 amountToPool: 1995, // amountToPool =  1900 + 1000 * 10% + 2100 * 2% = 2042,  totalFunds = 2100 * 95% = 1995, so, amount to pool would be 1995
                 remainingFunds: 0, // remainingFunds: 2000 * (100% - 5%) - 1150 - 1 = 749
                 profit: 95,
@@ -2748,6 +2753,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_ACCOUNT,
                 borrowedAmount: 900,
                 borrowedAmountWithInterest: 1900,
+                borrowedAmountWithInterestAndFees: 2000,
                 amountToPool: 950, // amountToPool =  1900 + 1000 * 10% + 1000 * 2% = 2020, totalFunds = 1000 * 95% = 950, So, amount to pool would be 950
                 remainingFunds: 0, // 0, cause it's loss
                 profit: 0,
@@ -2759,6 +2765,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT,
                 borrowedAmount: 1000,
                 borrowedAmountWithInterest: 1100,
+                borrowedAmountWithInterestAndFees: 1110,
                 amountToPool: 1130, // amountToPool = 1100 + 100 * 10% + 2000 * 1% = 1130
                 remainingFunds: 829, //remainingFunds: 2000 * (100% - 2%) - 1130 - 1 = 829
                 profit: 30,
@@ -2770,6 +2777,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT,
                 borrowedAmount: 900,
                 borrowedAmountWithInterest: 2000,
+                borrowedAmountWithInterestAndFees: 2110,
                 amountToPool: 2058, // amountToPool =  2000 + 1100 * 10% + 2100 * 1% = 2131,  totalFunds = 2100 * 98% = 2058, so, amount to pool would be 2058
                 remainingFunds: 0,
                 profit: 58,
@@ -2781,6 +2789,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT,
                 borrowedAmount: 900,
                 borrowedAmountWithInterest: 1900,
+                borrowedAmountWithInterestAndFees: 2110,
                 amountToPool: 980, // amountToPool =  1900 + 1000 * 10% + 1000 * 2% = 2020, totalFunds = 1000 * 98% = 980, So, amount to pool would be 980
                 remainingFunds: 0, // 0, cause it's loss
                 profit: 0,
@@ -2792,6 +2801,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_PAUSED,
                 borrowedAmount: 1000,
                 borrowedAmountWithInterest: 1100,
+                borrowedAmountWithInterestAndFees: 1110,
                 amountToPool: 1150, // amountToPool = 1100 + 100 * 10%  + 2000 * 2% = 1150
                 remainingFunds: 849, //remainingFunds: 2000 - 1150 - 1 = 869
                 profit: 50,
@@ -2803,6 +2813,7 @@ contract CreditManagerTest is
                 closureActionType: ClosureAction.LIQUIDATE_PAUSED,
                 borrowedAmount: 900,
                 borrowedAmountWithInterest: 1900,
+                borrowedAmountWithInterestAndFees: 2000,
                 amountToPool: 1000, // amountToPool =  1900 + 1000 * 10% + 1000 * 2% = 2020, totalFunds = 1000 * 98% = 980, So, amount to pool would be 980
                 remainingFunds: 0, // 0, cause it's loss
                 profit: 0,
@@ -2820,7 +2831,8 @@ contract CreditManagerTest is
                     cases[i].totalValue,
                     cases[i].closureActionType,
                     cases[i].borrowedAmount,
-                    cases[i].borrowedAmountWithInterest
+                    cases[i].borrowedAmountWithInterest,
+                    cases[i].borrowedAmountWithInterestAndFees
                 );
 
             assertEq(
@@ -2850,8 +2862,8 @@ contract CreditManagerTest is
     // TRASNFER ASSETS TO
     //
 
-    /// @dev [CM-44]: _transferAssetsTo sends all tokens except underlying one and not-enabled to provided address
-    function test_CM_44_transferAssetsTo_sends_all_tokens_except_underlying_one_to_provided_address()
+    /// @dev [CM-44]: _beforeAccountClosure sends all tokens except underlying one and not-enabled to provided address
+    function test_CM_44_beforeAccountClosure_sends_all_tokens_except_underlying_one_to_provided_address()
         public
     {
         // It enables  CreditManagerTestInternal for some test cases
@@ -2892,18 +2904,36 @@ contract CreditManagerTest is
                 LINK_EXCHANGE_AMOUNT
             );
 
-            address wethTokenAddr = tokenTestSuite.addressOf(Tokens.WETH);
-            creditManager.checkAndEnableToken(creditAccount, wethTokenAddr);
+            creditManager.checkAndEnableToken(
+                creditAccount,
+                tokenTestSuite.addressOf(Tokens.WETH)
+            );
+            creditManager.checkAndEnableToken(
+                creditAccount,
+                tokenTestSuite.addressOf(Tokens.USDC)
+            );
+            creditManager.checkAndEnableToken(
+                creditAccount,
+                tokenTestSuite.addressOf(Tokens.LINK)
+            );
 
             uint256 enabledTokenMask = creditManager.enabledTokensMap(
                 creditAccount
             );
 
-            cmi.transferAssetsTo(
+            uint256 skipTokenMask = creditManager.tokenMasksMap(
+                tokenTestSuite.addressOf(Tokens.USDC)
+            ) |
+                creditManager.tokenMasksMap(
+                    tokenTestSuite.addressOf(Tokens.LINK)
+                );
+
+            cmi.beforeAccountClosure(
                 creditAccount,
                 friend,
                 convertToETH,
-                enabledTokenMask
+                enabledTokenMask,
+                skipTokenMask
             );
 
             expectBalance(

@@ -1022,6 +1022,14 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         return uint256(_totalBorrowed);
     }
 
+    function quotaCumulativeIndex(address token)
+        external
+        view
+        returns (uint256)
+    {
+        return supportQuotaPremiums ? IGauge(gauge).cumulativeIndex(token) : 0;
+    }
+
     //
     // CONFIGURATION
     //
