@@ -1091,18 +1091,17 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     }
 
     /// QUOTAS MGMT
-    function updateQuota(address token, int96 quotaChange)
-        external
-        override
-        creditFacadeOnly
-    {}
+    function updateQuota(
+        address creditAccount,
+        address token,
+        int96 quotaChange
+    ) external override creditFacadeOnly {}
 
     /// TODO: add description
-    function updateQuotas(QuotaUpdate[] memory quotaUpdates)
-        external
-        override
-        creditFacadeOnly
-    {}
+    function updateQuotas(
+        address creditAccount,
+        QuotaUpdate[] memory quotaUpdates
+    ) external override creditFacadeOnly {}
 
     /// @dev Checks if the contract is paused; if true, checks that the caller is emergency liquidator
     /// and temporarily enables a special emergencyLiquidator mode to allow liquidation.

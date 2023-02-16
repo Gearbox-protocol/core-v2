@@ -29,10 +29,19 @@ interface IPoolQuotaKeeper is
     IVersion
 {
     /// @dev Updates quota for particular token, returns how much quota was given
+    /// @param creditAccount Address of credit account
     /// @param token Token address of quoted token
     /// @param quotaChange Change in quota amount
-    function updateQuota(address token, int96 quotaChange) external;
+    /// QUOTAS MGMT
+    function updateQuota(
+        address creditAccount,
+        address token,
+        int96 quotaChange
+    ) external;
 
     /// TODO: add description
-    function updateQuotas(QuotaUpdate[] memory quotaUpdates) external;
+    function updateQuotas(
+        address creditAccount,
+        QuotaUpdate[] memory quotaUpdates
+    ) external;
 }

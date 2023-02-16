@@ -113,21 +113,20 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
     }
 
     /// CM only
-    function updateQuota(address token, int96 quotaChange)
-        external
-        override
-        creditManagerWithActiveDebtOnly
-    {
+    function updateQuota(
+        address creditAccount,
+        address token,
+        int96 quotaChange
+    ) external override creditManagerWithActiveDebtOnly {
         // _accumQuotas();
         _updateQuota(token, quotaChange);
     }
 
     /// CM only
-    function updateQuotas(QuotaUpdate[] memory quotaUpdates)
-        external
-        override
-        creditManagerWithActiveDebtOnly
-    {
+    function updateQuotas(
+        address creditAccount,
+        QuotaUpdate[] memory quotaUpdates
+    ) external override creditManagerWithActiveDebtOnly {
         // _accumQuotas();
         uint256 len = quotaUpdates.length;
         // changes = new int96[](len);
