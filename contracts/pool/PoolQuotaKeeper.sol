@@ -148,19 +148,21 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         Quota storage q = quotas[token];
 
         uint96 totalQuoted = q.totalQuoted;
+        uint96 totalQuotedAfter;
         if (quotaChange > 0) {
             uint96 limit = q.limit;
             if (totalQuoted > limit) return 0;
             change = (totalQuoted + uint96(quotaChange) > limit)
                 ? int96(limit - totalQuoted)
                 : quotaChange;
-            q.totalQuoted = totalQuoted + uint96(change);
+            totalQuotedAfter = totalQuoted + uint96(change);
         } else {
             change = quotaChange;
-            q.totalQuoted = uint96(int96(totalQuoted) + change);
+            totalQuotedAfter = uint96(int96(totalQuoted) + change);
         }
-
+        q.totalQuoted = totalQuotedAfter;
         quotaIndex = uint128(int128(quotaIndex) + change * int16(q.rate));
+        emit PoolQuotaChanged(token, totalQuoted, totalQuotedAfter);
     }
 
     function updateQuotas() external gaugeOnly {
