@@ -11,6 +11,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuar
 //  DATA
 import { MultiCall } from "../libraries/MultiCall.sol";
 import { Balance, BalanceOps } from "../libraries/Balances.sol";
+import { QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
 
 /// INTERFACES
 import { ICreditFacade, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
@@ -950,7 +951,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // DISABLE TOKEN
         //
-        // This is an extenstion method used to disable tokens on a Credit Account
+        // This is an extension method used to disable tokens on a Credit Account
         // Can be used to remove troublesome tokens (e.g., forbidden tokens) from an account
         else if (method == ICreditFacadeExtended.disableToken.selector) {
             // Parses token
@@ -962,14 +963,27 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // UPDATE QUOTA
         //
-        // This is an extenstion method used to disable tokens on a Credit Account
-        // Can be used to remove troublesome tokens (e.g., forbidden tokens) from an account
+        // This is an extension method that allows borrowers to increase or decrease their
+        // Credit Account's quota for given token. Higher quota allows larger fraction of
+        // token balance to be accounted for in collateral calculations, but account must
+        // pay higher risk fee for this
         else if (method == ICreditFacadeExtended.updateQuota.selector) {
-            /// <<<< ADD YOUR CODE HERE >>>>
-            // // Parses token
-            // address token = abi.decode(callData[4:], (address)); // F: [FA-54]
-            // // Executes disableToken for creditAccount
-            // _disableToken(borrower, creditAccount, token); // F: [FA-54]
+            (address token, int96 quotaChange) = abi.decode(
+                callData[4:],
+                (address, int96)
+            );
+            creditManager.updateQuota(creditAccount, token, quotaChange);
+        }
+        //
+        // UPDATE QUOTAS
+        //
+        // Same as the previous one, but updates quotas for multiple tokens in batch
+        else if (method == ICreditFacadeExtended.updateQuotas.selector) {
+            QuotaUpdate[] memory quotaUpdates = abi.decode(
+                callData[4:],
+                (QuotaUpdate[])
+            );
+            creditManager.updateQuotas(creditAccount, quotaUpdates);
         } else {
             // Reverts if the passed selector is unrecognized
             revert UnknownMethodException(); // F:[FA-23]
@@ -1271,6 +1285,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         } // F: [FA-54]
     }
 
+    //
     // GETTERS
     //
 

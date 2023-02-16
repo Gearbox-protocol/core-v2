@@ -5,6 +5,9 @@ pragma solidity ^0.8.10;
 
 import { IVersion } from "./IVersion.sol";
 
+/// @notice Quota update params
+/// @param token Address of the token to change the quota for
+/// @param quotaChange Requested quota change in pool's underlying asset units
 struct QuotaUpdate {
     address token;
     int96 quotaChange;
@@ -30,9 +33,22 @@ interface IPoolQuotaKeeperExceptions {
 }
 
 interface IPoolQuotaKeeperEvents {
+
+    /// @dev Emits when CA's quota for token is changed
+    event AccountQuotaChanged(
+        address creditAccount,
+        address token,
+        uint96 oldQuota,
+        uint96 newQuota
+    );
+
+    /// @dev Emits when pool's total quota for token is changed
+    event PoolQuotaChanged(address token, uint96 oldQuota, uint96 newQuota);
+
     event QuotaTokenAdded(address indexed token);
 
     event QuotaRateUpdated(address indexed token, uint16 rate);
+
 }
 
 /// @title Pool Quotas Interface
@@ -41,6 +57,7 @@ interface IPoolQuotaKeeper is
     IPoolQuotaKeeperExceptions,
     IVersion
 {
+
     /// @dev Returns quota rate in PERCENTAGE FORMAT
     function getQuotaRate(address) external view returns (uint16);
 
@@ -48,17 +65,19 @@ interface IPoolQuotaKeeper is
     function cumulativeIndex(address token) external view returns (uint256);
 
     /// @dev Updates quota for particular token, returns how much quota was given
+
     /// @param creditAccount Address of credit account
-    /// @param token Token address of quoted token
-    /// @param quotaChange Change in quota amount
-    /// QUOTAS MGMT
+    /// @param token Address of the token to change the quota for
+    /// @param quotaChange Requested quota change in pool's underlying asset units
     function updateQuota(
         address creditAccount,
         address token,
         int96 quotaChange
     ) external;
 
-    /// TODO: add description
+    /// @notice Updates credit account's quotas for multiple tokens
+    /// @param creditAccount Address of credit account
+    /// @param quotaUpdates Requested quota updates, see `QuotaUpdate`
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates

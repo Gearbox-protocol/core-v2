@@ -15,14 +15,14 @@ import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { IAccountFactory } from "../interfaces/IAccountFactory.sol";
 import { ICreditAccount } from "../interfaces/ICreditAccount.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
+import { IPool4626 } from "../interfaces/IPool4626.sol";
 import { IWETHGateway } from "../interfaces/IWETHGateway.sol";
 import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-import { QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IPoolQuotaKeeper, QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
 import { IVersion } from "../interfaces/IVersion.sol";
-import { IPool4626 } from "../interfaces/IPool4626.sol";
-import { IPoolQuotaKeeper } from "../interfaces/IPoolQuotaKeeper.sol";
+
 
 // CONSTANTS
 import { RAY } from "../libraries/Constants.sol";
@@ -1117,18 +1117,38 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         }
     }
 
-    /// QUOTAS MGMT
+    //
+    // QUOTAS MANAGEMENT
+    //
+
+    /// @dev Updates credit account's quota for given token
+    /// @param creditAccount Address of credit account
+    /// @param token Address of the token to change the quota for
+    /// @param quotaChange Requested quota change in pool's underlying asset units
     function updateQuota(
         address creditAccount,
         address token,
         int96 quotaChange
-    ) external override creditFacadeOnly {}
+    ) external override creditFacadeOnly {
+        IPoolQuotaKeeper(IPool4626(pool).poolQuotaKeeper()).updateQuota(
+            creditAccount,
+            token,
+            quotaChange
+        );
+    }
 
-    /// TODO: add description
+    /// @dev Updates credit account's quotas for multiple tokens
+    /// @param creditAccount Address of credit account
+    /// @param quotaUpdates Requested quota updates, see `QuotaUpdate`
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
-    ) external override creditFacadeOnly {}
+    ) external override creditFacadeOnly {
+        IPoolQuotaKeeper(IPool4626(pool).poolQuotaKeeper()).updateQuotas(
+            creditAccount,
+            quotaUpdates
+        );
+    }
 
     /// @dev Checks if the contract is paused; if true, checks that the caller is emergency liquidator
     /// and temporarily enables a special emergencyLiquidator mode to allow liquidation.

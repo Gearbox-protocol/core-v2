@@ -244,17 +244,23 @@ interface ICreditManagerV2 is
         external
         returns (bool);
 
-    /// Quota mgmt
-    /// @dev Updates quota for particular token, returns how much quota was given
-    /// @param token Token address of quoted token
-    /// @param quotaChange Change in quota amount
+    //
+    // QUOTAS MANAGEMENT
+    //
+
+    /// @dev Updates credit account's quota for given token
+    /// @param creditAccount Address of credit account
+    /// @param token Address of the token to change the quota for
+    /// @param quotaChange Requested quota change in pool's underlying asset units
     function updateQuota(
         address creditAccount,
         address token,
         int96 quotaChange
     ) external;
 
-    /// TODO: add description
+    /// @dev Updates credit account's quotas for multiple tokens
+    /// @param creditAccount Address of credit account
+    /// @param quotaUpdates Requested quota updates, see `QuotaUpdate`
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
