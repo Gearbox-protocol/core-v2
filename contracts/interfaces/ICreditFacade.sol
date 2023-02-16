@@ -63,6 +63,9 @@ interface ICreditFacadeExtended {
 }
 
 interface ICreditFacadeEvents {
+    /// @dev Emits when BlacklistHelper is set for CreditFacade upon creation
+    event BlacklistHelperSet(address indexed blacklistHelper);
+
     /// @dev Emits when a new Credit Account is opened through the
     ///      Credit Facade
     event OpenCreditAccount(
@@ -89,6 +92,13 @@ interface ICreditFacadeEvents {
         address indexed liquidator,
         address indexed to,
         uint256 remainingFunds
+    );
+
+    /// @dev Emits when remaining funds in underlying currency are sent to blacklist helper
+    ///      upon blacklisted borrower liquidation
+    event UnderlyingSentToBlacklistHelper(
+        address indexed borrower,
+        uint256 amount
     );
 
     /// @dev Emits when the account owner increases CA's debt

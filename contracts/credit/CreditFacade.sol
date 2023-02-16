@@ -136,6 +136,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         blacklistHelper = _blacklistHelper;
         isBlacklistableUnderlying = _blacklistHelper != address(0);
+        if (_blacklistHelper != address(0))
+            emit BlacklistHelperSet(_blacklistHelper);
 
         expirable = _expirable;
     }
@@ -389,7 +391,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (blacklistHelperBalance > 0)
             creditManager.transferAccountOwnership(borrower, blacklistHelper);
 
-        // Liquidates the CA and sends the remaining funds to the borrower
+        // Liquidates the CA and sends the remaining funds to the borrower or blacklist helper
         uint256 remainingFunds = creditManager.closeCreditAccount(
             blacklistHelperBalance > 0 ? blacklistHelper : borrower,
             ClosureAction.LIQUIDATE_ACCOUNT,
@@ -519,13 +521,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ) internal {
         uint256 helperBalance = IERC20(underlying).balanceOf(blacklistHelper);
         if (helperBalance > helperBalanceBefore) {
+            uint256 amount;
             unchecked {
-                IBlacklistHelper(blacklistHelper).addClaimable(
-                    underlying,
-                    borrower,
-                    helperBalance - helperBalanceBefore
-                );
+                amount = helperBalance - helperBalanceBefore;
             }
+            IBlacklistHelper(blacklistHelper).addClaimable(
+                underlying,
+                borrower,
+                amount
+            );
+            emit UnderlyingSentToBlacklistHelper(borrower, amount);
         }
     }
 
@@ -1112,15 +1117,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
 
         // Checks that the borrower is not blacklisted, if the underlying is blacklistable
-        if (
-            isBlacklistableUnderlying &&
-            IBlacklistHelper(blacklistHelper).isBlacklisted(
-                underlying,
-                onBehalfOf
-            )
-        ) {
+        if (_isBlacklisted(onBehalfOf) != 0)
             revert NotAllowedForBlacklistedAddressException();
-        }
 
         // F:[FA-5] covers case when degenNFT == address(0)
         if (degenNFT != address(0)) {

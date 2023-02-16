@@ -63,6 +63,7 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
     function isBlacklisted(address underlying, address _account)
         external
         view
+        override
         returns (bool)
     {
         if (underlying == usdc) {
@@ -84,7 +85,7 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
         address underlying,
         address holder,
         uint256 amount
-    ) external creditFacadeOnly {
+    ) external override creditFacadeOnly {
         claimable[underlying][holder] += amount;
         emit ClaimableAdded(underlying, holder, amount);
     }
@@ -92,16 +93,14 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
     /// @dev Transfer the sender's current claimable balance in underlying to a specified address
     /// @param underlying Underlying to transfer
     /// @param to Recipient address
-    function claim(address underlying, address to) external {
+    function claim(address underlying, address to) external override {
         uint256 amount = claimable[underlying][msg.sender];
-
         if (amount < 2) {
             revert NothingToClaimException();
         }
-
         claimable[underlying][msg.sender] = 0;
-
         IERC20(underlying).safeTransfer(to, amount);
+        emit Claimed(underlying, msg.sender, to, amount);
     }
 
     /// @dev Adds a new Credit Facade to `supported` list
@@ -110,8 +109,8 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
         if (!ICreditFacade(_creditFacade).isBlacklistableUnderlying()) {
             revert CreditFacadeNonBlacklistable();
         }
-
         isSupportedCreditFacade[_creditFacade] = true;
+        emit CreditFacadeAdded(_creditFacade);
     }
 
     /// @dev Removes a Credit Facade from the `supported` list
@@ -121,5 +120,6 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
         configuratorOnly
     {
         isSupportedCreditFacade[_creditFacade] = false;
+        emit CreditFacadeRemoved(_creditFacade);
     }
 }
