@@ -21,7 +21,6 @@ import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { IInterestRateModel } from "../interfaces/IInterestRateModel.sol";
 import { IPool4626, Pool4626Opts } from "../interfaces/IPool4626.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
-import { IGauge } from "../interfaces/IGauge.sol";
 
 import { RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE } from "../libraries/Constants.sol";
 import { Errors } from "../libraries/Errors.sol";
@@ -912,16 +911,28 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         timestampLU = uint64(block.timestamp);
     }
 
-    /// CM only
-    function updateQuotaIndex(int128 _quotaIndexChange)
+    /// POOL QUOTA KEEPER ONLY
+    function changeQuotaIndex(int128 _quotaIndexChange)
         external
         override
         poolQuotaKeeperOnly
     {
+        _updateQuotaIndex(uint128(int128(quotaIndex) + _quotaIndexChange));
+    }
+
+    function updateQuotaIndex(uint128 newQuotaIndex)
+        external
+        override
+        poolQuotaKeeperOnly
+    {
+        _updateQuotaIndex(newQuotaIndex);
+    }
+
+    function _updateQuotaIndex(uint128 _newQuotaIndex) internal {
         _expectedLiquidityLU += _calcQuotasPremiums();
 
         lastQuotasUpdate = uint40(block.timestamp);
-        quotaIndex = uint128(int128(quotaIndex) + _quotaIndexChange);
+        quotaIndex = _newQuotaIndex;
     }
 
     // GETTERS

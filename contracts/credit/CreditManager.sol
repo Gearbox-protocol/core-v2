@@ -22,6 +22,7 @@ import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
 import { IVersion } from "../interfaces/IVersion.sol";
 import { IPool4626 } from "../interfaces/IPool4626.sol";
+import { IPoolQuotaKeeper } from "../interfaces/IPoolQuotaKeeper.sol";
 
 // CONSTANTS
 import { RAY } from "../libraries/Constants.sol";
@@ -146,8 +147,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     /// @dev Mask of tokens to apply quotas for
     uint256 public limitedTokenMask;
 
-    /// @dev The latest accumulated fees for Credit Accounts
-    mapping(address => uint256) public quotaPremiumsLU;
+    mapping(address => uint256) public cumulativeQuotaPremiums;
 
     /// @dev contract version
     uint256 public constant override version = 2_10;
@@ -333,6 +333,16 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 borrowedAmountWithInterest,
 
             ) = calcCreditAccountAccruedInterest(creditAccount); // F:
+
+            if (
+                supportsQuotas &&
+                (limitedTokenMask & enabledTokensMap[creditAccount] > 0)
+            ) {
+                address[] memory tokens;
+                borrowedAmountWithInterest += IPoolQuotaKeeper(
+                    IPool4626(pool).poolQuotaKeeper()
+                ).closeCreditAccount(creditAccount, tokens);
+            }
 
             (amountToPool, remainingFunds, profit, loss) = calcClosePayments(
                 totalValue,
@@ -1425,15 +1435,30 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         if (result == address(0)) revert HasNoOpenedAccountException(); // F:[CM-48]
     }
 
+    function calcCreditAccountAccruedInterest(address creditAccount)
+        public
+        view
+        override
+        returns (
+            uint256 borrowedAmount,
+            uint256 borrowedAmountWithInterest,
+            uint256 borrowedAmountWithInterestAndFees
+        )
+    {
+        return calcCreditAccountAccruedInterest(creditAccount, 0);
+    }
+
     /// @dev Calculates the debt accrued by a Credit Account
     /// @param creditAccount Address of the Credit Account
     /// @return borrowedAmount The debt principal
     /// @return borrowedAmountWithInterest The debt principal + accrued interest
     /// @return borrowedAmountWithInterestAndFees The debt principal + accrued interest and protocol fees
-    function calcCreditAccountAccruedInterest(address creditAccount)
+    function calcCreditAccountAccruedInterest(
+        address creditAccount,
+        uint256 quotaPremiums
+    )
         public
         view
-        override
         returns (
             uint256 borrowedAmount,
             uint256 borrowedAmountWithInterest,
@@ -1455,10 +1480,13 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             (borrowedAmount * cumulativeIndexNow_RAY) /
             cumulativeIndexAtOpen_RAY; // F:[CM-49]
 
+        if (quotaPremiums > 0)
+            quotaPremiums += cumulativeQuotaPremiums[creditAccount];
+
         // Fees are computed as a percentage of interest
         borrowedAmountWithInterestAndFees =
             borrowedAmountWithInterest +
-            ((borrowedAmountWithInterest - borrowedAmount) *
+            ((borrowedAmountWithInterest - borrowedAmount + quotaPremiums) *
                 slot1.feeInterest) /
             PERCENTAGE_FACTOR; // F: [CM-49]
     }
