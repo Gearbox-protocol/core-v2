@@ -152,20 +152,20 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/integrations/universal
     address public universalAdapter;
 
+    /// @dev DAO fee on quotas in PERCENTAGE_FACTOR format
+    uint16 public daoFeeQuotas;
+
+    /// @dev Quotas per credit account and token
+    mapping(address => mapping(address => CreditAccountQuotaData))
+        public quotas;
+
     /// QUOTA-RELATED PARAMS
 
     /// @dev Whether the CM supports quota-related logic
     bool public immutable supportsQuotas;
 
-    /// @dev DAO fee on quotas in PERCENTAGE_FACTOR format
-    uint16 public daoFeeQuotas;
-
     /// @dev Mask of tokens to apply quotas for
     uint256 public limitedTokenMask;
-
-    /// @dev Quotas per credit account and token
-    mapping(address => mapping(address => CreditAccountQuotaData))
-        public quotas;
 
     /// @dev The latest accumulated fees for Credit Accounts
     mapping(address => uint256) public quotaFeesLU;

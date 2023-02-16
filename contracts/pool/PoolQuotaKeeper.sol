@@ -12,6 +12,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { IWETH } from "../interfaces/external/IWETH.sol";
+import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 // import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { AddressProvider } from "../core/AddressProvider.sol";
@@ -32,19 +33,26 @@ import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
 import "forge-std/console.sol";
 
-struct Quota {
+struct TotalQuota {
     uint96 totalQuoted;
     uint96 limit;
     uint16 rate; // current rate update
 }
 
+struct Quota {
+    uint96 quota;
+    uint192 cumulativeIndexLU;
+    uint40 quotaLU;
+}
+
 /// @title Core pool contract compatible with ERC4626
 /// @notice Implements pool & diesel token business logic
+
 contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @dev Address provider
-    // address public immutable override addressProvider;
+    address public immutable underlying;
 
     /// @dev Address of the protocol treasury
     Pool4626 public immutable pool;
@@ -56,12 +64,12 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
     EnumerableSet.AddressSet internal quotaTokensSet;
 
     /// @dev
-    mapping(address => Quota) public quotas;
+    mapping(address => TotalQuota) public totalQuotas;
+
+    mapping(address => mapping(address => mapping(address => Quota))) quotas;
 
     /// @dev IGauge
     IGauge public gauge;
-
-    uint128 public quotaIndex;
 
     /// @dev Contract version
     uint256 public constant override version = 2_10;
@@ -72,9 +80,8 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         _;
     }
 
-    modifier creditManagerWithActiveDebtOnly() {
+    modifier creditManagerOnly() {
         if (!creditManagerSet.contains(msg.sender)) {
-            /// todo: add correct exception ??
             revert CreditManagerOnlyException();
         }
         _;
@@ -94,93 +101,117 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             revert ZeroAddressException(); // F:[P4-02]
         }
         pool = Pool4626(_pool);
-        // addressProvider = opts.addressProvider; // F:[P4-01]
-        // underlyingToken = opts.underlyingToken; // F:[P4-01]
-        // _decimals = IERC20Metadata(opts.underlyingToken).decimals(); // F:[P4-01]
-
-        // treasuryAddress = AddressProvider(opts.addressProvider).getTreasuryContract(); // F:[P4-01]
-
-        // timestampLU = uint64(block.timestamp); // F:[P4-01]
-        // cumulativeIndexLU_RAY = uint128(RAY); // F:[P4-01]
-
-        // interestRateModel = IInterestRateModel(opts.interestRateModel);
-        // emit NewInterestRateModel(opts.interestRateModel); // F:[P4-03]
-
-        // _setExpectedLiquidityLimit(opts.expectedLiquidityLimit); // F:[P4-01, 03]
-        // _setTotalBorrowedLimit(opts.expectedLiquidityLimit); // F:[P4-03]
-        // supportQuotaPremiums = opts.supportQuotaPremiums; // F:[P4-01]
-        // wethAddress = AddressProvider(opts.addressProvider).getWethToken(); // F:[P4-01]
-    }
-
-    /// CM only
-    function updateQuota(
-        address creditAccount,
-        address token,
-        int96 quotaChange
-    ) external override creditManagerWithActiveDebtOnly {
-        // _accumQuotas();
-        _updateQuota(token, quotaChange);
+        underlying = Pool4626(_pool).asset();
     }
 
     /// CM only
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
-    ) external override creditManagerWithActiveDebtOnly {
-        // _accumQuotas();
+    ) external override creditManagerOnly {
         uint256 len = quotaUpdates.length;
-        // changes = new int96[](len);
-        unchecked {
-            for (uint256 i; i < len; ++i) {
-                // changes[i] =
-                _updateQuota(
-                    quotaUpdates[i].token,
-                    quotaUpdates[i].quotaChange
-                );
-            }
-        }
-    }
+        int128 quotaIndexChange;
+        uint256 caPremiumchange;
 
-    function _updateQuota(address token, int96 quotaChange)
-        internal
-        returns (int96 change)
-    {
-        Quota storage q = quotas[token];
+        for (uint256 i; i < len; ) {
+            (int128 qic, uint256 cap) = _updateQuota(
+                msg.sender,
+                creditAccount,
+                quotaUpdates[i].token,
+                quotaUpdates[i].quotaChange
+            );
 
-        uint96 totalQuoted = q.totalQuoted;
-        uint96 totalQuotedAfter;
-        if (quotaChange > 0) {
-            uint96 limit = q.limit;
-            if (totalQuoted > limit) return 0;
-            change = (totalQuoted + uint96(quotaChange) > limit)
-                ? int96(limit - totalQuoted)
-                : quotaChange;
-            totalQuotedAfter = totalQuoted + uint96(change);
-        } else {
-            change = quotaChange;
-            totalQuotedAfter = uint96(int96(totalQuoted) + change);
-        }
-        q.totalQuoted = totalQuotedAfter;
-        quotaIndex = uint128(int128(quotaIndex) + change * int16(q.rate));
-        emit PoolQuotaChanged(token, totalQuoted, totalQuotedAfter);
-    }
-
-    function updateQuotas() external gaugeOnly {
-        // pool.accumQuotas();
-        address[] memory quotaAddrs = quotaTokensSet.values();
-        uint256 quotasLen = quotaAddrs.length;
-        quotaIndex = 0;
-        for (uint256 i; i < quotasLen; ) {
-            address token = quotaAddrs[i];
-            Quota storage q = quotas[token];
-            q.rate = IGauge(gauge).getQuotaRate(token);
-            quotaIndex += q.totalQuoted * q.rate;
-
+            quotaIndexChange += qic;
+            caPremiumchange += caPremiumchange;
             unchecked {
                 ++i;
             }
         }
 
+        pool.updateQuotaIndex(quotaIndexChange);
+    }
+
+    function updateQuota(
+        address creditAccount,
+        address token,
+        int96 quotaChange
+    ) external override creditManagerOnly {
+        (int128 quotaIndexChange, uint256 caPremiumchange) = _updateQuota(
+            msg.sender,
+            creditAccount,
+            token,
+            quotaChange
+        );
+        pool.updateQuotaIndex(quotaIndexChange);
+    }
+
+    function _updateQuota(
+        address creditManager,
+        address creditAccount,
+        address token,
+        int96 quotaChange
+    ) internal returns (int128 quotaIndexChange, uint256 caPremiumchange) {
+        TotalQuota storage q = totalQuotas[token];
+        Quota storage quota = quotas[creditManager][creditAccount][token];
+
+        int96 change;
+        uint96 totalQuoted = q.totalQuoted;
+
+        /// UPDATE HERE
+        if (quota.quota > 0) {}
+
+        if (quotaChange > 0) {
+            uint96 limit = q.limit;
+            if (totalQuoted > limit) return (0, 0);
+            change = (totalQuoted + uint96(quotaChange) > limit)
+                ? int96(limit - totalQuoted)
+                : quotaChange;
+            q.totalQuoted = totalQuoted + uint96(change);
+
+            quota.quota += uint96(change);
+        } else {
+            change = quotaChange;
+            q.totalQuoted = uint96(int96(totalQuoted) + change);
+            quota.quota -= uint96(-change);
+        }
+
+        return (change * int16(q.rate), caPremiumchange);
+    }
+
+    function updateRates() external gaugeOnly {
+        // pool.accumQuotas();
+        // address[] memory quotaAddrs = quotaTokensSet.values();
+        // uint256 quotasLen = quotaAddrs.length;
+        // quotaIndex = 0;
+        // for (uint256 i; i < quotasLen;) {
+        //     address token = quotaAddrs[i];
+        //     TotalQuota storage q = totalQuotas[token];
+        //     q.rate = IGauge(gauge).getQuotaRate(token);
+        //     quotaIndex += q.totalQuoted * q.rate;
+        //     unchecked {
+        //         ++i;
+        //     }
+        // }
         /// Add check that premiums are not higher than uint128
+    }
+
+    /// @dev Gets the effective value (i.e., value in underlying included into TWV) for a token on an account
+    function _getCollateralValue(
+        address creditManager,
+        address creditAccount,
+        address token,
+        IPriceOracleV2 _priceOracle
+    ) internal view returns (uint256 value) {
+        uint256 quotaValue = _priceOracle.convertToUSD(
+            quotas[creditManager][creditAccount][token].quota,
+            underlying
+        );
+        if (quotaValue > 1) {
+            uint256 balance = IERC20(token).balanceOf(creditAccount);
+            if (balance > 1) {
+                value = _priceOracle.convertToUSD(balance, token);
+                if (quotaValue < value) return quotaValue;
+            }
+        }
     }
 }
