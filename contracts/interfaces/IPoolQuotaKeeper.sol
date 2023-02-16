@@ -13,7 +13,19 @@ struct QuotaUpdate {
     int96 quotaChange;
 }
 
+struct QuotaRateUpdate {
+    address token;
+    uint16 rate;
+}
+
+struct LimitTokenCalc {
+    address token;
+    uint16 lt;
+}
+
 interface IPoolQuotaKeeperExceptions {
+    error TokenQuotaIsAlreadyAdded();
+
     error GaugeOnlyException();
     error CreditManagerOnlyException();
 
@@ -21,6 +33,7 @@ interface IPoolQuotaKeeperExceptions {
 }
 
 interface IPoolQuotaKeeperEvents {
+
     /// @dev Emits when CA's quota for token is changed
     event AccountQuotaChanged(
         address creditAccount,
@@ -32,8 +45,10 @@ interface IPoolQuotaKeeperEvents {
     /// @dev Emits when pool's total quota for token is changed
     event PoolQuotaChanged(address token, uint96 oldQuota, uint96 newQuota);
 
-    /// @dev Emits when the withdrawal fee is changed
-    event NewWithdrawFee(uint256 fee);
+    event QuotaTokenAdded(address indexed token);
+
+    event QuotaRateUpdated(address indexed token, uint16 rate);
+
 }
 
 /// @title Pool Quotas Interface
@@ -42,7 +57,15 @@ interface IPoolQuotaKeeper is
     IPoolQuotaKeeperExceptions,
     IVersion
 {
-    /// @notice Updates credit account's quota for given token
+
+    /// @dev Returns quota rate in PERCENTAGE FORMAT
+    function getQuotaRate(address) external view returns (uint16);
+
+    /// @dev Returns cumulative index in RAY for particular token. If token is not
+    function cumulativeIndex(address token) external view returns (uint256);
+
+    /// @dev Updates quota for particular token, returns how much quota was given
+
     /// @param creditAccount Address of credit account
     /// @param token Address of the token to change the quota for
     /// @param quotaChange Requested quota change in pool's underlying asset units
@@ -59,4 +82,19 @@ interface IPoolQuotaKeeper is
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
     ) external;
+
+    function quotedTokens() external view returns (address[] memory);
+
+    function updateRates(QuotaRateUpdate[] memory qUpdates) external;
+
+    function computeQuotedCollateralUSD(
+        address creditManager,
+        address creditAccount,
+        address _priceOracle,
+        LimitTokenCalc[] memory tokens
+    ) external view returns (uint256 value, uint256 premium);
+
+    function closeCreditAccount(address creditAccount, address[] memory tokens)
+        external
+        returns (uint256);
 }

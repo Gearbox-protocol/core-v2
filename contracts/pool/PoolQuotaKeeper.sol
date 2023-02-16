@@ -20,7 +20,7 @@ import { ContractsRegister } from "../core/ContractsRegister.sol";
 import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 import { Pool4626 } from "./Pool4626.sol";
-import { IPoolQuotaKeeper, QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IPoolQuotaKeeper, QuotaUpdate, QuotaRateUpdate, LimitTokenCalc } from "../interfaces/IPoolQuotaKeeper.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
 import { IGauge } from "../interfaces/IGauge.sol";
 
@@ -37,6 +37,7 @@ struct TotalQuota {
     uint96 totalQuoted;
     uint96 limit;
     uint16 rate; // current rate update
+    uint192 cumulativeIndexLU_RAY; // max 10^57
 }
 
 struct Quota {
@@ -44,6 +45,9 @@ struct Quota {
     uint192 cumulativeIndexLU;
     uint40 quotaLU;
 }
+
+uint192 constant RAY_DIVIDED_BY_PERCENTAGE = uint192(RAY / PERCENTAGE_FACTOR);
+uint192 constant SECONDS_PER_YEAR_192 = uint192(SECONDS_PER_YEAR);
 
 /// @title Core pool contract compatible with ERC4626
 /// @notice Implements pool & diesel token business logic
@@ -65,6 +69,8 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
 
     /// @dev
     mapping(address => TotalQuota) public totalQuotas;
+
+    uint256 lastRateUpdate;
 
     mapping(address => mapping(address => mapping(address => Quota))) quotas;
 
@@ -122,13 +128,13 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             );
 
             quotaIndexChange += qic;
-            caPremiumchange += caPremiumchange;
+            caPremiumchange += cap;
             unchecked {
                 ++i;
             }
         }
 
-        pool.updateQuotaIndex(quotaIndexChange);
+        pool.changeQuotaIndex(quotaIndexChange);
     }
 
     function updateQuota(
@@ -142,7 +148,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             token,
             quotaChange
         );
-        pool.updateQuotaIndex(quotaIndexChange);
+        pool.changeQuotaIndex(quotaIndexChange);
     }
 
     function _updateQuota(
@@ -150,15 +156,23 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         address creditAccount,
         address token,
         int96 quotaChange
-    ) internal returns (int128 quotaIndexChange, uint256 caPremiumchange) {
+    ) internal returns (int128 quotaIndexChange, uint256 caPremiumChange) {
         TotalQuota storage q = totalQuotas[token];
         Quota storage quota = quotas[creditManager][creditAccount][token];
-
         int96 change;
         uint96 totalQuoted = q.totalQuoted;
-
+        uint192 cumulativeIndexNow = _cumulativeIndexNow(q);
         /// UPDATE HERE
-        if (quota.quota > 0) {}
+        if (quota.quota > 1) {
+            caPremiumChange =
+                (quota.quota *
+                    ((RAY * cumulativeIndexNow) /
+                        quota.cumulativeIndexLU -
+                        RAY)) /
+                RAY;
+        }
+
+        quota.cumulativeIndexLU = cumulativeIndexNow;
 
         if (quotaChange > 0) {
             uint96 limit = q.limit;
@@ -175,43 +189,212 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             quota.quota -= uint96(-change);
         }
 
-        return (change * int16(q.rate), caPremiumchange);
+        return (change * int16(q.rate), caPremiumChange);
     }
 
-    function updateRates() external gaugeOnly {
-        // pool.accumQuotas();
-        // address[] memory quotaAddrs = quotaTokensSet.values();
-        // uint256 quotasLen = quotaAddrs.length;
-        // quotaIndex = 0;
-        // for (uint256 i; i < quotasLen;) {
-        //     address token = quotaAddrs[i];
-        //     TotalQuota storage q = totalQuotas[token];
-        //     q.rate = IGauge(gauge).getQuotaRate(token);
-        //     quotaIndex += q.totalQuoted * q.rate;
-        //     unchecked {
-        //         ++i;
-        //     }
-        // }
-        /// Add check that premiums are not higher than uint128
+    function _removeQuota(
+        address creditManager,
+        address creditAccount,
+        address token
+    ) internal returns (int128 quotaIndexChange, uint256 caPremiumChange) {
+        Quota storage quota = quotas[creditManager][creditAccount][token];
+        uint96 quoted = quota.quota;
+
+        /// UPDATE HERE
+        if (quoted <= 1) return (0, 0);
+
+        TotalQuota storage q = totalQuotas[token];
+        uint192 cumulativeIndexNow = _cumulativeIndexNow(q);
+
+        caPremiumChange =
+            (quoted *
+                ((RAY * cumulativeIndexNow) / quota.cumulativeIndexLU - RAY)) /
+            RAY;
+        quota.cumulativeIndexLU = 0;
+        q.totalQuoted -= quoted;
+        quota.quota = 1;
+
+        return (-int128(uint128(quoted)) * int16(q.rate), caPremiumChange);
+    }
+
+    function updateRates(QuotaRateUpdate[] memory qUpdates)
+        external
+        override
+        gaugeOnly
+    {
+        uint256 len = qUpdates.length;
+
+        if (len != quotaTokensSet.length()) {
+            /// add needed tokens
+        }
+
+        uint256 deltaTimestamp_RAY = RAY * (block.timestamp - lastRateUpdate);
+        uint128 quotaIndex;
+        for (uint256 i; i < len; ) {
+            address token = qUpdates[i].token;
+            TotalQuota storage q = totalQuotas[token];
+            uint16 rate = qUpdates[i].rate;
+
+            q.cumulativeIndexLU_RAY = uint192(
+                (uint256(q.cumulativeIndexLU_RAY) *
+                    (RAY +
+                        (rate * deltaTimestamp_RAY) /
+                        PERCENTAGE_FACTOR /
+                        SECONDS_PER_YEAR)) / RAY
+            );
+            q.rate = rate;
+
+            quotaIndex += rate * q.totalQuoted;
+            emit QuotaRateUpdated(token, rate);
+
+            unchecked {
+                ++i;
+            }
+        }
+        pool.updateQuotaIndex(quotaIndex);
+        lastRateUpdate = block.timestamp;
+    }
+
+    function computeQuotedCollateralUSD(
+        address creditManager,
+        address creditAccount,
+        address _priceOracle,
+        LimitTokenCalc[] memory tokens
+    ) external view override returns (uint256 value, uint256 premium) {
+        uint256 i;
+
+        while (tokens[i].token != address(0)) {
+            (uint256 currentUSD, uint256 p) = _getCollateralValue(
+                creditManager,
+                creditAccount,
+                tokens[i].token,
+                _priceOracle
+            );
+
+            value += currentUSD * tokens[i].lt;
+            premium += p;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        value /= PERCENTAGE_FACTOR;
     }
 
     /// @dev Gets the effective value (i.e., value in underlying included into TWV) for a token on an account
+
     function _getCollateralValue(
         address creditManager,
         address creditAccount,
         address token,
-        IPriceOracleV2 _priceOracle
-    ) internal view returns (uint256 value) {
-        uint256 quotaValue = _priceOracle.convertToUSD(
-            quotas[creditManager][creditAccount][token].quota,
-            underlying
-        );
-        if (quotaValue > 1) {
+        address _priceOracle
+    ) internal view returns (uint256 value, uint256 premium) {
+        Quota storage q = quotas[creditManager][creditAccount][token];
+
+        if (q.quota > 1) {
+            uint256 quotaValueUSD = IPriceOracleV2(_priceOracle).convertToUSD(
+                q.quota,
+                underlying
+            );
             uint256 balance = IERC20(token).balanceOf(creditAccount);
             if (balance > 1) {
-                value = _priceOracle.convertToUSD(balance, token);
-                if (quotaValue < value) return quotaValue;
+                value = IPriceOracleV2(_priceOracle).convertToUSD(
+                    balance,
+                    token
+                );
+                if (value > quotaValueUSD) value = quotaValueUSD;
+            }
+
+            premium = ((q.quota *
+                ((RAY * cumulativeIndex(token)) / q.cumulativeIndexLU - RAY)) /
+                RAY);
+        }
+    }
+
+    function closeCreditAccount(address creditAccount, address[] memory tokens)
+        external
+        override
+        creditManagerOnly
+        returns (uint256 premiums)
+    {
+        int128 quotaIndexChange;
+
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; ) {
+            address token = tokens[i];
+
+            (int128 qic, uint256 cap) = _removeQuota(
+                msg.sender,
+                creditAccount,
+                tokens[i]
+            );
+
+            quotaIndexChange += qic;
+            premiums += cap;
+            unchecked {
+                ++i;
             }
         }
+
+        pool.changeQuotaIndex(quotaIndexChange);
+    }
+
+    //
+    // GETTERS
+    //
+    function cumulativeIndex(address token)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        return _cumulativeIndexNow(totalQuotas[token]);
+    }
+
+    function _cumulativeIndexNow(TotalQuota storage qp)
+        internal
+        view
+        returns (uint192)
+    {
+        return
+            qp.cumulativeIndexLU_RAY +
+            uint192(
+                (RAY_DIVIDED_BY_PERCENTAGE *
+                    (block.timestamp - lastRateUpdate) *
+                    qp.rate) / SECONDS_PER_YEAR
+            );
+    }
+
+    function getQuotaRate(address token)
+        external
+        view
+        override
+        returns (uint16)
+    {
+        return totalQuotas[token].rate;
+    }
+
+    function _addQuotaToken(address token, uint16 _rate)
+        external
+        configuratorOnly
+    {
+        TotalQuota storage qp = totalQuotas[token];
+        if (qp.cumulativeIndexLU_RAY != 0) {
+            revert TokenQuotaIsAlreadyAdded();
+        }
+
+        quotaTokensSet.add(token);
+        emit QuotaTokenAdded(token);
+
+        qp.cumulativeIndexLU_RAY = uint192(RAY);
+
+        // TODO: add here code to make updateQuotasRate correctly working
+        // _updateQuotaRate(token, _rate);
+        // pool.updateQuotas();
+    }
+
+    function quotedTokens() external view override returns (address[] memory) {
+        return quotaTokensSet.values();
     }
 }
