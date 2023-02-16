@@ -3,10 +3,16 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Pausable } from "@openzeppelin/contracts/security/Pausable.sol";
-import { AddressProvider } from "./AddressProvider.sol";
-import { IACL } from "../interfaces/IACL.sol";
-import { ZeroAddressException, CallerNotConfiguratorException, CallerNotPausableAdminException, CallerNotUnPausableAdminException, CallerNotControllerException } from "../interfaces/IErrors.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {AddressProvider} from "./AddressProvider.sol";
+import {IACL} from "../interfaces/IACL.sol";
+import {
+    ZeroAddressException,
+    CallerNotConfiguratorException,
+    CallerNotPausableAdminException,
+    CallerNotUnPausableAdminException,
+    CallerNotControllerException
+} from "../interfaces/IErrors.sol";
 
 /// @title ACL Trait
 /// @notice Utility class for ACL consumers
@@ -22,13 +28,25 @@ abstract contract ACLNonReentrantTrait is Pausable {
 
     uint8 private _status = _NOT_ENTERED;
 
-    /**
-     * @dev Prevents a contract from calling itself, directly or indirectly.
-     * Calling a `nonReentrant` function from another `nonReentrant`
-     * function is not supported. It is possible to prevent this from happening
-     * by making the `nonReentrant` function external, and making it call a
-     * `private` function that does the actual work.
-     */
+    /// @dev Modifier that allow pausable admin to call the function if pause is needed
+    /// and for unpausable admins if unpause is needed
+    /// @param callToPause True if pause action is needed
+    modifier pausableUnpausableAdminsOnly(bool callToPause) {
+        if (callToPause && !_acl.isPausableAdmin(msg.sender)) {
+            revert CallerNotPausableAdminException();
+        } else if (!callToPause && !_acl.isUnpausableAdmin(msg.sender)) {
+            revert CallerNotUnPausableAdminException();
+        }
+
+        _;
+    }
+
+    /// @dev Prevents a contract from calling itself, directly or indirectly.
+    /// Calling a `nonReentrant` function from another `nonReentrant`
+    /// function is not supported. It is possible to prevent this from happening
+    /// by making the `nonReentrant` function external, and making it call a
+    /// `private` function that does the actual work.
+    ///
     modifier nonReentrant() {
         // On the first call to nonReentrant, _notEntered will be true
         require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
@@ -94,7 +112,7 @@ abstract contract ACLNonReentrantTrait is Pausable {
     }
 
     function setController(address newController) external configuratorOnly {
-        externalController = _acl.isConfigurator(newController);
+        externalController = !_acl.isConfigurator(newController);
         controller = newController;
         emit NewController(newController);
     }

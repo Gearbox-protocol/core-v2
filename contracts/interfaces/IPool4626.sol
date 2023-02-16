@@ -3,8 +3,8 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IERC4626, IERC4626Events } from "./IERC4626.sol";
-import { IVersion } from "./IVersion.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IVersion} from "./IVersion.sol";
 
 struct Pool4626Opts {
     address addressProvider;
@@ -12,11 +12,6 @@ struct Pool4626Opts {
     address interestRateModel;
     uint256 expectedLiquidityLimit;
     bool supportQuotaPremiums;
-}
-
-struct QuotaUpdate {
-    address token;
-    int96 quotaChange;
 }
 
 interface IPool4626Exceptions {
@@ -32,29 +27,15 @@ interface IPool4626Exceptions {
     error AdditionalYieldPoolException();
 }
 
-interface IPool4626Events is IERC4626Events {
+interface IPool4626Events {
     /// @dev Emits on new liquidity being added to the pool
-    event DepositReferral(
-        address indexed sender,
-        address indexed onBehalfOf,
-        uint256 amount,
-        uint16 referralCode
-    );
+    event DepositReferral(address indexed sender, address indexed onBehalfOf, uint256 amount, uint16 referralCode);
 
     /// @dev Emits on a Credit Manager borrowing funds for a Credit Account
-    event Borrow(
-        address indexed creditManager,
-        address indexed creditAccount,
-        uint256 amount
-    );
+    event Borrow(address indexed creditManager, address indexed creditAccount, uint256 amount);
 
     /// @dev Emits on repayment of a Credit Account's debt
-    event Repay(
-        address indexed creditManager,
-        uint256 borrowedAmount,
-        uint256 profit,
-        uint256 loss
-    );
+    event Repay(address indexed creditManager, uint256 borrowedAmount, uint256 profit, uint256 loss);
 
     /// @dev Emits on updating the interest rate model
     event NewInterestRateModel(address indexed newInterestRateModel);
@@ -83,34 +64,14 @@ interface IPool4626Events is IERC4626Events {
 ///   - Managing diesel tokens & diesel rates
 ///   - Taking/repaying Credit Manager debt
 /// More: https://dev.gearbox.fi/developers/pool/abstractpoolservice
-interface IPool4626 is
-    IPool4626Events,
-    IPool4626Exceptions,
-    IERC4626,
-    IVersion
-{
-    function depositReferral(
-        uint256 assets,
-        address receiver,
-        uint16 referralCode
-    ) external returns (uint256 shares);
+interface IPool4626 is IPool4626Events, IPool4626Exceptions, IERC4626, IVersion {
+    function depositReferral(uint256 assets, address receiver, uint16 referralCode) external returns (uint256 shares);
 
-    function depositETHReferral(address receiver, uint16 referralCode)
-        external
-        payable
-        returns (uint256 shares);
+    function depositETHReferral(address receiver, uint16 referralCode) external payable returns (uint256 shares);
 
-    function withdrawETH(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) external returns (uint256 shares);
+    function withdrawETH(uint256 assets, address receiver, address owner) external returns (uint256 shares);
 
-    function redeemETH(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external returns (uint256 assets);
+    function redeemETH(uint256 shares, address receiver, address owner) external returns (uint256 assets);
 
     function burn(uint256 shares) external;
 
@@ -119,8 +80,7 @@ interface IPool4626 is
     /// @dev Lends pool funds to a Credit Account
     /// @param borrowedAmount Credit Account's debt principal
     /// @param creditAccount Credit Account's address
-    function lendCreditAccount(uint256 borrowedAmount, address creditAccount)
-        external;
+    function lendCreditAccount(uint256 borrowedAmount, address creditAccount) external;
 
     /// @dev Repays the Credit Account's debt
     /// @param borrowedAmount Amount of principal ro repay
@@ -128,24 +88,10 @@ interface IPool4626 is
     /// @param loss Amount of underlying that the CA wan't able to repay
     /// @notice Assumes that the underlying (including principal + interest + fees)
     ///         was already transferred
-    function repayCreditAccount(
-        uint256 borrowedAmount,
-        uint256 profit,
-        uint256 loss
-    ) external;
+    function repayCreditAccount(uint256 borrowedAmount, uint256 profit, uint256 loss) external;
 
-    /// @dev Updates quota for particular token, returns how much quota was given
-    /// @param token Token address of quoted token
-    /// @param quotaChange Change in quota amount
-    /// @return change Quota change which was applied
-    function updateQuota(address token, int96 quotaChange)
-        external
-        returns (int96 change);
-
-    /// TODO: add description
-    function updateQuotas(QuotaUpdate[] memory quotaUpdates)
-        external
-        returns (int96[] memory changes);
+    /// @dev Updates quota index
+    function updateQuotas(uint128 _quotaIndex) external;
 
     //
     // GETTERS
@@ -171,9 +117,6 @@ interface IPool4626 is
 
     /// @dev diesel rate in RAY format
     function getDieselRate_RAY() external view returns (uint256);
-
-    /// @dev Cumulative index for quota fees for a token (returns 0 if quotas are not supported)
-    function quotaCumulativeIndex(address) external view returns (uint256);
 
     /// @dev Address of the underlying
     function underlyingToken() external view returns (address);
