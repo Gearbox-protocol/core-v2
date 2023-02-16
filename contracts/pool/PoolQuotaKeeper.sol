@@ -3,32 +3,32 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {IWETH} from "../interfaces/external/IWETH.sol";
+import { IWETH } from "../interfaces/external/IWETH.sol";
 // import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-import {AddressProvider} from "../core/AddressProvider.sol";
-import {ContractsRegister} from "../core/ContractsRegister.sol";
-import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
+import { AddressProvider } from "../core/AddressProvider.sol";
+import { ContractsRegister } from "../core/ContractsRegister.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
-import {Pool4626} from "./Pool4626.sol";
-import {IPoolQuotaKeeper, QuotaUpdate} from "../interfaces/IPoolQuotaKeeper.sol";
-import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
-import {IGauge} from "../interfaces/IGauge.sol";
+import { Pool4626 } from "./Pool4626.sol";
+import { IPoolQuotaKeeper, QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
+import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
+import { IGauge } from "../interfaces/IGauge.sol";
 
-import {RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "../libraries/Constants.sol";
-import {Errors} from "../libraries/Errors.sol";
-import {FixedPointMathLib} from "../libraries/SolmateMath.sol";
+import { RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE } from "../libraries/Constants.sol";
+import { Errors } from "../libraries/Errors.sol";
+import { FixedPointMathLib } from "../libraries/SolmateMath.sol";
 
 // EXCEPTIONS
-import {ZeroAddressException} from "../interfaces/IErrors.sol";
+import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
 import "forge-std/console.sol";
 
@@ -86,7 +86,9 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
 
     /// @dev Constructor
     /// @param _pool Pool address
-    constructor(address payable _pool) ACLNonReentrantTrait(address(Pool4626(_pool).addressProvider())) {
+    constructor(address payable _pool)
+        ACLNonReentrantTrait(address(Pool4626(_pool).addressProvider()))
+    {
         // Additional check that receiver is not address(0)
         if (_pool == address(0)) {
             revert ZeroAddressException(); // F:[P4-02]
@@ -115,10 +117,9 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         external
         override
         creditManagerWithActiveDebtOnly
-        returns (int96 change)
     {
         // _accumQuotas();
-        return _updateQuota(token, quotaChange);
+        _updateQuota(token, quotaChange);
     }
 
     /// CM only
@@ -126,26 +127,34 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         external
         override
         creditManagerWithActiveDebtOnly
-        returns (int96[] memory changes)
     {
         // _accumQuotas();
         uint256 len = quotaUpdates.length;
-        changes = new int96[](len);
+        // changes = new int96[](len);
         unchecked {
             for (uint256 i; i < len; ++i) {
-                changes[i] = _updateQuota(quotaUpdates[i].token, quotaUpdates[i].quotaChange);
+                // changes[i] =
+                _updateQuota(
+                    quotaUpdates[i].token,
+                    quotaUpdates[i].quotaChange
+                );
             }
         }
     }
 
-    function _updateQuota(address token, int96 quotaChange) internal returns (int96 change) {
+    function _updateQuota(address token, int96 quotaChange)
+        internal
+        returns (int96 change)
+    {
         Quota storage q = quotas[token];
 
         uint96 totalQuoted = q.totalQuoted;
         if (quotaChange > 0) {
             uint96 limit = q.limit;
             if (totalQuoted > limit) return 0;
-            change = (totalQuoted + uint96(quotaChange) > limit) ? int96(limit - totalQuoted) : quotaChange;
+            change = (totalQuoted + uint96(quotaChange) > limit)
+                ? int96(limit - totalQuoted)
+                : quotaChange;
             q.totalQuoted = totalQuoted + uint96(change);
         } else {
             change = quotaChange;
@@ -160,7 +169,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         address[] memory quotaAddrs = quotaTokensSet.values();
         uint256 quotasLen = quotaAddrs.length;
         quotaIndex = 0;
-        for (uint256 i; i < quotasLen;) {
+        for (uint256 i; i < quotasLen; ) {
             address token = quotaAddrs[i];
             Quota storage q = quotas[token];
             q.rate = IGauge(gauge).getQuotaRate(token);

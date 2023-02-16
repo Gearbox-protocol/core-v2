@@ -6,6 +6,7 @@ pragma solidity ^0.8.10;
 import { Balance } from "../libraries/Balances.sol";
 import { MultiCall } from "../libraries/MultiCall.sol";
 import { ICreditManagerV2, ICreditManagerV2Exceptions } from "./ICreditManagerV2.sol";
+import { QuotaUpdate } from "./IPoolQuotaKeeper.sol";
 import { IVersion } from "./IVersion.sol";
 
 interface ICreditFacadeExtended {
@@ -53,6 +54,12 @@ interface ICreditFacadeExtended {
     ///
     /// @param amount Amount to increase borrowed amount
     function decreaseDebt(uint256 amount) external;
+
+    // TODO: Add description
+    function updateQuota(address token, int96 quotaChange) external;
+
+    /// TODO: add description
+    function updateQuotas(QuotaUpdate[] memory quotaUpdates) external;
 }
 
 interface ICreditFacadeEvents {

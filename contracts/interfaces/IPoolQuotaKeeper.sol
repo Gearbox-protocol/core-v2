@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {IVersion} from "./IVersion.sol";
+import { IVersion } from "./IVersion.sol";
 
 struct QuotaUpdate {
     address token;
@@ -23,13 +23,16 @@ interface IPoolQuotaKeeperEvents {
 }
 
 /// @title Pool Quotas Interface
-interface IPoolQuotaKeeper is IPoolQuotaKeeperEvents, IPoolQuotaKeeperExceptions, IVersion {
+interface IPoolQuotaKeeper is
+    IPoolQuotaKeeperEvents,
+    IPoolQuotaKeeperExceptions,
+    IVersion
+{
     /// @dev Updates quota for particular token, returns how much quota was given
     /// @param token Token address of quoted token
     /// @param quotaChange Change in quota amount
-    /// @return change Quota change which was applied
-    function updateQuota(address token, int96 quotaChange) external returns (int96 change);
+    function updateQuota(address token, int96 quotaChange) external;
 
     /// TODO: add description
-    function updateQuotas(QuotaUpdate[] memory quotaUpdates) external returns (int96[] memory changes);
+    function updateQuotas(QuotaUpdate[] memory quotaUpdates) external;
 }
