@@ -2043,7 +2043,7 @@ contract CreditFacadeTest is
 
         uint256 expectedAmount = (
             2 * USDC_ACCOUNT_AMOUNT * (PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM - DEFAULT_FEE_LIQUIDATION)
-        ) / PERCENTAGE_FACTOR - USDC_ACCOUNT_AMOUNT - 1;
+        ) / PERCENTAGE_FACTOR - USDC_ACCOUNT_AMOUNT - 1 - 1; // second -1 because we add 1 to helper balance
 
         evm.roll(block.number + 1);
 
@@ -2062,6 +2062,9 @@ contract CreditFacadeTest is
         evm.expectCall(
             blacklistHelper, abi.encodeWithSelector(IBlacklistHelper.addClaimable.selector, usdc, USER, expectedAmount)
         );
+
+        evm.expectEmit(true, false, false, true);
+        emit UnderlyingSentToBlacklistHelper(USER, expectedAmount);
 
         evm.prank(LIQUIDATOR);
         creditFacade.liquidateCreditAccount(USER, FRIEND, 0, true, multicallBuilder());
