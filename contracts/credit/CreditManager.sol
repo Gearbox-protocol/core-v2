@@ -20,6 +20,8 @@ import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IVersion } from "../interfaces/IVersion.sol";
+import { IPool4626 } from "../interfaces/IPool4626.sol";
 
 // CONSTANTS
 import { RAY } from "../libraries/Constants.sol";
@@ -136,6 +138,17 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/integrations/universal
     address public universalAdapter;
 
+    /// QUOTA-RELATED PARAMS
+
+    /// @dev Whether the CM supports quota-related logic
+    bool public immutable supportsQuotas;
+
+    /// @dev Mask of tokens to apply quotas for
+    uint256 public limitedTokenMask;
+
+    /// @dev The latest accumulated fees for Credit Accounts
+    mapping(address => uint256) public quotaPremiumsLU;
+
     /// @dev contract version
     uint256 public constant override version = 2_10;
 
@@ -185,6 +198,10 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
         address _underlying = IPoolService(pool).underlyingToken(); // F:[CM-1]
         underlying = _underlying; // F:[CM-1]
+
+        try IPool4626(pool).supportQuotaPremiums() returns (bool sq) {
+            supportsQuotas = sq;
+        } catch {}
 
         // The underlying is the first token added as collateral
         _addToken(_underlying); // F:[CM-1]

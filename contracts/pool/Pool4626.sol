@@ -121,7 +121,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         _;
     }
 
-    modifier poolQuotaRegisterOnly() {
+    modifier poolQuotaKeeperOnly() {
         /// TODO: udpate exception
         if (msg.sender == poolQuotaKeeper) revert AssetIsNotWETHException(); // F:[P4-5]
         _;
@@ -913,15 +913,15 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     }
 
     /// CM only
-    function updateQuotas(uint128 _quotaIndex)
+    function updateQuotaIndex(int128 _quotaIndexChange)
         external
         override
-        poolQuotaRegisterOnly
+        poolQuotaKeeperOnly
     {
         _expectedLiquidityLU += _calcQuotasPremiums();
 
         lastQuotasUpdate = uint40(block.timestamp);
-        quotaIndex = _quotaIndex;
+        quotaIndex = uint128(int128(quotaIndex) + _quotaIndexChange);
     }
 
     // GETTERS
