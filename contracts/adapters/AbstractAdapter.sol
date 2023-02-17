@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.17;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -56,7 +56,7 @@ abstract contract AbstractAdapter is IAdapter {
     /// @param token Token to be approved
     /// @param amount Amount to be approved
     function _approveToken(address token, uint256 amount) internal {
-        creditManager.approveCreditAccount(targetContract, token, amount);
+        creditManager.approveCreditAccount(targetContract, token, amount); // F: [AA-07]
     }
 
     /// @dev Executes an arbitrary call from the Credit Account to the target contract
@@ -66,7 +66,7 @@ abstract contract AbstractAdapter is IAdapter {
         internal
         returns (bytes memory result)
     {
-        return creditManager.executeOrder(targetContract, callData);
+        return creditManager.executeOrder(targetContract, callData); // F: [AA-06]
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
@@ -94,7 +94,7 @@ abstract contract AbstractAdapter is IAdapter {
                 false,
                 disableTokenIn,
                 0
-            );
+            ); // F: [AA-03]
     }
 
     /// @dev Wrapper for `_executeSwapNoApprove` that computes the Credit Account on the spot
@@ -114,7 +114,7 @@ abstract contract AbstractAdapter is IAdapter {
                 false,
                 disableTokenIn,
                 0
-            );
+            ); // F: [AA-03]
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
@@ -143,7 +143,7 @@ abstract contract AbstractAdapter is IAdapter {
                 true,
                 disableTokenIn,
                 type(uint256).max
-            );
+            ); // F: [AA-04]
     }
 
     /// @dev Wrapper for `_executeSwapMaxApprove` that computes the Credit Account on the spot
@@ -163,7 +163,7 @@ abstract contract AbstractAdapter is IAdapter {
                 true,
                 disableTokenIn,
                 type(uint256).max
-            );
+            ); // F: [AA-04]
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
@@ -191,7 +191,7 @@ abstract contract AbstractAdapter is IAdapter {
                 true,
                 disableTokenIn,
                 1
-            );
+            ); // F: [AA-05]
     }
 
     /// @dev Wrapper for `_executeSwapSafeApprove` that computes the Credit Account on the spot
@@ -211,10 +211,12 @@ abstract contract AbstractAdapter is IAdapter {
                 true,
                 disableTokenIn,
                 1
-            );
+            ); // F: [AA-05]
     }
 
-    /// @dev Implementation of `_executeSwap...` operations above
+    /// @dev Implementation for of `_executeSwap...` operations
+    /// @notice Kept private as only the internal wrappers are intended to be used
+    ///         by inheritors
     function _executeSwap(
         address creditAccount,
         address tokenIn,
@@ -225,18 +227,18 @@ abstract contract AbstractAdapter is IAdapter {
         uint256 allowanceAfter
     ) private returns (bytes memory result) {
         if (allowTokenIn) {
-            _approveToken(tokenIn, type(uint256).max);
+            _approveToken(tokenIn, type(uint256).max); // F: [AA-04,05]
         }
 
-        result = _execute(callData);
+        result = _execute(callData); // F: [AA-03,04,05]
 
         if (allowTokenIn) {
-            _approveToken(tokenIn, allowanceAfter);
+            _approveToken(tokenIn, allowanceAfter); // F: [AA-04,05]
         }
 
         if (disableTokenIn) {
-            creditManager.disableToken(creditAccount, tokenIn);
+            creditManager.disableToken(creditAccount, tokenIn); // F: [AA-03,04,05]
         }
-        creditManager.checkAndEnableToken(creditAccount, tokenOut);
+        creditManager.checkAndEnableToken(creditAccount, tokenOut); // F: [AA-03,04,05]
     }
 }

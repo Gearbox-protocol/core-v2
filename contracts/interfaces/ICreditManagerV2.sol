@@ -197,28 +197,6 @@ interface ICreditManagerV2 is
     /// @param token Address of the token to be enabled
     function checkAndEnableToken(address creditAccount, address token) external;
 
-    /// @dev Optimized health check for individual swap-like operations.
-    /// @notice Fast health check assumes that only two tokens (input and output)
-    ///         participate in the operation and computes a % change in weighted value between
-    ///         inbound and outbound collateral. The cumulative negative change across several
-    ///         swaps in sequence cannot be larger than feeLiquidation (a fee that the
-    ///         protocol is ready to waive if needed). Since this records a % change
-    ///         between just two tokens, the corresponding % change in TWV will always be smaller,
-    ///         which makes this check safe.
-    ///         More details at https://dev.gearbox.fi/docs/documentation/risk/fast-collateral-check#fast-check-protection
-    /// @param creditAccount Address of the Credit Account
-    /// @param tokenIn Address of the token spent by the swap
-    /// @param tokenOut Address of the token received from the swap
-    /// @param balanceInBefore Balance of tokenIn before the operation
-    /// @param balanceOutBefore Balance of tokenOut before the operation
-    function fastCollateralCheck(
-        address creditAccount,
-        address tokenIn,
-        address tokenOut,
-        uint256 balanceInBefore,
-        uint256 balanceOutBefore
-    ) external;
-
     /// @dev Performs a full health check on an account, summing up
     /// value of all enabled collateral tokens
     /// @param creditAccount Address of the Credit Account to check
@@ -319,13 +297,6 @@ interface ICreditManagerV2 is
     /// @notice An enabled token mask encodes an enabled token by setting
     ///         the bit at the position equal to token's index to 1
     function enabledTokensMap(address creditAccount)
-        external
-        view
-        returns (uint256);
-
-    /// @dev Maps the Credit Account to its current percentage drop across all swaps since
-    ///      the last full check, in RAY format
-    function cumulativeDropAtFastCheckRAY(address creditAccount)
         external
         view
         returns (uint256);

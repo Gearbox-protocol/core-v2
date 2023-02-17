@@ -116,10 +116,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     ///         the bit at the position equal to token's index to 1
     mapping(address => uint256) public override enabledTokensMap;
 
-    /// @dev Maps Credit Accounts to their current cumulative drops in value during fast checks
-    /// See more details in fastCollateralCheck()
-    mapping(address => uint256) public cumulativeDropAtFastCheckRAY;
-
     /// @dev Maps allowed adapters to their respective target contracts.
     mapping(address => address) public override adapterToContract;
 
@@ -421,6 +417,8 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         _accountFactory.returnCreditAccount(creditAccount); // F:[CM-9]
     }
 
+    /// TODO: Fix decrease debt logic to account for cumulativeQuotaPremiums
+
     /// @dev Manages debt size for borrower:
     ///
     /// - Increase debt:
@@ -673,6 +671,8 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // sell them off
         if (tokenMasksMap(token) == 0) revert TokenNotAllowedException(); // F:
 
+        /// Token approval is multicall-only, so the Credit Account must
+        /// belong to the Credit Facade at this point
         address creditAccount = getCreditAccountOrRevert(creditFacade); // F:[CM-6]
 
         // Attempts to set allowance directly to the required amount
@@ -741,6 +741,8 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             } // F:[CM-28]
         }
 
+        /// Order execution is multicall-only, so the Credit Account must
+        /// belong to the Credit Facade at this point
         address creditAccount = getCreditAccountOrRevert(creditFacade); // F:[CM-6]
 
         // Emits an event
@@ -789,73 +791,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         if (enabledTokensMap[creditAccount] & tokenMask == 0) {
             enabledTokensMap[creditAccount] |= tokenMask;
         } // F:[CM-31]
-    }
-
-    /// @dev Optimized health check for individual swap-like operations.
-    /// @notice Fast health check assumes that only two tokens (input and output)
-    ///         participate in the operation and computes a % change in weighted value between
-    ///         inbound and outbound collateral. The cumulative negative change across several
-    ///         swaps in sequence cannot be larger than feeLiquidation (a fee that the
-    ///         protocol is ready to waive if needed). Since this records a % change
-    ///         between just two tokens, the corresponding % change in TWV will always be smaller,
-    ///         which makes this check safe.
-    ///         More details at https://dev.gearbox.fi/docs/documentation/risk/fast-collateral-check#fast-check-protection
-    /// @param creditAccount Address of the Credit Account
-    /// @param tokenIn Address of the token spent by the swap
-    /// @param tokenOut Address of the token received from the swap
-    /// @param balanceInBefore Balance of tokenIn before the operation
-    /// @param balanceOutBefore Balance of tokenOut before the operation
-    function fastCollateralCheck(
-        address creditAccount,
-        address tokenIn,
-        address tokenOut,
-        uint256 balanceInBefore,
-        uint256 balanceOutBefore
-    )
-        external
-        override
-        adaptersOrCreditFacadeOnly // F:[CM-3]
-        nonReentrant
-    {
-        // Checks that inbound collateral is known and not forbidden
-        // Enables it if disabled, to include it into TWV
-        // _checkAndEnableToken(creditAccount, tokenOut); // [CM-32]
-        // uint256 balanceInAfter = IERC20(tokenIn).balanceOf(creditAccount); // F: [CM-34]
-        // uint256 balanceOutAfter = IERC20(tokenOut).balanceOf(creditAccount); // F: [CM-34]
-        // (uint256 amountInCollateral, uint256 amountOutCollateral) = slot1.priceOracle.fastCheck(
-        //     balanceInBefore - balanceInAfter, tokenIn, balanceOutAfter - balanceOutBefore, tokenOut
-        // ); // F:[CM-34]
-        // // Disables tokenIn if the entire balance was spent by the operation
-        // if (balanceInAfter <= 1) _disableToken(creditAccount, tokenIn); // F:[CM-33]
-        // // Collateral values must be compared weighted by respective LTs,
-        // // as otherwise a high-LT (e.g., underlying) token can be swapped
-        // // to an equivalent amount of a low-LT asset. Without weighting, this would
-        // // pass the check (since inbound and outbound values are equal),
-        // // while the health factor of the account would be reduced severely.
-        // amountOutCollateral *= liquidationThresholds(tokenOut); // F:[CM-34]
-        // amountInCollateral *= liquidationThresholds(tokenIn); // F:[CM-34]
-        // // If the value of inbound collateral is larger than inbound collateral
-        // // a health check does not need to be performed;
-        // // However, the number of enabled tokens needs to be checked against the limit,
-        // // as a new collateral token was potentially enabled
-        // if (amountOutCollateral >= amountInCollateral) {
-        //     _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-35]
-        //     return; // F:[CM-34]
-        // }
-        // // The new cumulative drop in value is computed in RAY format, for precision
-        // uint256 cumulativeDropRAY =
-        //     RAY - ((amountOutCollateral * RAY) / amountInCollateral) + cumulativeDropAtFastCheckRAY[creditAccount]; // F:[CM-36]
-        // // If then new cumulative drop is less than feeLiquidation, the check is successful,
-        // // otherwise, a full collateral check is required
-        // if (cumulativeDropRAY <= (slot1.feeLiquidation * RAY) / PERCENTAGE_FACTOR) {
-        //     cumulativeDropAtFastCheckRAY[creditAccount] = cumulativeDropRAY; // F:[CM-36]
-        //     _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-37]
-        //     return;
-        // }
-        // // If a fast collateral check didn't pass, a full check is performed and
-        // // the cumulative drop is reset back to 0 (1 for gas-efficiency).
-        // _fullCollateralCheck(creditAccount); // F:[CM-34,36]
-        // cumulativeDropAtFastCheckRAY[creditAccount] = 1; // F:[CM-36]
     }
 
     /// @dev Performs a full health check on an account, summing up
@@ -1163,24 +1098,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     //
     // QUOTAS MANAGEMENT
     //
-
-    // /// @dev Updates credit account's quota for given token
-    // /// @param creditAccount Address of credit account
-    // /// @param token Address of the token to change the quota for
-    // /// @param quotaChange Requested quota change in pool's underlying asset units
-    // function updateQuota(
-    //     address creditAccount,
-    //     address token,
-    //     int96 quotaChange
-    // ) external override creditFacadeOnly {
-    //     cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper().updateQuota(
-    //         creditAccount,
-    //         token,
-    //         quotaChange
-    //     );
-
-    /// Add enable & disable token(!)
-    // }
 
     /// @dev Updates credit account's quotas for multiple tokens
     /// @param creditAccount Address of credit account

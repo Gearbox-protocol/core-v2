@@ -1076,12 +1076,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             revert TargetContractNotAllowedException();
         } // F:[FA-30]
 
-        /// TODO: transfer account to CF
+        // Since Credit Manager internal functions only work on Credit Accounts owned by the Credit Facade,
+        // we need to transfer account ownership to the Credit Facade before the operations and back
+        // afterwards
+        creditManager.transferAccountOwnership(msg.sender, address(this)); // F:[FA-31]
 
         // Requests Credit Manager to set token allowance from Credit Account to contract
         creditManager.approveCreditAccount(targetContract, token, amount); // F:[FA-31]
 
-        /// TODO: transfer account back
+        creditManager.transferAccountOwnership(address(this), msg.sender); // F:[FA-31]
     }
 
     /// @dev Transfers credit account to another user
