@@ -137,8 +137,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         blacklistHelper = _blacklistHelper;
         isBlacklistableUnderlying = _blacklistHelper != address(0);
-        if (_blacklistHelper != address(0))
+        if (_blacklistHelper != address(0)) {
             emit BlacklistHelperSet(_blacklistHelper);
+        }
 
         expirable = _expirable;
     }
@@ -476,8 +477,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // If the borrower is blacklisted, transfer the account to a special recovery contract,
         // so that the attempt to transfer remaining funds to a blacklisted borrower does not
         // break the liquidation. The borrower can retrieve the funds from the recovery contract afterwards.
-        if (helperBalance > 0)
-            creditManager.transferAccountOwnership(borrower, blacklistHelper); // F:[FA-56]
+        if (helperBalance > 0) {
+            creditManager.transferAccountOwnership(borrower, blacklistHelper);
+        } // F:[FA-56]
 
         // Liquidates the CA and sends the remaining funds to the borrower or blacklist helper
         remainingFunds = creditManager.closeCreditAccount(
@@ -494,8 +496,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
         /// borrower can recover funds to a different address
-        if (helperBalance > 0 && remainingFunds > 1)
+        if (helperBalance > 0 && remainingFunds > 1) {
             _increaseClaimableBalance(borrower, helperBalance);
+        }
     }
 
     /// @dev Checks whether borrower is blacklisted in the underlying token and, if so,
@@ -680,7 +683,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Since this action can enable new tokens, Credit Manager
         // needs to check that the max enabled token limit is not
         // breached
-        creditManager.checkAndOptimizeEnabledTokens(creditAccount); // F: [FA-21C]
+        creditManager.checkEnabledTokensLength(creditAccount); // F: [FA-21C]
     }
 
     function addCollateral(
@@ -1139,8 +1142,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
 
         // Checks that the borrower is not blacklisted, if the underlying is blacklistable
-        if (_isBlacklisted(onBehalfOf) != 0)
+        if (_isBlacklisted(onBehalfOf) != 0) {
             revert NotAllowedForBlacklistedAddressException();
+        }
 
         // F:[FA-5] covers case when degenNFT == address(0)
         if (degenNFT != address(0)) {
@@ -1265,7 +1269,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Since this action potentially increases the number of enabled tokens,
         // the Credit Manager is requested to check that the max limit for enabled tokens
         // is not violated
-        creditManager.checkAndOptimizeEnabledTokens(creditAccount); // F: [FA-39A]
+        creditManager.checkEnabledTokensLength(creditAccount); // F: [FA-39A]
     }
 
     /// @dev IMPLEMENTATION: enableToken

@@ -480,19 +480,10 @@ contract CreditManagerTest is
         creditManager.checkAndEnableToken(DUMB_ADDRESS, DUMB_ADDRESS);
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
-        creditManager.fastCollateralCheck(
-            DUMB_ADDRESS,
-            DUMB_ADDRESS,
-            DUMB_ADDRESS,
-            0,
-            0
-        );
-
-        evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
         creditManager.fullCollateralCheck(DUMB_ADDRESS);
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
-        creditManager.checkAndOptimizeEnabledTokens(DUMB_ADDRESS);
+        creditManager.checkEnabledTokensLength(DUMB_ADDRESS);
 
         evm.stopPrank();
     }
@@ -1908,400 +1899,401 @@ contract CreditManagerTest is
         expectTokenIsEnabled(Tokens.USDC, true);
     }
 
-    //
-    // FAST COLLATERAL CHECK
-    //
-
-    /// @dev [CM-32]: fastCollateralCheck enables tokenOut and reverts if it's forbidden
-    function test_CM_32_fastCollateralCheck_enables_tokenOut_and_reverts_if_its_unkown_or_forbidden()
-        public
-    {
-        (, , , address creditAccount) = _openCreditAccount();
-
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-
-        tokenTestSuite.mint(Tokens.USDC, creditAccount, USDC_EXCHANGE_AMOUNT);
-
-        expectTokenIsEnabled(Tokens.USDC, false);
-
-        creditManager.fastCollateralCheck(
-            creditAccount,
-            usdcToken,
-            usdcToken,
-            2 * USDC_EXCHANGE_AMOUNT,
-            0
-        );
-
-        expectTokenIsEnabled(Tokens.USDC, true);
-
-        evm.expectRevert(TokenNotAllowedException.selector);
-        creditManager.fastCollateralCheck(
-            creditAccount,
-            usdcToken,
-            DUMB_ADDRESS,
-            2 * USDC_EXCHANGE_AMOUNT,
-            0
-        );
-
-        address forbiddenToken = tokenTestSuite.addressOf(Tokens.WETH);
-        uint256 forbiddenMask = creditManager.tokenMasksMap(forbiddenToken);
-
-        evm.prank(CONFIGURATOR);
-        creditManager.setForbidMask(forbiddenMask);
-
-        evm.expectRevert(TokenNotAllowedException.selector);
-        creditManager.fastCollateralCheck(
-            creditAccount,
-            usdcToken,
-            forbiddenToken,
-            2 * USDC_EXCHANGE_AMOUNT,
-            0
-        );
-    }
-
-    /// @dev [CM-33]: fastCollateralCheck disable tokens with zero balance
-    function test_CM_33_fastCollateralCheck_disable_tokens_with_zero_balance(
-        uint8 balanceAfter
-    ) public {
-        evm.assume(balanceAfter <= 1);
-
-        (, , , address creditAccount) = _openCreditAccount();
-
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-
-        tokenTestSuite.mint(Tokens.USDC, creditAccount, balanceAfter);
-
-        creditManager.checkAndEnableToken(creditAccount, usdcToken);
-
-        expectTokenIsEnabled(Tokens.USDC, true);
-
-        creditManager.fastCollateralCheck(
-            creditAccount,
-            usdcToken,
-            tokenTestSuite.addressOf(Tokens.DAI),
-            USDC_EXCHANGE_AMOUNT,
-            0
-        );
-        expectTokenIsEnabled(Tokens.USDC, false);
-    }
-
-    /// @dev [CM-34]: fastCollateralCheck is passed if collateralOut >= collarteralIn
-    function test_CM_34_fastCollateralCheck_is_passed_if_collateralOut_gte_collarteralIn()
-        public
-    {
-        (, , , address creditAccount) = _openCreditAccount();
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-
-        uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
-            creditAccount
-        );
-
-        assertEq(
-            creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
-            0,
-            "cumulativeDropAtFastCheck is not 0"
-        );
-
-        // without these LT setting, the test would not pass
-
-        evm.prank(CONFIGURATOR);
-        creditManager.setLiquidationThreshold(usdcToken, 4000);
-
-        evm.prank(CONFIGURATOR);
-        creditManager.setLiquidationThreshold(underlying, 5000);
-
-        evm.expectCall(
-            usdcToken,
-            abi.encodeWithSelector(IERC20.balanceOf.selector)
-        );
-        evm.expectCall(
-            underlying,
-            abi.encodeWithSelector(IERC20.balanceOf.selector)
-        );
-
-        // It passes tesk withou LT check, cause it just get 1 USDC additionally
-        creditManager.fastCollateralCheck(
-            creditAccount,
-            usdcToken,
-            underlying,
-            5000 * (10**6), // imitates that we've paid 4000 USDC
-            underlyingBalanceBefore - 4000 * WAD // imitates that we've get 5000 DAI
-        );
-
-        // it shlould not change cumulativeDropAtFastCheck if passed through line:
-        //  if (amountOutCollateral >= amountInCollateral) return;
-
-        assertEq(
-            creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
-            0,
-            "cumulativeDropAtFastCheck was changed"
-        );
-    }
-
-    /// @dev [CM-35]: fastCollateralCheck reverts if more enabled tokens than allowed collateralOut >= collarteralIn w/o LT check
-    function test_CM_35_fastCollateralCheck_reverts_if_more_enabled_tokens_than_allowed_if_collateralOut_gte_collarteralIn_wo_lt_check()
-        public
-    {
-        (, , , address creditAccount) = _openCreditAccount();
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-
-        uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
-            creditAccount
-        );
-
-        assertEq(
-            creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
-            0,
-            "cumulativeDropAtFastCheck is not 0"
-        );
-
-        enableTokensMoreThanLimit(creditAccount);
-        evm.expectRevert(TooManyEnabledTokensException.selector);
-        // It passes tesk withou LT check, cause it just get 1 USDC additionally
-        creditManager.fastCollateralCheck(
-            creditAccount,
-            underlying,
-            usdcToken,
-            underlyingBalanceBefore,
-            0
-        );
-    }
-
-    /// @dev [CM-36]: fastCollateralCheck is passed with cumulative drop <= feeLiquidation
-    function test_CM_36_fastCollateralCheck_is_passed_with_cumulative_drop_lte_feeLiquidation(
-        uint256 desiredDrop
-    ) public {
-        (, uint16 feeLiquidation, , , ) = creditManager.fees();
-
-        evm.assume(
-            desiredDrop > 0 &&
-                desiredDrop < (feeLiquidation * WAD) / PERCENTAGE_FACTOR
-        );
-        // uint16 desiredDrop = 50; // 0.5%
-
-        (, , , address creditAccount) = _openCreditAccount();
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-        uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
-            creditAccount
-        );
-
-        /// Set USDC LT to be the same as DAI, to remove it from calculation
-
-        uint16 underlyingLT = creditManager.liquidationThresholds(underlying);
-
-        evm.prank(CONFIGURATOR);
-        creditManager.setLiquidationThreshold(usdcToken, underlyingLT);
-
-        uint256 expectedAmountInCollateral = creditManager
-            .priceOracle()
-            .convertToUSD(underlyingBalanceBefore, underlying);
-
-        uint256 amountOutCollateralNeeded = ((RAY - desiredDrop) *
-            expectedAmountInCollateral) / RAY;
-
-        uint256 amountOutNeeded = creditManager.priceOracle().convertFromUSD(
-            amountOutCollateralNeeded,
-            usdcToken
-        );
-
-        tokenTestSuite.mint(Tokens.USDC, creditAccount, amountOutNeeded);
-
-        // we add LINK tokens not to be reverted in case of fullCollateral check
-
-        tokenTestSuite.mint(
-            Tokens.LINK,
-            creditAccount,
-            creditManager.priceOracle().convertFromUSD(
-                underlyingBalanceBefore,
-                tokenTestSuite.addressOf(Tokens.LINK)
-            )
-        );
-
-        creditManager.checkAndEnableToken(
-            creditAccount,
-            tokenTestSuite.addressOf(Tokens.LINK)
-        );
-
-        // we set it one more time to elimimate side effect of rounding
-        amountOutCollateralNeeded = creditManager.priceOracle().convertToUSD(
-            amountOutNeeded,
-            usdcToken
-        );
-
-        // we set it one more time to elimimate side effect of rounding
-        desiredDrop =
-            RAY -
-            ((amountOutCollateralNeeded * RAY) / expectedAmountInCollateral);
-
-        tokenTestSuite.burn(Tokens.DAI, creditAccount, underlyingBalanceBefore);
-
-        uint256 n = feeLiquidation / desiredDrop + 2;
-
-        uint256 cumulativeDrop;
-        for (uint256 i = 0; i < n; i++) {
-            cumulativeDrop += desiredDrop;
-
-            if (cumulativeDrop > (feeLiquidation * RAY) / PERCENTAGE_FACTOR) {
-                expectFullCollateralCheck();
-                cumulativeDrop = 1;
-            }
-
-            // It passes task without LT check, cause it just get 1 USDC additionally
-            creditManager.fastCollateralCheck(
-                creditAccount,
-                underlying,
-                usdcToken,
-                underlyingBalanceBefore,
-                0
-            );
-
-            assertEq(
-                creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
-                cumulativeDrop,
-                "Incorrect cumulative drop"
-            );
-        }
-    }
-
-    /// @dev [CM-36A]: fastCollateralCheck correctly optimizes enabled tokens
-    function test_CM_36A_fastCollateralCheck_correctly_optimizes_enabled_tokens()
-        public
-    {
-        uint256 randomValue = uint256(keccak256(abi.encodePacked(gasleft())));
-
-        for (
-            uint256 enabledTokens = 0;
-            enabledTokens < 40;
-            enabledTokens += 8
-        ) {
-            uint256 startIndex = enabledTokens > 12 ? enabledTokens - 12 : 0;
-
-            for (
-                uint256 zeroBalanceTokens = startIndex;
-                zeroBalanceTokens <= enabledTokens;
-                zeroBalanceTokens++
-            ) {
-                setUp();
-
-                uint256 maxTokens = creditManager
-                    .maxAllowedEnabledTokenLength();
-
-                if (enabledTokens + 1 - zeroBalanceTokens > 12) {
-                    continue;
-                }
-
-                (
-                    bool[] memory tokenTypes,
-                    uint256 breakpointIdx
-                ) = _getRandomBits(
-                        enabledTokens - zeroBalanceTokens,
-                        zeroBalanceTokens,
-                        randomValue
-                    );
-
-                (
-                    uint256 borrowedAmount,
-                    ,
-                    ,
-                    address creditAccount
-                ) = _openCreditAccount();
-
-                tokenTestSuite.mint(
-                    Tokens.DAI,
-                    creditAccount,
-                    borrowedAmount * 100
-                );
-
-                prepareForEnabledTokenOptimization(
-                    creditAccount,
-                    tokenTypes,
-                    enabledTokens,
-                    zeroBalanceTokens,
-                    breakpointIdx
-                );
-
-                uint256 expectedEnabledTokens = enabledTokens;
-
-                if (expectedEnabledTokens >= maxTokens) {
-                    expectedEnabledTokens = maxTokens;
-                }
-
-                if (enabledTokens == zeroBalanceTokens) {
-                    expectedEnabledTokens = expectedEnabledTokens == maxTokens
-                        ? maxTokens
-                        : expectedEnabledTokens + 1;
-                }
-
-                uint256 daiBalance = tokenTestSuite.balanceOf(
-                    Tokens.DAI,
-                    creditAccount
-                );
-
-                creditManager.fastCollateralCheck(
-                    creditAccount,
-                    underlying,
-                    underlying,
-                    daiBalance,
-                    daiBalance
-                );
-
-                assertEq(
-                    calcEnabledTokens(creditAccount),
-                    expectedEnabledTokens,
-                    "Incorrect number of tokens enabled"
-                );
-            }
-        }
-    }
-
-    /// @dev [CM-37]: fastCollateralCheck reverts if more enabled tokens than allowed collateralOut < collarteralIn
-    function test_CM_37_fastCollateralCheck_reverts_if_more_enabled_tokens_than_allowed_if_collateralOut_lt_collarteralIn_wo_lt_check()
-        public
-    {
-        (, , , address creditAccount) = _openCreditAccount();
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-
-        uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
-            creditAccount
-        );
-
-        assertEq(
-            creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
-            0,
-            "cumulativeDropAtFastCheck is not 0"
-        );
-
-        // We set the same LT's
-        evm.prank(CONFIGURATOR);
-        creditManager.setLiquidationThreshold(underlying, 9000);
-
-        evm.prank(CONFIGURATOR);
-        creditManager.setLiquidationThreshold(usdcToken, 9000);
-
-        // And imitate the swap 1000 DAI -> 999 USDC
-        tokenTestSuite.burn(
-            Tokens.DAI, // $1000 of underlying
-            creditAccount,
-            1000 * WAD
-        );
-
-        tokenTestSuite.mint(
-            Tokens.USDC, // $999 of USDC comes. it drops 0.1% which is less than feeLiquidation
-            creditAccount,
-            999 * (10**6)
-        );
-
-        enableTokensMoreThanLimit(creditAccount);
-        evm.expectRevert(TooManyEnabledTokensException.selector);
-        // It passes tesk withou LT check, cause it just get 1 USDC additionally
-        creditManager.fastCollateralCheck(
-            creditAccount,
-            underlying,
-            usdcToken,
-            (underlyingBalanceBefore),
-            0
-        );
-    }
+    // //
+    // // FAST COLLATERAL CHECK
+    // //
+
+    // /// @dev [CM-32]: fastCollateralCheck enables tokenOut and reverts if it's forbidden
+    // function test_CM_32_fastCollateralCheck_enables_tokenOut_and_reverts_if_its_unkown_or_forbidden()
+    //     public
+    // {
+    //     (, , , address creditAccount) = _openCreditAccount();
+
+    //     address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
+
+    //     tokenTestSuite.mint(Tokens.USDC, creditAccount, USDC_EXCHANGE_AMOUNT);
+
+    //     expectTokenIsEnabled(Tokens.USDC, false);
+
+    //     creditManager.fastCollateralCheck(
+    //         creditAccount,
+    //         usdcToken,
+    //         usdcToken,
+    //         2 * USDC_EXCHANGE_AMOUNT,
+    //         0
+    //     );
+
+    //     expectTokenIsEnabled(Tokens.USDC, true);
+
+    //     evm.expectRevert(TokenNotAllowedException.selector);
+    //     creditManager.fastCollateralCheck(
+    //         creditAccount,
+    //         usdcToken,
+    //         DUMB_ADDRESS,
+    //         2 * USDC_EXCHANGE_AMOUNT,
+    //         0
+    //     );
+
+    //     address forbiddenToken = tokenTestSuite.addressOf(Tokens.WETH);
+    //     uint256 forbiddenMask = creditManager.tokenMasksMap(forbiddenToken);
+
+    //     evm.prank(CONFIGURATOR);
+    //     creditManager.setForbidMask(forbiddenMask);
+
+    //     evm.expectRevert(TokenNotAllowedException.selector);
+    //     creditManager.fastCollateralCheck(
+    //         creditAccount,
+    //         usdcToken,
+    //         forbiddenToken,
+    //         2 * USDC_EXCHANGE_AMOUNT,
+    //         0
+    //     );
+    // }
+
+    // /// @dev [CM-33]: fastCollateralCheck disable tokens with zero balance
+    // function test_CM_33_fastCollateralCheck_disable_tokens_with_zero_balance(
+    //     uint8 balanceAfter
+    // ) public {
+    //     evm.assume(balanceAfter <= 1);
+
+    //     (, , , address creditAccount) = _openCreditAccount();
+
+    //     address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
+
+    //     tokenTestSuite.mint(Tokens.USDC, creditAccount, balanceAfter);
+
+    //     creditManager.checkAndEnableToken(creditAccount, usdcToken);
+
+    //     expectTokenIsEnabled(Tokens.USDC, true);
+
+    //     creditManager.fastCollateralCheck(
+    //         creditAccount,
+    //         usdcToken,
+    //         tokenTestSuite.addressOf(Tokens.DAI),
+    //         USDC_EXCHANGE_AMOUNT,
+    //         0
+    //     );
+    //     expectTokenIsEnabled(Tokens.USDC, false);
+    // }
+
+    // /// @dev [CM-34]: fastCollateralCheck is passed if collateralOut >= collarteralIn
+    // function test_CM_34_fastCollateralCheck_is_passed_if_collateralOut_gte_collarteralIn()
+    //     public
+    // {
+    //     (, , , address creditAccount) = _openCreditAccount();
+    //     address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
+
+    //     uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
+    //         creditAccount
+    //     );
+
+    //     // TODO: Remove all fastchek tests
+    //     // assertEq(
+    //     //     creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
+    //     //     0,
+    //     //     "cumulativeDropAtFastCheck is not 0"
+    //     // );
+
+    //     // without these LT setting, the test would not pass
+
+    //     evm.prank(CONFIGURATOR);
+    //     creditManager.setLiquidationThreshold(usdcToken, 4000);
+
+    //     evm.prank(CONFIGURATOR);
+    //     creditManager.setLiquidationThreshold(underlying, 5000);
+
+    //     evm.expectCall(
+    //         usdcToken,
+    //         abi.encodeWithSelector(IERC20.balanceOf.selector)
+    //     );
+    //     evm.expectCall(
+    //         underlying,
+    //         abi.encodeWithSelector(IERC20.balanceOf.selector)
+    //     );
+
+    //     // It passes tesk withou LT check, cause it just get 1 USDC additionally
+    //     creditManager.fastCollateralCheck(
+    //         creditAccount,
+    //         usdcToken,
+    //         underlying,
+    //         5000 * (10**6), // imitates that we've paid 4000 USDC
+    //         underlyingBalanceBefore - 4000 * WAD // imitates that we've get 5000 DAI
+    //     );
+
+    //     // it shlould not change cumulativeDropAtFastCheck if passed through line:
+    //     //  if (amountOutCollateral >= amountInCollateral) return;
+
+    //     assertEq(
+    //         creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
+    //         0,
+    //         "cumulativeDropAtFastCheck was changed"
+    //     );
+    // }
+
+    // /// @dev [CM-35]: fastCollateralCheck reverts if more enabled tokens than allowed collateralOut >= collarteralIn w/o LT check
+    // function test_CM_35_fastCollateralCheck_reverts_if_more_enabled_tokens_than_allowed_if_collateralOut_gte_collarteralIn_wo_lt_check()
+    //     public
+    // {
+    //     (, , , address creditAccount) = _openCreditAccount();
+    //     address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
+
+    //     uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
+    //         creditAccount
+    //     );
+
+    //     assertEq(
+    //         creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
+    //         0,
+    //         "cumulativeDropAtFastCheck is not 0"
+    //     );
+
+    //     enableTokensMoreThanLimit(creditAccount);
+    //     evm.expectRevert(TooManyEnabledTokensException.selector);
+    //     // It passes tesk withou LT check, cause it just get 1 USDC additionally
+    //     creditManager.fastCollateralCheck(
+    //         creditAccount,
+    //         underlying,
+    //         usdcToken,
+    //         underlyingBalanceBefore,
+    //         0
+    //     );
+    // }
+
+    // /// @dev [CM-36]: fastCollateralCheck is passed with cumulative drop <= feeLiquidation
+    // function test_CM_36_fastCollateralCheck_is_passed_with_cumulative_drop_lte_feeLiquidation(
+    //     uint256 desiredDrop
+    // ) public {
+    //     (, uint16 feeLiquidation, , , ) = creditManager.fees();
+
+    //     evm.assume(
+    //         desiredDrop > 0 &&
+    //             desiredDrop < (feeLiquidation * WAD) / PERCENTAGE_FACTOR
+    //     );
+    //     // uint16 desiredDrop = 50; // 0.5%
+
+    //     (, , , address creditAccount) = _openCreditAccount();
+    //     address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
+    //     uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
+    //         creditAccount
+    //     );
+
+    //     /// Set USDC LT to be the same as DAI, to remove it from calculation
+
+    //     uint16 underlyingLT = creditManager.liquidationThresholds(underlying);
+
+    //     evm.prank(CONFIGURATOR);
+    //     creditManager.setLiquidationThreshold(usdcToken, underlyingLT);
+
+    //     uint256 expectedAmountInCollateral = creditManager
+    //         .priceOracle()
+    //         .convertToUSD(underlyingBalanceBefore, underlying);
+
+    //     uint256 amountOutCollateralNeeded = ((RAY - desiredDrop) *
+    //         expectedAmountInCollateral) / RAY;
+
+    //     uint256 amountOutNeeded = creditManager.priceOracle().convertFromUSD(
+    //         amountOutCollateralNeeded,
+    //         usdcToken
+    //     );
+
+    //     tokenTestSuite.mint(Tokens.USDC, creditAccount, amountOutNeeded);
+
+    //     // we add LINK tokens not to be reverted in case of fullCollateral check
+
+    //     tokenTestSuite.mint(
+    //         Tokens.LINK,
+    //         creditAccount,
+    //         creditManager.priceOracle().convertFromUSD(
+    //             underlyingBalanceBefore,
+    //             tokenTestSuite.addressOf(Tokens.LINK)
+    //         )
+    //     );
+
+    //     creditManager.checkAndEnableToken(
+    //         creditAccount,
+    //         tokenTestSuite.addressOf(Tokens.LINK)
+    //     );
+
+    //     // we set it one more time to elimimate side effect of rounding
+    //     amountOutCollateralNeeded = creditManager.priceOracle().convertToUSD(
+    //         amountOutNeeded,
+    //         usdcToken
+    //     );
+
+    //     // we set it one more time to elimimate side effect of rounding
+    //     desiredDrop =
+    //         RAY -
+    //         ((amountOutCollateralNeeded * RAY) / expectedAmountInCollateral);
+
+    //     tokenTestSuite.burn(Tokens.DAI, creditAccount, underlyingBalanceBefore);
+
+    //     uint256 n = feeLiquidation / desiredDrop + 2;
+
+    //     uint256 cumulativeDrop;
+    //     for (uint256 i = 0; i < n; i++) {
+    //         cumulativeDrop += desiredDrop;
+
+    //         if (cumulativeDrop > (feeLiquidation * RAY) / PERCENTAGE_FACTOR) {
+    //             expectFullCollateralCheck();
+    //             cumulativeDrop = 1;
+    //         }
+
+    //         // It passes task without LT check, cause it just get 1 USDC additionally
+    //         creditManager.fastCollateralCheck(
+    //             creditAccount,
+    //             underlying,
+    //             usdcToken,
+    //             underlyingBalanceBefore,
+    //             0
+    //         );
+
+    //         assertEq(
+    //             creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
+    //             cumulativeDrop,
+    //             "Incorrect cumulative drop"
+    //         );
+    //     }
+    // }
+
+    // /// @dev [CM-36A]: fastCollateralCheck correctly optimizes enabled tokens
+    // function test_CM_36A_fastCollateralCheck_correctly_optimizes_enabled_tokens()
+    //     public
+    // {
+    //     uint256 randomValue = uint256(keccak256(abi.encodePacked(gasleft())));
+
+    //     for (
+    //         uint256 enabledTokens = 0;
+    //         enabledTokens < 40;
+    //         enabledTokens += 8
+    //     ) {
+    //         uint256 startIndex = enabledTokens > 12 ? enabledTokens - 12 : 0;
+
+    //         for (
+    //             uint256 zeroBalanceTokens = startIndex;
+    //             zeroBalanceTokens <= enabledTokens;
+    //             zeroBalanceTokens++
+    //         ) {
+    //             setUp();
+
+    //             uint256 maxTokens = creditManager
+    //                 .maxAllowedEnabledTokenLength();
+
+    //             if (enabledTokens + 1 - zeroBalanceTokens > 12) {
+    //                 continue;
+    //             }
+
+    //             (
+    //                 bool[] memory tokenTypes,
+    //                 uint256 breakpointIdx
+    //             ) = _getRandomBits(
+    //                     enabledTokens - zeroBalanceTokens,
+    //                     zeroBalanceTokens,
+    //                     randomValue
+    //                 );
+
+    //             (
+    //                 uint256 borrowedAmount,
+    //                 ,
+    //                 ,
+    //                 address creditAccount
+    //             ) = _openCreditAccount();
+
+    //             tokenTestSuite.mint(
+    //                 Tokens.DAI,
+    //                 creditAccount,
+    //                 borrowedAmount * 100
+    //             );
+
+    //             prepareForEnabledTokenOptimization(
+    //                 creditAccount,
+    //                 tokenTypes,
+    //                 enabledTokens,
+    //                 zeroBalanceTokens,
+    //                 breakpointIdx
+    //             );
+
+    //             uint256 expectedEnabledTokens = enabledTokens;
+
+    //             if (expectedEnabledTokens >= maxTokens) {
+    //                 expectedEnabledTokens = maxTokens;
+    //             }
+
+    //             if (enabledTokens == zeroBalanceTokens) {
+    //                 expectedEnabledTokens = expectedEnabledTokens == maxTokens
+    //                     ? maxTokens
+    //                     : expectedEnabledTokens + 1;
+    //             }
+
+    //             uint256 daiBalance = tokenTestSuite.balanceOf(
+    //                 Tokens.DAI,
+    //                 creditAccount
+    //             );
+
+    //             creditManager.fastCollateralCheck(
+    //                 creditAccount,
+    //                 underlying,
+    //                 underlying,
+    //                 daiBalance,
+    //                 daiBalance
+    //             );
+
+    //             assertEq(
+    //                 calcEnabledTokens(creditAccount),
+    //                 expectedEnabledTokens,
+    //                 "Incorrect number of tokens enabled"
+    //             );
+    //         }
+    //     }
+    // }
+
+    // /// @dev [CM-37]: fastCollateralCheck reverts if more enabled tokens than allowed collateralOut < collarteralIn
+    // function test_CM_37_fastCollateralCheck_reverts_if_more_enabled_tokens_than_allowed_if_collateralOut_lt_collarteralIn_wo_lt_check()
+    //     public
+    // {
+    //     (, , , address creditAccount) = _openCreditAccount();
+    //     address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
+
+    //     uint256 underlyingBalanceBefore = IERC20(underlying).balanceOf(
+    //         creditAccount
+    //     );
+
+    //     assertEq(
+    //         creditManager.cumulativeDropAtFastCheckRAY(creditAccount),
+    //         0,
+    //         "cumulativeDropAtFastCheck is not 0"
+    //     );
+
+    //     // We set the same LT's
+    //     evm.prank(CONFIGURATOR);
+    //     creditManager.setLiquidationThreshold(underlying, 9000);
+
+    //     evm.prank(CONFIGURATOR);
+    //     creditManager.setLiquidationThreshold(usdcToken, 9000);
+
+    //     // And imitate the swap 1000 DAI -> 999 USDC
+    //     tokenTestSuite.burn(
+    //         Tokens.DAI, // $1000 of underlying
+    //         creditAccount,
+    //         1000 * WAD
+    //     );
+
+    //     tokenTestSuite.mint(
+    //         Tokens.USDC, // $999 of USDC comes. it drops 0.1% which is less than feeLiquidation
+    //         creditAccount,
+    //         999 * (10**6)
+    //     );
+
+    //     enableTokensMoreThanLimit(creditAccount);
+    //     evm.expectRevert(TooManyEnabledTokensException.selector);
+    //     // It passes tesk withou LT check, cause it just get 1 USDC additionally
+    //     creditManager.fastCollateralCheck(
+    //         creditAccount,
+    //         underlying,
+    //         usdcToken,
+    //         (underlyingBalanceBefore),
+    //         0
+    //     );
+    // }
 
     //
     // FULL COLLATERAL CHECK

@@ -102,7 +102,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
         } else {
             /// DEPLOYED FOR NEW CREDIT MANAGER
 
-            /// Sets limits, fees and fastCheck parameters for the Credit Manager
+            /// Sets limits and fees for the Credit Manager
             _setParams(
                 DEFAULT_FEE_INTEREST,
                 DEFAULT_FEE_LIQUIDATION,
@@ -235,8 +235,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
 
         (, uint16 ltUnderlying) = creditManager.collateralTokens(0);
         // Sanity check for the liquidation threshold. The LT should be less than underlying
-        if (liquidationThreshold > ltUnderlying)
-            revert IncorrectLiquidationThresholdException(); // F:[CC-5]
+        if (liquidationThreshold > ltUnderlying) {
+            revert IncorrectLiquidationThresholdException();
+        } // F:[CC-5]
 
         uint16 currentLT = creditManager.liquidationThresholds(token);
 

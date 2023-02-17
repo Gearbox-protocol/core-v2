@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.17;
 
 // LIBRARIES
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -20,7 +20,7 @@ import { IWETHGateway } from "../interfaces/IWETHGateway.sol";
 import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-import { IPoolQuotaKeeper, QuotaUpdate, LimitTokenCalc } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IPoolQuotaKeeper, QuotaUpdate, TokenLT } from "../interfaces/IPoolQuotaKeeper.sol";
 import { IVersion } from "../interfaces/IVersion.sol";
 
 // CONSTANTS
@@ -115,10 +115,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     /// @notice An enabled token mask encodes an enabled token by setting
     ///         the bit at the position equal to token's index to 1
     mapping(address => uint256) public override enabledTokensMap;
-
-    /// @dev Maps Credit Accounts to their current cumulative drops in value during fast checks
-    /// See more details in fastCollateralCheck()
-    mapping(address => uint256) public cumulativeDropAtFastCheckRAY;
 
     /// @dev Maps allowed adapters to their respective target contracts.
     mapping(address => address) public override adapterToContract;
@@ -332,9 +328,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             uint256 quotaPremiums;
 
             if (supportsQuotas) {
-                LimitTokenCalc[] memory tokens = getLimitedTokens(
-                    creditAccount
-                );
+                TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
                 /// Check the tokens.len >0
                 quotaPremiums = cumulativeQuotaPremiums[creditAccount];
@@ -477,6 +471,22 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 cumulativeIndexNow_RAY) /
                 cumulativeIndexAtOpen_RAY -
                 borrowedAmount; // F:[CM-21]
+
+            if (supportsQuotas) {
+                uint256 cp = cumulativeQuotaPremiums[creditAccount];
+                if (cp > 2) {
+                    interestAccrued += cp - 1;
+                    cumulativeQuotaPremiums[creditAccount] = 1;
+                }
+
+                TokenLT[] memory tokens = getLimitedTokens(creditAccount);
+                if (tokens.length > 0) {
+                    interestAccrued += poolQuotaKeeper().accruedQuotas(
+                        creditAccount,
+                        tokens
+                    );
+                }
+            }
 
             // Computes profit, taken as a percentage of the interest rate
             uint256 profit = (interestAccrued * slot1.feeInterest) /
@@ -699,11 +709,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         try
             ICreditAccount(creditAccount).execute(
                 token,
-                abi.encodeWithSelector(
-                    IERC20.approve.selector,
-                    targetContract,
-                    amount
-                )
+                abi.encodeCall(IERC20.approve, (targetContract, amount))
             )
         returns (bytes memory result) {
             if (result.length == 0 || abi.decode(result, (bool)) == true) {
@@ -791,73 +797,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         } // F:[CM-31]
     }
 
-    /// @dev Optimized health check for individual swap-like operations.
-    /// @notice Fast health check assumes that only two tokens (input and output)
-    ///         participate in the operation and computes a % change in weighted value between
-    ///         inbound and outbound collateral. The cumulative negative change across several
-    ///         swaps in sequence cannot be larger than feeLiquidation (a fee that the
-    ///         protocol is ready to waive if needed). Since this records a % change
-    ///         between just two tokens, the corresponding % change in TWV will always be smaller,
-    ///         which makes this check safe.
-    ///         More details at https://dev.gearbox.fi/docs/documentation/risk/fast-collateral-check#fast-check-protection
-    /// @param creditAccount Address of the Credit Account
-    /// @param tokenIn Address of the token spent by the swap
-    /// @param tokenOut Address of the token received from the swap
-    /// @param balanceInBefore Balance of tokenIn before the operation
-    /// @param balanceOutBefore Balance of tokenOut before the operation
-    function fastCollateralCheck(
-        address creditAccount,
-        address tokenIn,
-        address tokenOut,
-        uint256 balanceInBefore,
-        uint256 balanceOutBefore
-    )
-        external
-        override
-        adaptersOrCreditFacadeOnly // F:[CM-3]
-        nonReentrant
-    {
-        // Checks that inbound collateral is known and not forbidden
-        // Enables it if disabled, to include it into TWV
-        // _checkAndEnableToken(creditAccount, tokenOut); // [CM-32]
-        // uint256 balanceInAfter = IERC20(tokenIn).balanceOf(creditAccount); // F: [CM-34]
-        // uint256 balanceOutAfter = IERC20(tokenOut).balanceOf(creditAccount); // F: [CM-34]
-        // (uint256 amountInCollateral, uint256 amountOutCollateral) = slot1.priceOracle.fastCheck(
-        //     balanceInBefore - balanceInAfter, tokenIn, balanceOutAfter - balanceOutBefore, tokenOut
-        // ); // F:[CM-34]
-        // // Disables tokenIn if the entire balance was spent by the operation
-        // if (balanceInAfter <= 1) _disableToken(creditAccount, tokenIn); // F:[CM-33]
-        // // Collateral values must be compared weighted by respective LTs,
-        // // as otherwise a high-LT (e.g., underlying) token can be swapped
-        // // to an equivalent amount of a low-LT asset. Without weighting, this would
-        // // pass the check (since inbound and outbound values are equal),
-        // // while the health factor of the account would be reduced severely.
-        // amountOutCollateral *= liquidationThresholds(tokenOut); // F:[CM-34]
-        // amountInCollateral *= liquidationThresholds(tokenIn); // F:[CM-34]
-        // // If the value of inbound collateral is larger than inbound collateral
-        // // a health check does not need to be performed;
-        // // However, the number of enabled tokens needs to be checked against the limit,
-        // // as a new collateral token was potentially enabled
-        // if (amountOutCollateral >= amountInCollateral) {
-        //     _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-35]
-        //     return; // F:[CM-34]
-        // }
-        // // The new cumulative drop in value is computed in RAY format, for precision
-        // uint256 cumulativeDropRAY =
-        //     RAY - ((amountOutCollateral * RAY) / amountInCollateral) + cumulativeDropAtFastCheckRAY[creditAccount]; // F:[CM-36]
-        // // If then new cumulative drop is less than feeLiquidation, the check is successful,
-        // // otherwise, a full collateral check is required
-        // if (cumulativeDropRAY <= (slot1.feeLiquidation * RAY) / PERCENTAGE_FACTOR) {
-        //     cumulativeDropAtFastCheckRAY[creditAccount] = cumulativeDropRAY; // F:[CM-36]
-        //     _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-37]
-        //     return;
-        // }
-        // // If a fast collateral check didn't pass, a full check is performed and
-        // // the cumulative drop is reset back to 0 (1 for gas-efficiency).
-        // _fullCollateralCheck(creditAccount); // F:[CM-34,36]
-        // cumulativeDropAtFastCheckRAY[creditAccount] = 1; // F:[CM-36]
-    }
-
     /// @dev Performs a full health check on an account, summing up
     /// value of all enabled collateral tokens
     /// @param creditAccount Address of the Credit Account to check
@@ -882,9 +821,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         unchecked {
             uint256 quotaPremiums;
             if (supportsQuotas) {
-                LimitTokenCalc[] memory tokens = getLimitedTokens(
-                    creditAccount
-                );
+                TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
                 if (tokens.length > 0) {
                     /// If credit account has any connected token - then check that
@@ -963,20 +900,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                             enabledTokenMask
                         );
                         if (totalTokensEnabled > maxAllowedEnabledTokenLength) {
-                            unchecked {
-                                _optimizeEnabledTokens(
-                                    creditAccount,
-                                    enabledTokenMask,
-                                    totalTokensEnabled,
-                                    // At this stage in the function, at least underlying
-                                    // must have been processed, so it can be skipped
-                                    1,
-                                    // Since the function disables all unused tokens it finds
-                                    // and iterates in descending order,
-                                    // _optimizeEnabledTokens only needs to check up to len - i
-                                    len - i
-                                ); // F:[CM-41] where i=0
-                            }
+                            revert NotEnoughCollateralException();
                         } else {
                             // Saves enabledTokensMask if at least one token was disabled
                             if (atLeastOneTokenWasDisabled) {
@@ -1008,12 +932,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     function getLimitedTokens(address creditAccount)
         public
         view
-        returns (LimitTokenCalc[] memory tokens)
+        returns (TokenLT[] memory tokens)
     {
         uint256 limitMask = enabledTokensMap[creditAccount] & limitedTokenMask;
 
         if (limitMask > 0) {
-            tokens = new LimitTokenCalc[](maxAllowedEnabledTokenLength + 1);
+            tokens = new TokenLT[](maxAllowedEnabledTokenLength + 1);
 
             uint256 maxIndex = _getMaxIndex(limitMask);
             uint256 tokenMask;
@@ -1027,7 +951,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                         (address token, uint16 lt) = collateralTokensByMask(
                             tokenMask
                         );
-                        tokens[j] = LimitTokenCalc({ token: token, lt: lt });
+                        tokens[j] = TokenLT({ token: token, lt: lt });
                         ++j;
                     }
                 }
@@ -1036,32 +960,19 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     }
 
     /// @dev Checks that the number of enabled tokens on a Credit Account
-    ///      does not violate the maximal enabled token limit and tries
-    ///      to disable unused tokens if it does
+    ///      does not violate the maximal enabled token limit
     /// @param creditAccount Account to check enabled tokens for
-    function checkAndOptimizeEnabledTokens(address creditAccount)
+    function checkEnabledTokensLength(address creditAccount)
         external
+        view
         override
         adaptersOrCreditFacadeOnly // F: [CM-2]
     {
-        _checkAndOptimizeEnabledTokens(creditAccount);
-    }
-
-    /// @dev IMPLEMENTATION: checkAndOptimizeEnabledTokens
-    function _checkAndOptimizeEnabledTokens(address creditAccount) internal {
         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
         uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokenMask);
 
         if (totalTokensEnabled > maxAllowedEnabledTokenLength) {
-            uint256 maxIndex = _getMaxIndex(enabledTokenMask) + 1;
-
-            _optimizeEnabledTokens(
-                creditAccount,
-                enabledTokenMask,
-                totalTokensEnabled,
-                0,
-                maxIndex
-            );
+            revert TooManyEnabledTokensException();
         }
     }
 
@@ -1085,50 +996,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 enabledTokenMask = enabledTokenMask >> 1;
             }
         }
-    }
-
-    /// @dev Searches for tokens with zero balance among enabled tokens
-    ///      on a Credit Account and disables them, until the total number
-    ///      of enabled tokens is at maxAllowedEnabledTokenLength
-    /// @param creditAccount The Credit Account to optimize
-    /// @param enabledTokenMask Mask encoding the set of currentl enabled tokens
-    /// @param totalTokensEnabled The current number of enabled tokens
-    /// @param minIndex Inclusive lower bound of search range
-    /// @param maxIndex Non-inclusive upper bound of search range
-    function _optimizeEnabledTokens(
-        address creditAccount,
-        uint256 enabledTokenMask,
-        uint256 totalTokensEnabled,
-        uint256 minIndex,
-        uint256 maxIndex
-    ) internal {
-        // The whole block can be marked unchecked, since:
-        // - maxIndex < 256 at all times (i.e., tokenMask < 2 ** 256);
-        // - totalTokensEnabled does not go lower than maxAllowedEnabledTokenLength
-        //   (the function returns at that point)
-        unchecked {
-            for (uint256 i = minIndex; i < maxIndex; ) {
-                uint256 tokenMask = 1 << i;
-                if (enabledTokenMask & tokenMask != 0) {
-                    (address token, ) = collateralTokensByMask(tokenMask);
-                    uint256 balance = IERC20(token).balanceOf(creditAccount);
-
-                    if (balance <= 1) {
-                        enabledTokenMask ^= tokenMask;
-                        --totalTokensEnabled;
-                        if (
-                            totalTokensEnabled <= maxAllowedEnabledTokenLength
-                        ) {
-                            enabledTokensMap[creditAccount] = enabledTokenMask;
-                            return;
-                        }
-                    }
-                }
-
-                ++i;
-            }
-        }
-        revert TooManyEnabledTokensException();
     }
 
     /// @dev Disables a token on a credit account
@@ -1164,24 +1031,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     // QUOTAS MANAGEMENT
     //
 
-    // /// @dev Updates credit account's quota for given token
-    // /// @param creditAccount Address of credit account
-    // /// @param token Address of the token to change the quota for
-    // /// @param quotaChange Requested quota change in pool's underlying asset units
-    // function updateQuota(
-    //     address creditAccount,
-    //     address token,
-    //     int96 quotaChange
-    // ) external override creditFacadeOnly {
-    //     cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper().updateQuota(
-    //         creditAccount,
-    //         token,
-    //         quotaChange
-    //     );
-
-    /// Add enable & disable token(!)
-    // }
-
     /// @dev Updates credit account's quotas for multiple tokens
     /// @param creditAccount Address of credit account
     /// @param quotaUpdates Requested quota updates, see `QuotaUpdate`
@@ -1189,10 +1038,21 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
     ) external override creditFacadeOnly {
-        cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper()
+        (uint256 premiums, bool[] memory isZero) = poolQuotaKeeper()
             .updateQuotas(creditAccount, quotaUpdates);
+        cumulativeQuotaPremiums[creditAccount] += premiums;
 
-        /// TODO: Add enable & disable token(!)
+        uint256 len = isZero.length;
+
+        unchecked {
+            for (uint256 i; i < len; ++i) {
+                if (isZero[i]) {
+                    _disableToken(creditAccount, quotaUpdates[i].token);
+                } else {
+                    _checkAndEnableToken(creditAccount, quotaUpdates[i].token);
+                }
+            }
+        }
     }
 
     /// @dev Checks if the contract is paused; if true, checks that the caller is emergency liquidator

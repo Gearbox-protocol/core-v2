@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
-// // Gearbox Protocol. Generalized leverage for DeFi protocols
-// // (c) Gearbox Holdings, 2022
-// pragma solidity ^0.8.10;
+// Gearbox Protocol. Generalized leverage for DeFi protocols
+// (c) Gearbox Holdings, 2022
+pragma solidity ^0.8.10;
 
 // import { IAddressProvider } from "../../interfaces/IAddressProvider.sol";
 // import { ACL } from "../../core/ACL.sol";
@@ -497,7 +497,7 @@
 //         creditManager.fullCollateralCheck(DUMB_ADDRESS);
 
 //         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
-//         creditManager.checkAndOptimizeEnabledTokens(DUMB_ADDRESS);
+//         creditManager.checkEnabledTokensLength(DUMB_ADDRESS);
 
 //         evm.stopPrank();
 //     }

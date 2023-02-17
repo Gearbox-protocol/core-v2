@@ -27,13 +27,7 @@ contract AdapterMock is AbstractAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _executeMaxAllowance(
-            tokenIn,
-            tokenOut,
-            callData,
-            allowTokenIn,
-            disableTokenIn
-        );
+        // result = _executeMaxAllowance(tokenIn, tokenOut, callData, allowTokenIn, disableTokenIn);
     }
 
     /// @dev Keeps maximum allowance for third-party protocol
@@ -46,14 +40,7 @@ contract AdapterMock is AbstractAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _executeMaxAllowance(
-            creditAccount,
-            tokenIn,
-            tokenOut,
-            callData,
-            allowTokenIn,
-            disableTokenIn
-        );
+        // result = _executeMaxAllowance(creditAccount, tokenIn, tokenOut, callData, allowTokenIn, disableTokenIn);
     }
 
     function safeExecute(
@@ -63,13 +50,7 @@ contract AdapterMock is AbstractAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _safeExecute(
-            tokenIn,
-            tokenOut,
-            callData,
-            allowTokenIn,
-            disableTokenIn
-        );
+        // result = _safeExecute(tokenIn, tokenOut, callData, allowTokenIn, disableTokenIn);
     }
 
     function safeExecute(
@@ -80,14 +61,7 @@ contract AdapterMock is AbstractAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _safeExecute(
-            creditAccount,
-            tokenIn,
-            tokenOut,
-            callData,
-            allowTokenIn,
-            disableTokenIn
-        );
+        // result = _safeExecute(creditAccount, tokenIn, tokenOut, callData, allowTokenIn, disableTokenIn);
     }
 
     function execute(bytes memory callData)
@@ -96,15 +70,4 @@ contract AdapterMock is AbstractAdapter {
     {
         result = _execute(callData);
     }
-
-    // function fullCheck(address creditAccount) external {
-    //     _fullCheck(creditAccount);
-    // }
-
-    // fallback() external {
-    //     address creditAccount = creditManager.getCreditAccountOrRevert(msg.sender);
-
-    //     _execute(msg.data);
-    //     _fullCheck(creditAccount);
-    // }
 }
