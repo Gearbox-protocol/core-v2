@@ -33,7 +33,6 @@ interface IPoolQuotaKeeperExceptions {
 }
 
 interface IPoolQuotaKeeperEvents {
-
     /// @dev Emits when CA's quota for token is changed
     event AccountQuotaChanged(
         address creditAccount,
@@ -48,7 +47,6 @@ interface IPoolQuotaKeeperEvents {
     event QuotaTokenAdded(address indexed token);
 
     event QuotaRateUpdated(address indexed token, uint16 rate);
-
 }
 
 /// @title Pool Quotas Interface
@@ -57,7 +55,6 @@ interface IPoolQuotaKeeper is
     IPoolQuotaKeeperExceptions,
     IVersion
 {
-
     /// @dev Returns quota rate in PERCENTAGE FORMAT
     function getQuotaRate(address) external view returns (uint16);
 
@@ -73,7 +70,7 @@ interface IPoolQuotaKeeper is
         address creditAccount,
         address token,
         int96 quotaChange
-    ) external;
+    ) external returns (uint256);
 
     /// @notice Updates credit account's quotas for multiple tokens
     /// @param creditAccount Address of credit account
@@ -81,7 +78,7 @@ interface IPoolQuotaKeeper is
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
-    ) external;
+    ) external returns (uint256);
 
     function quotedTokens() external view returns (address[] memory);
 
@@ -94,7 +91,8 @@ interface IPoolQuotaKeeper is
         LimitTokenCalc[] memory tokens
     ) external view returns (uint256 value, uint256 premium);
 
-    function closeCreditAccount(address creditAccount, address[] memory tokens)
-        external
-        returns (uint256);
+    function closeCreditAccount(
+        address creditAccount,
+        LimitTokenCalc[] memory tokens
+    ) external returns (uint256);
 }

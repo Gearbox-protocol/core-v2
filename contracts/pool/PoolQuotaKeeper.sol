@@ -114,10 +114,9 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
-    ) external override creditManagerOnly {
+    ) external override creditManagerOnly returns (uint256 caPremiumchange) {
         uint256 len = quotaUpdates.length;
         int128 quotaIndexChange;
-        uint256 caPremiumchange;
 
         for (uint256 i; i < len; ) {
             (int128 qic, uint256 cap) = _updateQuota(
@@ -141,7 +140,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         address creditAccount,
         address token,
         int96 quotaChange
-    ) external override creditManagerOnly {
+    ) external override creditManagerOnly returns (uint256) {
         (int128 quotaIndexChange, uint256 caPremiumchange) = _updateQuota(
             msg.sender,
             creditAccount,
@@ -149,6 +148,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             quotaChange
         );
         pool.changeQuotaIndex(quotaIndexChange);
+        return caPremiumchange;
     }
 
     function _updateQuota(
@@ -312,22 +312,20 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         }
     }
 
-    function closeCreditAccount(address creditAccount, address[] memory tokens)
-        external
-        override
-        creditManagerOnly
-        returns (uint256 premiums)
-    {
+    function closeCreditAccount(
+        address creditAccount,
+        LimitTokenCalc[] memory tokens
+    ) external override creditManagerOnly returns (uint256 premiums) {
         int128 quotaIndexChange;
 
         uint256 len = tokens.length;
         for (uint256 i; i < len; ) {
-            address token = tokens[i];
+            address token = tokens[i].token;
 
             (int128 qic, uint256 cap) = _removeQuota(
                 msg.sender,
                 creditAccount,
-                tokens[i]
+                token
             );
 
             quotaIndexChange += qic;

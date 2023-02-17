@@ -3,10 +3,10 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {CreditManager, ClosureAction} from "../../../credit/CreditManager.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { CreditManager, ClosureAction } from "../../../credit/CreditManager.sol";
 
 /// @title Credit Manager Internal
 /// @notice It encapsulates business logic for managing credit accounts
@@ -20,8 +20,10 @@ contract CreditManagerTestInternal is CreditManager {
     /// @param _poolService Address of pool service
     constructor(address _poolService) CreditManager(_poolService) {}
 
-    function setCumulativeDropAtFastCheck(address creditAccount, uint16 value) external {
-        cumulativeDropAtFastCheckRAY[creditAccount] = value;
+    function setCumulativeDropAtFastCheck(address creditAccount, uint16 value)
+        external
+    {
+        // cumulativeDropAtFastCheckRAY[creditAccount] = value;
     }
 
     function calcNewCumulativeIndex(
@@ -31,8 +33,13 @@ contract CreditManagerTestInternal is CreditManager {
         uint256 cumulativeIndexOpen,
         bool isIncrease
     ) external pure returns (uint256 newCumulativeIndex) {
-        newCumulativeIndex =
-            _calcNewCumulativeIndex(borrowedAmount, delta, cumulativeIndexNow, cumulativeIndexOpen, isIncrease);
+        newCumulativeIndex = _calcNewCumulativeIndex(
+            borrowedAmount,
+            delta,
+            cumulativeIndexNow,
+            cumulativeIndexOpen,
+            isIncrease
+        );
     }
 
     function calcClosePaymentsPure(
@@ -40,17 +47,41 @@ contract CreditManagerTestInternal is CreditManager {
         ClosureAction closureActionType,
         uint256 borrowedAmount,
         uint256 borrowedAmountWithInterest
-    ) external view returns (uint256 amountToPool, uint256 remainingFunds, uint256 profit, uint256 loss) {
-        return calcClosePayments(totalValue, closureActionType, borrowedAmount, borrowedAmountWithInterest);
+    )
+        external
+        view
+        returns (
+            uint256 amountToPool,
+            uint256 remainingFunds,
+            uint256 profit,
+            uint256 loss
+        )
+    {
+        return
+            calcClosePayments(
+                totalValue,
+                closureActionType,
+                borrowedAmount,
+                borrowedAmountWithInterest
+            );
     }
 
-    function transferAssetsTo(address creditAccount, address to, bool convertWETH, uint256 enabledTokenMask) external {
+    function transferAssetsTo(
+        address creditAccount,
+        address to,
+        bool convertWETH,
+        uint256 enabledTokenMask
+    ) external {
         _transferAssetsTo(creditAccount, to, convertWETH, enabledTokenMask);
     }
 
-    function safeTokenTransfer(address creditAccount, address token, address to, uint256 amount, bool convertToETH)
-        external
-    {
+    function safeTokenTransfer(
+        address creditAccount,
+        address token,
+        address to,
+        uint256 amount,
+        bool convertToETH
+    ) external {
         _safeTokenTransfer(creditAccount, token, to, amount, convertToETH);
     }
 
@@ -61,16 +92,24 @@ contract CreditManagerTestInternal is CreditManager {
     function getCreditAccountParameters(address creditAccount)
         external
         view
-        returns (uint256 borrowedAmount, uint256 cumulativeIndexAtOpen, uint256 cumulativeIndexNow)
+        returns (
+            uint256 borrowedAmount,
+            uint256 cumulativeIndexAtOpen,
+            uint256 cumulativeIndexNow
+        )
     {
         return _getCreditAccountParameters(creditAccount);
     }
 
-    function collateralTokensInternal() external view returns (address[] memory collateralTokensAddr) {
+    function collateralTokensInternal()
+        external
+        view
+        returns (address[] memory collateralTokensAddr)
+    {
         uint256 len = collateralTokensCount;
         collateralTokensAddr = new address[](len);
         for (uint256 i = 0; i < len; i++) {
-            (collateralTokensAddr[i],) = collateralTokens(i);
+            (collateralTokensAddr[i], ) = collateralTokens(i);
         }
     }
 
@@ -78,7 +117,11 @@ contract CreditManagerTestInternal is CreditManager {
         index = _getMaxIndex(mask);
     }
 
-    function getSlotBytes(uint256 slotNum) external view returns (bytes32 slotVal) {
+    function getSlotBytes(uint256 slotNum)
+        external
+        view
+        returns (bytes32 slotVal)
+    {
         assembly {
             slotVal := sload(slotNum)
         }

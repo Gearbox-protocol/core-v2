@@ -62,7 +62,7 @@ struct CreditAccountQuotaData {
 /// @notice Encapsulates the business logic for managing Credit Accounts
 ///
 /// More info: https://dev.gearbox.fi/developers/credit/credit_manager
-contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
+contract CreditManager_V is ICreditManagerV2, ACLNonReentrantTrait {
     using SafeERC20 for IERC20;
     using Address for address payable;
     using SafeCast for uint256;
