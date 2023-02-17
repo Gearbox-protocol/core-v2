@@ -29,8 +29,13 @@ interface IAdapterExceptions {
     ///      that is not recognized as collateral in the connected
     ///      Credit Manager
     error TokenIsNotInAllowedList(address);
+
+    /// @dev Thrown when the caller of a `creditFacadeOnly` function
+    ///      is not the Credit Facade
+    error CreditFacadeOnlyException();
 }
 
+/// @title Adapter interface
 interface IAdapter is IAdapterExceptions {
     /// @dev Returns the Credit Manager connected to the adapter
     function creditManager() external view returns (ICreditManagerV2);
