@@ -78,7 +78,13 @@ interface IPoolQuotaKeeper is
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
-    ) external returns (uint256);
+    )
+        external
+        returns (
+            uint256,
+            bool[] memory,
+            bool
+        );
 
     function quotedTokens() external view returns (address[] memory);
 
@@ -90,6 +96,12 @@ interface IPoolQuotaKeeper is
         address _priceOracle,
         LimitTokenCalc[] memory tokens
     ) external view returns (uint256 value, uint256 premium);
+
+    function computeOutstandingPremiums(
+        address creditManager,
+        address creditAccount,
+        LimitTokenCalc[] memory tokens
+    ) external view returns (uint256 totalPremiums);
 
     function closeCreditAccount(
         address creditAccount,

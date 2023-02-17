@@ -501,6 +501,9 @@ contract CreditConfiguratorTest is
 
         evm.expectRevert(CallerNotControllerException.selector);
         creditConfigurator.setLimitPerBlock(0);
+
+        evm.expectRevert(CallerNotControllerException.selector);
+        creditConfigurator.setMaxEnabledTokens(1);
     }
 
     //
@@ -878,6 +881,22 @@ contract CreditConfiguratorTest is
         assertTrue(
             allowedContracts.includes(TARGET_CONTRACT),
             "Target contract wasnt found"
+        );
+    }
+
+    /// @dev [CC-15A]: allowContract allows universal adapter for universal contract
+    function test_CC_15A_allowContract_allows_universal_contract() public {
+        evm.prank(CONFIGURATOR);
+
+        evm.expectEmit(true, true, false, false);
+        emit ContractAllowed(UNIVERSAL_CONTRACT, address(adapter1));
+
+        creditConfigurator.allowContract(UNIVERSAL_CONTRACT, address(adapter1));
+
+        assertEq(
+            creditManager.universalAdapter(),
+            address(adapter1),
+            "Universal adapter wasn't updated"
         );
     }
 

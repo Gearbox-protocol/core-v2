@@ -220,7 +220,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     /// @param liquidationThreshold in PERCENTAGE_FORMAT (100% = 10000)
     function setLiquidationThreshold(address token, uint16 liquidationThreshold)
         external
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
+        controllerOnly // F:[CC-2B]
     {
         _setLiquidationThreshold(token, liquidationThreshold); // F:[CC-5]
     }
@@ -276,7 +276,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     /// @param token Address of collateral token to forbid
     function forbidToken(address token)
         external
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
+        controllerOnly // F:[CC-2B]
     {
         // Gets token masks. Reverts if the token was not added as collateral or is the underlying
         uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token); // F:[CC-7]
@@ -338,7 +338,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
             (targetContract != UNIVERSAL_CONTRACT)
         ) {
             revert AddressIsNotContractException(targetContract);
-        } // F:[CC-12A] [TODO]: Add check for Universal contract
+        } // F:[CC-12A]
 
         // Checks that the adapter is an actual contract and has the correct Credit Manager and is an actual contract
         _revertIfContractIncompatible(adapter); // F:[CC-12]
@@ -383,7 +383,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     function forbidContract(address targetContract)
         external
         override
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
+        controllerOnly // F:[CC-2B]
     {
         // Checks that targetContract is not address(0)
         if (targetContract == address(0)) revert ZeroAddressException(); // F:[CC-12]
@@ -435,7 +435,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     /// @param _maxBorrowedAmount Maximum borrowed amount
     function setLimits(uint128 _minBorrowedAmount, uint128 _maxBorrowedAmount)
         external
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
+        controllerOnly // F:[CC-2B]
     {
         _setLimits(_minBorrowedAmount, _maxBorrowedAmount);
     }
@@ -715,7 +715,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     /// @param newLimit The new max borrowed amount per block
     function setLimitPerBlock(uint128 newLimit)
         external
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
+        controllerOnly // F:[CC-2B]
     {
         _setLimitPerBlock(newLimit); // F:[CC-33]
     }
@@ -823,7 +823,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     /// hence the number is limited
     function setMaxEnabledTokens(uint8 maxEnabledTokens)
         external
-        controllerOnly // F:[CC-2] == TODO: Add contoller test
+        controllerOnly // F:[CC-2B]
     {
         _setMaxEnabledTokens(maxEnabledTokens); // F: [CC-37]
     }
