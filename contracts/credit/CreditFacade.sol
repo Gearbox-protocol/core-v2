@@ -960,20 +960,20 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // Executes disableToken for creditAccount
             _disableToken(borrower, creditAccount, token); // F: [FA-54]
         }
-        //
-        // UPDATE QUOTA
-        //
-        // This is an extension method that allows borrowers to increase or decrease their
-        // Credit Account's quota for given token. Higher quota allows larger fraction of
-        // token balance to be accounted for in collateral calculations, but account must
-        // pay higher risk fee for this
-        else if (method == ICreditFacadeExtended.updateQuota.selector) {
-            (address token, int96 quotaChange) = abi.decode(
-                callData[4:],
-                (address, int96)
-            );
-            creditManager.updateQuota(creditAccount, token, quotaChange);
-        }
+        // //
+        // // UPDATE QUOTA
+        // //
+        // // This is an extension method that allows borrowers to increase or decrease their
+        // // Credit Account's quota for given token. Higher quota allows larger fraction of
+        // // token balance to be accounted for in collateral calculations, but account must
+        // // pay higher risk fee for this
+        // else if (method == ICreditFacadeExtended.updateQuota.selector) {
+        //     (address token, int96 quotaChange) = abi.decode(
+        //         callData[4:],
+        //         (address, int96)
+        //     );
+        //     creditManager.updateQuota(creditAccount, token, quotaChange);
+        // }
         //
         // UPDATE QUOTAS
         //
@@ -1056,13 +1056,12 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             revert TargetContractNotAllowedException();
         } // F:[FA-30]
 
+        /// TODO: transfer account to CF
+
         // Requests Credit Manager to set token allowance from Credit Account to contract
-        creditManager.approveCreditAccount(
-            msg.sender,
-            targetContract,
-            token,
-            amount
-        ); // F:[FA-31]
+        creditManager.approveCreditAccount(targetContract, token, amount); // F:[FA-31]
+
+        /// TODO: transfer account back
     }
 
     /// @dev Transfers credit account to another user

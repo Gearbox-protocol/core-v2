@@ -248,7 +248,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // Initializes the enabled token mask for Credit Account to 1 (only the underlying is enabled)
         enabledTokensMap[creditAccount] = 1; // F:[CM-8]
 
-        cumulativeQuotaPremiums[creditAccount] = 1; // TODO: Add test
+        if (supportsQuotas) cumulativeQuotaPremiums[creditAccount] = 1; // TODO: Add test
 
         // Returns the address of the opened Credit Account
         return creditAccount; // F:[CM-8]
@@ -336,9 +336,15 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     creditAccount
                 );
 
-                quotaPremiums =
-                    cumulativeQuotaPremiums[creditAccount] +
-                    poolQuotaKeeper().closeCreditAccount(creditAccount, tokens);
+                /// Check the tokens.len >0
+                quotaPremiums = cumulativeQuotaPremiums[creditAccount];
+
+                if (tokens.length > 0) {
+                    quotaPremiums += poolQuotaKeeper().closeCreditAccount(
+                        creditAccount,
+                        tokens
+                    );
+                }
             }
 
             (
@@ -638,12 +644,11 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     }
 
     /// @dev Requests the Credit Account to approve a collateral token to another contract.
-    /// @param borrower Borrower's address
+
     /// @param targetContract Spender to change allowance for
     /// @param token Collateral token to approve
     /// @param amount New allowance amount
     function approveCreditAccount(
-        address borrower,
         address targetContract,
         address token,
         uint256 amount
@@ -668,7 +673,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // sell them off
         if (tokenMasksMap(token) == 0) revert TokenNotAllowedException(); // F:
 
-        address creditAccount = getCreditAccountOrRevert(borrower); // F:[CM-6]
+        address creditAccount = getCreditAccountOrRevert(creditFacade); // F:[CM-6]
 
         // Attempts to set allowance directly to the required amount
         // If unsuccessful, assumes that the token requires setting allowance to zero first
@@ -715,14 +720,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
     /// @dev Requests a Credit Account to make a low-level call with provided data
     /// This is the intended pathway for state-changing interactions with 3rd-party protocols
-    /// @param borrower Borrower's address
     /// @param targetContract Contract to be called
     /// @param data Data to pass with the call
-    function executeOrder(
-        address borrower,
-        address targetContract,
-        bytes memory data
-    )
+    function executeOrder(address targetContract, bytes memory data)
         external
         override
         whenNotPausedOrEmergency // F:[CM-5]
@@ -741,10 +741,10 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             } // F:[CM-28]
         }
 
-        address creditAccount = getCreditAccountOrRevert(borrower); // F:[CM-6]
+        address creditAccount = getCreditAccountOrRevert(creditFacade); // F:[CM-6]
 
         // Emits an event
-        emit ExecuteOrder(borrower, targetContract); // F:[CM-29]
+        emit ExecuteOrder(creditAccount, targetContract); // F:[CM-29]
 
         // Returned data is provided as-is to the caller;
         // It is expected that is is parsed and returned as a correct type
@@ -895,11 +895,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                             address(_priceOracle),
                             tokens
                         );
-                    quotaPremiums += cumulativeQuotaPremiums[creditAccount];
 
                     // TODO: check that we removed all tokens
-                    enabledTokenMask = enabledTokenMask ^ limitedTokenMask;
+                    enabledTokenMask = enabledTokenMask & (~limitedTokenMask);
                 }
+
+                quotaPremiums += cumulativeQuotaPremiums[creditAccount];
             }
 
             // The total weighted value of a Credit Account has to be compared
@@ -917,6 +918,8 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
             len = _getMaxIndex(enabledTokenMask) + 1;
         }
+
+        /// CHECK if twv > borrowAmountPlusInterestRateUSD if supportedQuotas
 
         uint256 tokenMask;
 
@@ -977,6 +980,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                         } else {
                             // Saves enabledTokensMask if at least one token was disabled
                             if (atLeastOneTokenWasDisabled) {
+                                // TODO: check with limit mask, it's incorrect
                                 enabledTokensMap[
                                     creditAccount
                                 ] = enabledTokenMask; // F:[CM-39]
@@ -1160,23 +1164,23 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     // QUOTAS MANAGEMENT
     //
 
-    /// @dev Updates credit account's quota for given token
-    /// @param creditAccount Address of credit account
-    /// @param token Address of the token to change the quota for
-    /// @param quotaChange Requested quota change in pool's underlying asset units
-    function updateQuota(
-        address creditAccount,
-        address token,
-        int96 quotaChange
-    ) external override creditFacadeOnly {
-        cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper().updateQuota(
-            creditAccount,
-            token,
-            quotaChange
-        );
+    // /// @dev Updates credit account's quota for given token
+    // /// @param creditAccount Address of credit account
+    // /// @param token Address of the token to change the quota for
+    // /// @param quotaChange Requested quota change in pool's underlying asset units
+    // function updateQuota(
+    //     address creditAccount,
+    //     address token,
+    //     int96 quotaChange
+    // ) external override creditFacadeOnly {
+    //     cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper().updateQuota(
+    //         creditAccount,
+    //         token,
+    //         quotaChange
+    //     );
 
-        /// Add enable & disable token(!)
-    }
+    /// Add enable & disable token(!)
+    // }
 
     /// @dev Updates credit account's quotas for multiple tokens
     /// @param creditAccount Address of credit account
@@ -1188,7 +1192,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper()
             .updateQuotas(creditAccount, quotaUpdates);
 
-        /// Add enable & disable token(!)
+        /// TODO: Add enable & disable token(!)
     }
 
     /// @dev Checks if the contract is paused; if true, checks that the caller is emergency liquidator
@@ -1496,8 +1500,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         if (result == address(0)) revert HasNoOpenedAccountException(); // F:[CM-48]
     }
 
+    /// TODO: change name with "_" prefix
     function calcCreditAccountAccruedInterest(address creditAccount)
-        public
+        external
         view
         override
         returns (

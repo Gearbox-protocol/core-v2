@@ -108,12 +108,12 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     /// @dev The list of all Credit Managers
     EnumerableSet.AddressSet internal creditManagerSet;
 
-    /// @dev IGauge
+    /// @dev Pool Quota Keeper updates quotaRevenue
     address public override poolQuotaKeeper;
 
-    uint40 public lastQuotasUpdate;
+    uint40 public lastQuotaRevenueUpdate;
 
-    uint128 public quotaIndex;
+    uint128 public quotaRevenue;
 
     modifier wethPoolOnly() {
         if (underlyingToken != wethAddress) revert AssetIsNotWETHException(); // F:[P4-5]
@@ -722,7 +722,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     function _calcQuotasPremiums() internal view returns (uint128) {
         return
             uint128(
-                (quotaIndex * (block.timestamp - lastQuotasUpdate)) /
+                (quotaRevenue * (block.timestamp - lastQuotaRevenueUpdate)) /
                     (SECONDS_PER_YEAR * PERCENTAGE_FACTOR)
             );
     }
@@ -912,27 +912,29 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     }
 
     /// POOL QUOTA KEEPER ONLY
-    function changeQuotaIndex(int128 _quotaIndexChange)
+    function changeQuotaRevenue(int128 _quotaRevenueChange)
         external
         override
         poolQuotaKeeperOnly
     {
-        _updateQuotaIndex(uint128(int128(quotaIndex) + _quotaIndexChange));
+        _updateQuotaRevenue(
+            uint128(int128(quotaRevenue) + _quotaRevenueChange)
+        );
     }
 
-    function updateQuotaIndex(uint128 newQuotaIndex)
+    function updateQuotaRevenue(uint128 newQuotaRevenue)
         external
         override
         poolQuotaKeeperOnly
     {
-        _updateQuotaIndex(newQuotaIndex);
+        _updateQuotaRevenue(newQuotaRevenue);
     }
 
-    function _updateQuotaIndex(uint128 _newQuotaIndex) internal {
+    function _updateQuotaRevenue(uint128 _newQuotaRevenue) internal {
         _expectedLiquidityLU += _calcQuotasPremiums();
 
-        lastQuotasUpdate = uint40(block.timestamp);
-        quotaIndex = _newQuotaIndex;
+        lastQuotaRevenueUpdate = uint40(block.timestamp);
+        quotaRevenue = _newQuotaRevenue;
     }
 
     // GETTERS

@@ -130,9 +130,9 @@ interface IPool4626 is
     ) external;
 
     /// @dev Updates quota index
-    function changeQuotaIndex(int128 _quotaIndexChange) external;
+    function changeQuotaRevenue(int128 _quotaRevenueChange) external;
 
-    function updateQuotaIndex(uint128 newQuotaIndex) external;
+    function updateQuotaRevenue(uint128 newQuotaRevenue) external;
 
     //
     // GETTERS

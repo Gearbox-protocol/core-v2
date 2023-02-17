@@ -63,14 +63,14 @@ interface IPoolQuotaKeeper is
 
     /// @dev Updates quota for particular token, returns how much quota was given
 
-    /// @param creditAccount Address of credit account
-    /// @param token Address of the token to change the quota for
-    /// @param quotaChange Requested quota change in pool's underlying asset units
-    function updateQuota(
-        address creditAccount,
-        address token,
-        int96 quotaChange
-    ) external returns (uint256);
+    // /// @param creditAccount Address of credit account
+    // /// @param token Address of the token to change the quota for
+    // /// @param quotaChange Requested quota change in pool's underlying asset units
+    // function updateQuota(
+    //     address creditAccount,
+    //     address token,
+    //     int96 quotaChange
+    // ) external returns (uint256);
 
     /// @notice Updates credit account's quotas for multiple tokens
     /// @param creditAccount Address of credit account
