@@ -13,7 +13,7 @@ import { WAD } from "../libraries/Constants.sol";
 import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
 
 // CONTRACTS
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { CreditFacade } from "./CreditFacade.sol";
 import { CreditManager } from "./CreditManager.sol";
 
@@ -24,7 +24,7 @@ import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 
 // EXCEPTIONS
-import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../interfaces/IErrors.sol";
+import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException } from "../interfaces/IErrors.sol";
 import { ICreditManagerV2, ICreditManagerV2Exceptions } from "../interfaces/ICreditManagerV2.sol";
 
 /// @title CreditConfigurator
@@ -33,7 +33,7 @@ import { ICreditManagerV2, ICreditManagerV2Exceptions } from "../interfaces/ICre
 /// @dev All functions can only by called by he Configurator as per ACL.
 /// CreditManager blindly executes all requests from CreditConfigurator, so all sanity checks
 /// are performed here.
-contract CreditConfigurator is ICreditConfigurator, ACLTrait {
+contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Address for address;
 
@@ -69,7 +69,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         CreditFacade _creditFacade,
         CreditManagerOpts memory opts
     )
-        ACLTrait(
+        ACLNonReentrantTrait(
             address(
                 IPoolService(_creditManager.poolService()).addressProvider()
             )
@@ -82,46 +82,67 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         addressProvider = IPoolService(_creditManager.poolService())
             .addressProvider(); // F:[CC-1]
 
-        if (opts.skipInit) return;
+        address currentConfigurator = creditManager.creditConfigurator(); // F: [CC-41]
 
-        /// Sets limits, fees and fastCheck parameters for the Credit Manager
-        _setParams(
-            DEFAULT_FEE_INTEREST,
-            DEFAULT_FEE_LIQUIDATION,
-            PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM,
-            DEFAULT_FEE_LIQUIDATION_EXPIRED,
-            PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
-        ); // F:[CC-1]
+        if (currentConfigurator != address(this)) {
+            /// DEPLOYED FOR EXISTING CREDIT MANAGER
 
-        /// Adds collateral tokens and sets their liquidation thresholds
-        /// The underlying must not be in this list, since its LT is set separately in _setParams
-        uint256 len = opts.collateralTokens.length;
-        for (uint256 i = 0; i < len; ) {
-            address token = opts.collateralTokens[i].token;
+            address[] memory allowedContractsPrev = CreditConfigurator(
+                currentConfigurator
+            ).allowedContracts(); // F: [CC-41]
 
-            addCollateralToken(token); // F:[CC-1]
+            uint256 allowedContractsLen = allowedContractsPrev.length;
+            for (uint256 i = 0; i < allowedContractsLen; ) {
+                allowedContractsSet.add(allowedContractsPrev[i]); // F: [CC-41]
 
-            _setLiquidationThreshold(
-                token,
-                opts.collateralTokens[i].liquidationThreshold
+                unchecked {
+                    ++i;
+                }
+            }
+        } else {
+            /// DEPLOYED FOR NEW CREDIT MANAGER
+
+            /// Sets limits, fees and fastCheck parameters for the Credit Manager
+            _setParams(
+                DEFAULT_FEE_INTEREST,
+                DEFAULT_FEE_LIQUIDATION,
+                PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM,
+                DEFAULT_FEE_LIQUIDATION_EXPIRED,
+                PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
             ); // F:[CC-1]
 
-            unchecked {
-                ++i;
+            /// Adds collateral tokens and sets their liquidation thresholds
+            /// The underlying must not be in this list, since its LT is set separately in _setParams
+            uint256 len = opts.collateralTokens.length;
+            for (uint256 i = 0; i < len; ) {
+                address token = opts.collateralTokens[i].token;
+
+                addCollateralToken(token); // F:[CC-1]
+
+                _setLiquidationThreshold(
+                    token,
+                    opts.collateralTokens[i].liquidationThreshold
+                ); // F:[CC-1]
+
+                unchecked {
+                    ++i;
+                }
             }
+
+            // Connects creditFacade and priceOracle
+            creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
+
+            emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
+            emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
+
+            _setLimitPerBlock(
+                uint128(
+                    DEFAULT_LIMIT_PER_BLOCK_MULTIPLIER * opts.maxBorrowedAmount
+                )
+            ); // F:[CC-1]
+
+            _setLimits(opts.minBorrowedAmount, opts.maxBorrowedAmount); // F:[CC-1]
         }
-
-        // Connects creditFacade and priceOracle
-        creditManager.upgradeCreditFacade(address(_creditFacade)); // F:[CC-1]
-
-        emit CreditFacadeUpgraded(address(_creditFacade)); // F: [CC-1A]
-        emit PriceOracleUpgraded(address(creditManager.priceOracle())); // F: [CC-1A]
-
-        _setLimitPerBlock(
-            uint128(DEFAULT_LIMIT_PER_BLOCK_MULTIPLIER * opts.maxBorrowedAmount)
-        ); // F:[CC-1]
-
-        _setLimits(opts.minBorrowedAmount, opts.maxBorrowedAmount); // F:[CC-1]
     }
 
     /// @dev Migration function used to populate the new CC's allowedContractsSet based on the previous CC's values
@@ -199,7 +220,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param liquidationThreshold in PERCENTAGE_FORMAT (100% = 10000)
     function setLiquidationThreshold(address token, uint16 liquidationThreshold)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         _setLiquidationThreshold(token, liquidationThreshold); // F:[CC-5]
     }
@@ -255,7 +276,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param token Address of collateral token to forbid
     function forbidToken(address token)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         // Gets token masks. Reverts if the token was not added as collateral or is the underlying
         uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token); // F:[CC-7]
@@ -286,8 +307,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         // tokenMask can't be 0, since this means that the token is not a collateral token
         // tokenMask can't be 1, since this mask is reserved for underlying
 
-        if (tokenMask == 0 || tokenMask == 1)
-            revert ICreditManagerV2Exceptions.TokenNotAllowedException(); // F:[CC-7]
+        if (tokenMask == 0 || tokenMask == 1) {
+            revert ICreditManagerV2Exceptions.TokenNotAllowedException();
+        } // F:[CC-7]
     }
 
     //
@@ -314,7 +336,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (
             !targetContract.isContract() &&
             (targetContract != UNIVERSAL_CONTRACT)
-        ) revert AddressIsNotContractException(targetContract); // F:[CC-12A] [TODO]: Add check for Universal contract
+        ) {
+            revert AddressIsNotContractException(targetContract);
+        } // F:[CC-12A] [TODO]: Add check for Universal contract
 
         // Checks that the adapter is an actual contract and has the correct Credit Manager and is an actual contract
         _revertIfContractIncompatible(adapter); // F:[CC-12]
@@ -331,15 +355,16 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         ) revert CreditManagerOrFacadeUsedAsTargetContractsException(); // F:[CC-13]
 
         // Checks that adapter is not used for another target
-        if (creditManager.adapterToContract(adapter) != address(0))
-            revert AdapterUsedTwiceException(); // F:[CC-14]
+        if (creditManager.adapterToContract(adapter) != address(0)) {
+            revert AdapterUsedTwiceException();
+        } // F:[CC-14]
 
         // If there is an existing adapter for the target contract, it has to be removed
         address currentAdapter = creditManager.contractToAdapter(
             targetContract
         );
         if (currentAdapter != address(0)) {
-            creditManager.changeContractAllowance(currentAdapter, address(0));
+            creditManager.changeContractAllowance(currentAdapter, address(0)); // F: [CC-15A]
         }
 
         // Sets a link between adapter and targetContract in creditFacade and creditManager
@@ -358,15 +383,16 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     function forbidContract(address targetContract)
         external
         override
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         // Checks that targetContract is not address(0)
         if (targetContract == address(0)) revert ZeroAddressException(); // F:[CC-12]
 
         // Checks that targetContract has a connected adapter
         address adapter = creditManager.contractToAdapter(targetContract);
-        if (adapter == address(0))
-            revert ContractIsNotAnAllowedAdapterException(); // F:[CC-16]
+        if (adapter == address(0)) {
+            revert ContractIsNotAnAllowedAdapterException();
+        } // F:[CC-16]
 
         // Sets both contractToAdapter[targetContract] and adapterToContract[adapter]
         // To address(0), which would make Credit Manager revert on attempts to
@@ -386,18 +412,18 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     ///      even though that is not intended.
     function forbidAdapter(address adapter) external override configuratorOnly {
         /// Sanity check that zero address was not passed
-        if (adapter == address(0)) revert ZeroAddressException();
+        if (adapter == address(0)) revert ZeroAddressException(); // F: [CC-40]
 
         /// If the adapter already has no linked target contract, then there is nothing to change
         address targetContract = creditManager.adapterToContract(adapter);
         if (targetContract == address(0)) {
-            revert ContractIsNotAnAllowedAdapterException();
+            revert ContractIsNotAnAllowedAdapterException(); // F: [CC-40]
         }
 
         /// Removes the adapter => target contract link only
-        creditManager.changeContractAllowance(adapter, address(0));
+        creditManager.changeContractAllowance(adapter, address(0)); // F: [CC-40]
 
-        emit AdapterForbidden(adapter);
+        emit AdapterForbidden(adapter); // F: [CC-40]
     }
 
     //
@@ -409,7 +435,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param _maxBorrowedAmount Maximum borrowed amount
     function setLimits(uint128 _minBorrowedAmount, uint128 _maxBorrowedAmount)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         _setLimits(_minBorrowedAmount, _maxBorrowedAmount);
     }
@@ -425,7 +451,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (
             _minBorrowedAmount > _maxBorrowedAmount ||
             _maxBorrowedAmount > blockLimit
-        ) revert IncorrectLimitsException(); // F:[CC-18]
+        ) {
+            revert IncorrectLimitsException();
+        } // F:[CC-18]
 
         // Sets limits in Credit Facade
         creditFacade().setCreditAccountLimits(
@@ -648,8 +676,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (_contract == address(0)) revert ZeroAddressException(); // F:[CC-12,29]
 
         // Checks that the address is a contract
-        if (!_contract.isContract())
-            revert AddressIsNotContractException(_contract); // F:[CC-12A,29]
+        if (!_contract.isContract()) {
+            revert AddressIsNotContractException(_contract);
+        } // F:[CC-12A,29]
 
         // Checks that the contract has a creditManager() function, which returns a correct value
         try CreditFacade(_contract).creditManager() returns (
@@ -665,11 +694,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// In Credit Facade (and, consequently, the Credit Manager)
     /// @param _mode Prohibits borrowing if true, and allows borrowing otherwise
     function setIncreaseDebtForbidden(bool _mode) external {
-        if (_mode && !_acl.isPausableAdmin(msg.sender))
+        if (!_acl.isPausableAdmin(msg.sender)) {
             revert CallerNotPausableAdminException();
-        else if (!_mode && !_acl.isUnpausableAdmin(msg.sender))
-            revert CallerNotUnPausableAdminException();
-
+        }
         _setIncreaseDebtForbidden(_mode);
     }
 
@@ -688,7 +715,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @param newLimit The new max borrowed amount per block
     function setLimitPerBlock(uint128 newLimit)
         external
-        configuratorOnly // F:[CC-2]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
         _setLimitPerBlock(newLimit); // F:[CC-33]
     }
@@ -766,7 +793,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/credit/liquidation#liquidating-accounts-by-expiration
     function setExpirationDate(uint40 newExpirationDate)
         external
-        configuratorOnly
+        configuratorOnly // F: [CC-38]
     {
         _setExpirationDate(newExpirationDate); // F: [CC-34]
     }
@@ -781,7 +808,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (
             expirationDate >= newExpirationDate ||
             block.timestamp > newExpirationDate
-        ) revert IncorrectExpirationDateException(); // F: [CC-34]
+        ) {
+            revert IncorrectExpirationDateException();
+        } // F: [CC-34]
 
         creditFacade().setExpirationDate(newExpirationDate); // F: [CC-34]
         emit ExpirationDateUpdated(newExpirationDate); // F: [CC-34]
@@ -794,9 +823,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     /// hence the number is limited
     function setMaxEnabledTokens(uint8 maxEnabledTokens)
         external
-        configuratorOnly // F: [CC-37]
+        controllerOnly // F:[CC-2] == TODO: Add contoller test
     {
-        _setMaxEnabledTokens(maxEnabledTokens);
+        _setMaxEnabledTokens(maxEnabledTokens); // F: [CC-37]
     }
 
     /// @dev IMPLEMENTATION: setMaxEnabledTokens

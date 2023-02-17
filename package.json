@@ -18,14 +18,15 @@
   "scripts": {
     "prepare": "husky install",
     "prettier": "prettier --write .",
-    "prettier:ci": "npx prettier --check ."
+    "prettier:ci": "npx prettier --check .",
+    "forge-install": "forge install --no-commit foundry-rs/forge-std"
   },
   "devDependencies": {
     "@chainlink/contracts": "^0.4.0",
     "@commitlint/cli": "^17.1.2",
     "@commitlint/config-conventional": "^17.1.0",
     "@gearbox-protocol/prettier-config": "^1.5.0",
-    "@openzeppelin/contracts": "^4.4.2",
+    "@openzeppelin/contracts": "^4.8.1",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
     "prettier": "^2.7.1",

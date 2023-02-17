@@ -14,13 +14,13 @@ import { UniversalAdapter } from "../../adapters/UniversalAdapter.sol";
 import { BotList } from "../../support/BotList.sol";
 
 //
-import { PercentageMath, PERCENTAGE_FACTOR, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
+import { PercentageMath, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
 import "../../libraries/Constants.sol";
 import { AddressList } from "../../libraries/AddressList.sol";
 
 // EXCEPTIONS
 import { ICreditConfiguratorExceptions } from "../../interfaces/ICreditConfigurator.sol";
-import { ZeroAddressException, AddressIsNotContractException, CallerNotConfiguratorException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../../interfaces/IErrors.sol";
+import { ZeroAddressException, AddressIsNotContractException, CallerNotConfiguratorException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException, CallerNotControllerException } from "../../interfaces/IErrors.sol";
 import { ICreditManagerV2Exceptions } from "../../interfaces/ICreditManagerV2.sol";
 
 // TEST
@@ -47,6 +47,7 @@ contract CreditConfiguratorTest is
     ICreditConfiguratorExceptions
 {
     using AddressList for address[];
+
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     TokensTestSuite tokenTestSuite;
@@ -90,7 +91,6 @@ contract CreditConfiguratorTest is
     //
     // HELPERS
     //
-
     function _compareParams(
         uint16 feeInterest,
         uint16 feeLiquidation,
@@ -148,7 +148,6 @@ contract CreditConfiguratorTest is
 
         /*
         NOTE: How to call create2
-
         create2(v, p, n, s)
         create new contract with code at memory p to p + n
         and send v wei
@@ -368,8 +367,7 @@ contract CreditConfiguratorTest is
             collateralTokens: cTokens,
             degenNFT: address(0),
             blacklistHelper: address(0),
-            expirable: false,
-            skipInit: false
+            expirable: false
         });
 
         creditManager = new CreditManager(address(cct.poolMock()));
@@ -442,25 +440,14 @@ contract CreditConfiguratorTest is
         creditConfigurator.addCollateralToken(DUMB_ADDRESS, 1);
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.setLiquidationThreshold(DUMB_ADDRESS, uint16(0));
-
-        evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.allowToken(DUMB_ADDRESS);
-
-        evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.forbidToken(DUMB_ADDRESS);
 
         // Contract mgmt
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.allowContract(DUMB_ADDRESS, DUMB_ADDRESS);
 
-        evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.forbidContract(DUMB_ADDRESS);
-
         // Credit manager mgmt
-        evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.setLimits(0, 0);
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.setFees(0, 0, 0, 0, 0);
@@ -476,9 +463,6 @@ contract CreditConfiguratorTest is
         creditConfigurator.upgradeCreditConfigurator(DUMB_ADDRESS);
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.setLimitPerBlock(0);
-
-        evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.setBotList(FRIEND);
 
         evm.stopPrank();
@@ -490,7 +474,7 @@ contract CreditConfiguratorTest is
         evm.expectRevert(CallerNotPausableAdminException.selector);
         creditConfigurator.setIncreaseDebtForbidden(true);
 
-        evm.expectRevert(CallerNotUnPausableAdminException.selector);
+        evm.expectRevert(CallerNotPausableAdminException.selector);
         creditConfigurator.setIncreaseDebtForbidden(false);
 
         evm.prank(CONFIGURATOR);
@@ -498,6 +482,25 @@ contract CreditConfiguratorTest is
 
         evm.prank(CONFIGURATOR);
         creditConfigurator.setIncreaseDebtForbidden(false);
+    }
+
+    function test_CC_02B_controllerOnly_functions_revert_on_non_controller()
+        public
+    {
+        evm.expectRevert(CallerNotControllerException.selector);
+        creditConfigurator.setLiquidationThreshold(DUMB_ADDRESS, uint16(0));
+
+        evm.expectRevert(CallerNotControllerException.selector);
+        creditConfigurator.forbidToken(DUMB_ADDRESS);
+
+        evm.expectRevert(CallerNotControllerException.selector);
+        creditConfigurator.forbidContract(DUMB_ADDRESS);
+
+        evm.expectRevert(CallerNotControllerException.selector);
+        creditConfigurator.setLimits(0, 0);
+
+        evm.expectRevert(CallerNotControllerException.selector);
+        creditConfigurator.setLimitPerBlock(0);
     }
 
     //
@@ -946,7 +949,6 @@ contract CreditConfiguratorTest is
         creditConfigurator.forbidContract(DUMB_COMPARTIBLE_CONTRACT);
 
         //
-
         allowedContracts = creditConfigurator.allowedContracts();
 
         assertEq(
@@ -1572,7 +1574,7 @@ contract CreditConfiguratorTest is
 
     /// @dev [CC-37]: setMaxEnabledTokens works correctly and emits event
     function test_CC_37_setMaxEnabledTokens_works_correctly() public {
-        evm.expectRevert(CallerNotConfiguratorException.selector);
+        evm.expectRevert(CallerNotControllerException.selector);
         creditConfigurator.setMaxEnabledTokens(255);
 
         evm.expectEmit(false, false, false, true);
@@ -1652,8 +1654,10 @@ contract CreditConfiguratorTest is
         );
     }
 
-    /// @dev [CC-41]: migrateAllowedContractsSet works correctly
-    function test_CC_41_migrateAllowedContractsSet_works_correctly() public {
+    /// @dev [CC-41]: allowedContracts migrate correctly
+    function test_CC_41_allowedContracts_are_migrated_correctly_for_new_CC()
+        public
+    {
         evm.prank(CONFIGURATOR);
         creditConfigurator.allowContract(TARGET_CONTRACT, address(adapter1));
 
@@ -1665,8 +1669,7 @@ contract CreditConfiguratorTest is
             collateralTokens: cTokens,
             degenNFT: address(0),
             blacklistHelper: address(0),
-            expirable: false,
-            skipInit: true
+            expirable: false
         });
 
         CreditConfigurator newCC = new CreditConfigurator(
@@ -1675,30 +1678,24 @@ contract CreditConfiguratorTest is
             creditOpts
         );
 
-        address[] memory allowedContracts = creditConfigurator
-            .allowedContracts();
-
-        {
-            address[] memory allowedContractsFalse = new address[](2);
-            allowedContractsFalse[0] = allowedContracts[0];
-            allowedContractsFalse[1] = DUMB_ADDRESS;
-
-            evm.expectRevert(ContractIsNotAnAllowedTargetException.selector);
-            evm.prank(CONFIGURATOR);
-            newCC.migrateAllowedContractsSet(allowedContractsFalse);
-        }
-
-        evm.prank(CONFIGURATOR);
-        newCC.migrateAllowedContractsSet(allowedContracts);
-
         assertEq(
             creditConfigurator.allowedContracts().length,
             newCC.allowedContracts().length,
             "Incorrect new allowed contracts array"
         );
 
-        evm.expectRevert(MigratableParameterAlreadySet.selector);
-        evm.prank(CONFIGURATOR);
-        newCC.migrateAllowedContractsSet(allowedContracts);
+        uint256 len = newCC.allowedContracts().length;
+
+        for (uint256 i = 0; i < len; ) {
+            assertEq(
+                creditConfigurator.allowedContracts()[i],
+                newCC.allowedContracts()[i],
+                "Allowed contracts migrated incorrectly"
+            );
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 }

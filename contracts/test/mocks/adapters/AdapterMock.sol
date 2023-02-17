@@ -20,14 +20,14 @@ contract AdapterMock is AbstractAdapter {
 
     /// @dev RISKY FAST CHECK, IT APPROVES MAX ALLOWANCE FOR EXTERNAL SC
     /// Could be used with proven major contracts like Uniswap or Curve
-    function executeMaxAllowanceFastCheck(
+    function executeMaxAllowance(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _executeMaxAllowanceFastCheck(
+        result = _executeMaxAllowance(
             tokenIn,
             tokenOut,
             callData,
@@ -38,7 +38,7 @@ contract AdapterMock is AbstractAdapter {
 
     /// @dev Keeps maximum allowance for third-party protocol
     /// Should be used for prime protocols proven wit time like Uniswap & Curve
-    function executeMaxAllowanceFastCheck(
+    function executeMaxAllowance(
         address creditAccount,
         address tokenIn,
         address tokenOut,
@@ -46,7 +46,7 @@ contract AdapterMock is AbstractAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _executeMaxAllowanceFastCheck(
+        result = _executeMaxAllowance(
             creditAccount,
             tokenIn,
             tokenOut,
@@ -56,14 +56,14 @@ contract AdapterMock is AbstractAdapter {
         );
     }
 
-    function safeExecuteFastCheck(
+    function safeExecute(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _safeExecuteFastCheck(
+        result = _safeExecute(
             tokenIn,
             tokenOut,
             callData,
@@ -72,7 +72,7 @@ contract AdapterMock is AbstractAdapter {
         );
     }
 
-    function safeExecuteFastCheck(
+    function safeExecute(
         address creditAccount,
         address tokenIn,
         address tokenOut,
@@ -80,7 +80,7 @@ contract AdapterMock is AbstractAdapter {
         bool allowTokenIn,
         bool disableTokenIn
     ) external returns (bytes memory result) {
-        result = _safeExecuteFastCheck(
+        result = _safeExecute(
             creditAccount,
             tokenIn,
             tokenOut,
@@ -97,16 +97,14 @@ contract AdapterMock is AbstractAdapter {
         result = _execute(callData);
     }
 
-    function fullCheck(address creditAccount) external {
-        _fullCheck(creditAccount);
-    }
+    // function fullCheck(address creditAccount) external {
+    //     _fullCheck(creditAccount);
+    // }
 
-    fallback() external {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        );
+    // fallback() external {
+    //     address creditAccount = creditManager.getCreditAccountOrRevert(msg.sender);
 
-        _execute(msg.data);
-        _fullCheck(creditAccount);
-    }
+    //     _execute(msg.data);
+    //     _fullCheck(creditAccount);
+    // }
 }

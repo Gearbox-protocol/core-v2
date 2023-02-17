@@ -4,6 +4,7 @@
 pragma solidity ^0.8.10;
 
 import { IPriceOracleV2 } from "./IPriceOracle.sol";
+import { QuotaUpdate } from "./IPoolQuotaKeeper.sol";
 import { IVersion } from "./IVersion.sol";
 
 enum ClosureAction {
@@ -66,7 +67,9 @@ interface ICreditManagerV2Exceptions {
     error TooManyEnabledTokensException();
 
     /// @dev Thrown when a reentrancy into the contract is attempted
-    error ReentrancyLockException();
+    // error ReentrancyLockException();
+
+    error CMDoesNotSupportQuotasException();
 }
 
 /// @notice All Credit Manager functions are access-restricted and can only be called
@@ -166,13 +169,11 @@ interface ICreditManagerV2 is
     /// @param to Address of new owner
     function transferAccountOwnership(address from, address to) external;
 
-    /// @dev Requests the Credit Account to approve a collateral token to another contract.
-    /// @param borrower Borrower's address
+    /// @dev Requests the Credit Account to approve a collateral token to another contract.\
     /// @param targetContract Spender to change allowance for
     /// @param token Collateral token to approve
     /// @param amount New allowance amount
     function approveCreditAccount(
-        address borrower,
         address targetContract,
         address token,
         uint256 amount
@@ -180,14 +181,11 @@ interface ICreditManagerV2 is
 
     /// @dev Requests a Credit Account to make a low-level call with provided data
     /// This is the intended pathway for state-changing interactions with 3rd-party protocols
-    /// @param borrower Borrower's address
     /// @param targetContract Contract to be called
     /// @param data Data to pass with the call
-    function executeOrder(
-        address borrower,
-        address targetContract,
-        bytes memory data
-    ) external returns (bytes memory);
+    function executeOrder(address targetContract, bytes memory data)
+        external
+        returns (bytes memory);
 
     //
     // COLLATERAL VALIDITY AND ACCOUNT HEALTH CHECKS
@@ -240,6 +238,28 @@ interface ICreditManagerV2 is
     function disableToken(address creditAccount, address token)
         external
         returns (bool);
+
+    //
+    // QUOTAS MANAGEMENT
+    //
+
+    // /// @dev Updates credit account's quota for given token
+    // /// @param creditAccount Address of credit account
+    // /// @param token Address of the token to change the quota for
+    // /// @param quotaChange Requested quota change in pool's underlying asset units
+    // function updateQuota(
+    //     address creditAccount,
+    //     address token,
+    //     int96 quotaChange
+    // ) external;
+
+    /// @dev Updates credit account's quotas for multiple tokens
+    /// @param creditAccount Address of credit account
+    /// @param quotaUpdates Requested quota updates, see `QuotaUpdate`
+    function updateQuotas(
+        address creditAccount,
+        QuotaUpdate[] memory quotaUpdates
+    ) external;
 
     //
     // GETTERS

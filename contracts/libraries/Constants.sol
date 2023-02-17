@@ -7,6 +7,7 @@ pragma solidity ^0.8.10;
 
 uint256 constant WAD = 1e18;
 uint256 constant RAY = 1e27;
+uint16 constant PERCENTAGE_FACTOR = 1e4;
 
 // 25% of type(uint256).max
 uint256 constant ALLOWANCE_THRESHOLD = type(uint96).max >> 3;

@@ -4,7 +4,7 @@
 pragma solidity ^0.8.10;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -29,7 +29,7 @@ import { Errors } from "../libraries/Errors.sol";
 ///   - Taking/repaying Credit Manager debt
 ///
 /// More: https://dev.gearbox.fi/developers/pools/pool-service
-contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
+contract PoolService is IPoolService, ACLNonReentrantTrait {
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
 
@@ -96,7 +96,7 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
         address _underlyingToken,
         address _interestRateModelAddress,
         uint256 _expectedLiquidityLimit
-    ) ACLTrait(_addressProvider) {
+    ) ACLNonReentrantTrait(_addressProvider) {
         require(
             _addressProvider != address(0) &&
                 _underlyingToken != address(0) &&
@@ -272,7 +272,8 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
             borrowAPY_RAY *
             timeDifference) /
             RAY /
-            SECONDS_PER_YEAR; // T:[PS-29]
+            SECONDS_PER_YEAR;
+        // T:[PS-29]
 
         return _expectedLiquidityLU + interestAccrued; // T:[PS-29]
     }
@@ -425,7 +426,8 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
         //
         uint256 linearAccumulated_RAY = RAY +
             (currentBorrowRate_RAY * timeDifference) /
-            SECONDS_PER_YEAR; // T:[GM-2]
+            SECONDS_PER_YEAR;
+        // T:[GM-2]
 
         return (cumulativeIndex_RAY * linearAccumulated_RAY) / RAY; // T:[GM-2]
     }

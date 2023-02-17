@@ -86,12 +86,7 @@ contract UniversalAdapter is IUniversalAdapter {
             uint256 allowance = IERC20(token).allowance(creditAccount, spender);
 
             if (allowance > 1) {
-                creditManager.approveCreditAccount(
-                    msg.sender,
-                    spender,
-                    token,
-                    1
-                );
+                creditManager.approveCreditAccount(spender, token, 1);
             }
 
             unchecked {

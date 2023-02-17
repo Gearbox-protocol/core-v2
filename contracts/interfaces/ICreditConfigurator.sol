@@ -2,6 +2,7 @@
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
+
 import { IAddressProvider } from "./IAddressProvider.sol";
 import { CreditManager } from "../credit/CreditManager.sol";
 import { CreditFacade } from "../credit/CreditFacade.sol";
@@ -29,8 +30,6 @@ struct CreditManagerOpts {
     address blacklistHelper;
     /// @dev Whether the Credit Manager is connected to an expirable pool (and the CreditFacade is expirable)
     bool expirable;
-    /// @dev Whether to skip normal initialization - used for new Credit Configurators that are deployed for existing CMs
-    bool skipInit;
 }
 
 interface ICreditConfiguratorEvents {

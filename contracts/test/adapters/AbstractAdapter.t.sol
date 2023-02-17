@@ -130,22 +130,16 @@ contract AbstractAdapterTest is
         evm.expectRevert(
             ICreditManagerV2Exceptions.HasNoOpenedAccountException.selector
         );
-        adapterMock.executeMaxAllowanceFastCheck(
-            usdc,
-            dai,
-            DUMB_CALLDATA,
-            true,
-            false
-        );
+        adapterMock.executeMaxAllowance(usdc, dai, DUMB_CALLDATA, true, false);
 
         evm.expectRevert(
             ICreditManagerV2Exceptions.HasNoOpenedAccountException.selector
         );
-        adapterMock.safeExecuteFastCheck(usdc, dai, DUMB_CALLDATA, true, false);
+        adapterMock.safeExecute(usdc, dai, DUMB_CALLDATA, true, false);
     }
 
-    /// @dev [AA-3A]: AbstractAdapter _executeMaxAllowanceFastCheck correctly passes parameters to CreditManager
-    function test_AA_04A_executeMaxAllowanceFastCheck_correctly_passes_to_credit_manager()
+    /// @dev [AA-3A]: AbstractAdapter _executeMaxAllowance correctly passes parameters to CreditManager
+    function test_AA_04A_executeMaxAllowance_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -178,16 +172,10 @@ contract AbstractAdapterTest is
         );
 
         evm.prank(USER);
-        adapterMock.executeMaxAllowanceFastCheck(
-            usdc,
-            dai,
-            DUMB_CALLDATA,
-            true,
-            false
-        );
+        adapterMock.executeMaxAllowance(usdc, dai, DUMB_CALLDATA, true, false);
     }
 
-    function test_AA_04B_executeMaxAllowanceFastCheck_correctly_passes_to_credit_manager()
+    function test_AA_04B_executeMaxAllowance_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -201,7 +189,7 @@ contract AbstractAdapterTest is
         calls[0] = MultiCall({
             target: address(adapterMock),
             callData: abi.encodeWithSignature(
-                "executeMaxAllowanceFastCheck(address,address,address,bytes,bool,bool)",
+                "executeMaxAllowance(address,address,address,bytes,bool,bool)",
                 ca,
                 usdc,
                 dai,
@@ -243,10 +231,8 @@ contract AbstractAdapterTest is
         creditFacade.multicall(calls);
     }
 
-    /// @dev [AA-5]: AbstractAdapter _executeMaxAllowanceFastCheck correctly sets max allowance
-    function test_AA_05_executeMaxAllowanceFastCheck_correctly_sets_allowance()
-        public
-    {
+    /// @dev [AA-5]: AbstractAdapter _executeMaxAllowance correctly sets max allowance
+    function test_AA_05_executeMaxAllowance_correctly_sets_allowance() public {
         for (uint256 ai = 0; ai < 2; ai++) {
             bool allowTokenIn = ai != 0;
 
@@ -261,7 +247,7 @@ contract AbstractAdapterTest is
 
             expectAllowance(Tokens.USDC, ca, address(targetMock), 0);
 
-            if (allowTokenIn)
+            if (allowTokenIn) {
                 evm.expectCall(
                     usdc,
                     abi.encodeWithSelector(
@@ -270,8 +256,9 @@ contract AbstractAdapterTest is
                         type(uint256).max
                     )
                 );
+            }
 
-            if (allowTokenIn)
+            if (allowTokenIn) {
                 evm.expectCall(
                     usdc,
                     abi.encodeWithSelector(
@@ -280,9 +267,10 @@ contract AbstractAdapterTest is
                         type(uint256).max
                     )
                 );
+            }
 
             evm.prank(USER);
-            adapterMock.executeMaxAllowanceFastCheck(
+            adapterMock.executeMaxAllowance(
                 usdc,
                 dai,
                 DUMB_CALLDATA,
@@ -290,18 +278,19 @@ contract AbstractAdapterTest is
                 false
             );
 
-            if (allowTokenIn)
+            if (allowTokenIn) {
                 expectAllowance(
                     Tokens.USDC,
                     ca,
                     address(targetMock),
                     type(uint256).max
                 );
+            }
         }
     }
 
-    /// @dev [AA-6]: AbstractAdapter _executeSafeFastCheck correctly passes parameters to CreditManager
-    function test_AA_06A_executeSafeFastCheck_correctly_passes_to_credit_manager()
+    /// @dev [AA-6]: AbstractAdapter _executeSafe correctly passes parameters to CreditManager
+    function test_AA_06A_executeSafe_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -334,10 +323,10 @@ contract AbstractAdapterTest is
         );
 
         evm.prank(USER);
-        adapterMock.safeExecuteFastCheck(usdc, dai, DUMB_CALLDATA, true, false);
+        adapterMock.safeExecute(usdc, dai, DUMB_CALLDATA, true, false);
     }
 
-    function test_AA_06B_executeSafeFastCheck_correctly_passes_to_credit_manager()
+    function test_AA_06B_executeSafe_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -351,7 +340,7 @@ contract AbstractAdapterTest is
         calls[0] = MultiCall({
             target: address(adapterMock),
             callData: abi.encodeWithSignature(
-                "safeExecuteFastCheck(address,address,address,bytes,bool,bool)",
+                "safeExecute(address,address,address,bytes,bool,bool)",
                 ca,
                 usdc,
                 dai,
@@ -393,8 +382,8 @@ contract AbstractAdapterTest is
         creditFacade.multicall(calls);
     }
 
-    /// @dev [AA-7]: AbstractAdapter _executeSafeFastCheck correct sets allowances
-    function test_AA_07_executeSafeFastCheck_correctly_sets_allowance() public {
+    /// @dev [AA-7]: AbstractAdapter _executeSafe correct sets allowances
+    function test_AA_07_executeSafe_correctly_sets_allowance() public {
         (address ca, ) = _openTestCreditAccount();
 
         expectAllowance(Tokens.DAI, ca, address(targetMock), 0);
@@ -418,7 +407,7 @@ contract AbstractAdapterTest is
         );
 
         evm.prank(USER);
-        adapterMock.safeExecuteFastCheck(dai, usdc, "calldata", true, false);
+        adapterMock.safeExecute(dai, usdc, "calldata", true, false);
 
         expectAllowance(Tokens.DAI, ca, address(targetMock), 1);
     }
@@ -446,24 +435,20 @@ contract AbstractAdapterTest is
         adapterMock.execute(DUMB_CALLDATA);
     }
 
-    /// @dev [AA-8B]: AbstractAdapter _fullCheck correctly passes parameters to CreditManager
-    function test_AA_08A_fullCheck_correctly_passes_to_credit_manager() public {
-        (address ca, ) = _openTestCreditAccount();
+    // /// @dev [AA-8B]: AbstractAdapter _fullCheck correctly passes parameters to CreditManager
+    // function test_AA_08A_fullCheck_correctly_passes_to_credit_manager() public {
+    //     (address ca,) = _openTestCreditAccount();
 
-        evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(
-                ICreditManagerV2.fullCollateralCheck.selector,
-                ca
-            )
-        );
+    //     evm.expectCall(
+    //         address(creditManager), abi.encodeWithSelector(ICreditManagerV2.fullCollateralCheck.selector, ca)
+    //     );
 
-        evm.prank(USER);
-        adapterMock.fullCheck(ca);
-    }
+    //     evm.prank(USER);
+    //     adapterMock.fullCheck(ca);
+    // }
 
-    /// @dev [AA-8C]: AbstractAdapter _executeMaxAllowanceFastCheck correctly passes parameters to CreditManager
-    function test_AA_08C_executeMaxAllowanceFastCheck_correctly_passes_to_credit_manager()
+    /// @dev [AA-8C]: AbstractAdapter _executeMaxAllowance correctly passes parameters to CreditManager
+    function test_AA_08C_executeMaxAllowance_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -487,29 +472,29 @@ contract AbstractAdapterTest is
         );
     }
 
-    /// @dev [AA-09]: AbstractAdapter works correctly after changing CreditFacade
-    function test_AA_09_adapter_correctly_detects_CreditFacade_change() public {
-        (address ca, ) = _openTestCreditAccount();
+    // /// @dev [AA-09]: AbstractAdapter works correctly after changing CreditFacade
+    // function test_AA_09_adapter_correctly_detects_CreditFacade_change() public {
+    //     (address ca,) = _openTestCreditAccount();
 
-        _makeAccountsLiquitable();
+    //     _makeAccountsLiquitable();
 
-        evm.expectRevert(NotEnoughCollateralException.selector);
-        adapterMock.fullCheck(ca);
+    //     evm.expectRevert(NotEnoughCollateralException.selector);
+    //     adapterMock.fullCheck(ca);
 
-        evm.startPrank(CONFIGURATOR);
+    //     evm.startPrank(CONFIGURATOR);
 
-        CreditFacade newCreditFacade = new CreditFacade(
-            address(creditManager),
-            address(0),
-            address(0),
-            false
-        );
+    //     CreditFacade newCreditFacade = new CreditFacade(
+    //         address(creditManager),
+    //         address(0),
+    //         address(0),
+    //         false
+    //     );
 
-        creditConfigurator.upgradeCreditFacade(address(newCreditFacade), true);
+    //     creditConfigurator.upgradeCreditFacade(address(newCreditFacade), true);
 
-        evm.stopPrank();
+    //     evm.stopPrank();
 
-        evm.prank(address(newCreditFacade));
-        adapterMock.fullCheck(ca);
-    }
+    //     evm.prank(address(newCreditFacade));
+    //     adapterMock.fullCheck(ca);
+    // }
 }

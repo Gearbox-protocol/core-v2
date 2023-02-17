@@ -43,8 +43,9 @@ contract CreditAccount is ICreditAccount, Initializable {
 
     /// @dev Restricts operations to the connected Credit Manager only
     modifier creditManagerOnly() {
-        if (msg.sender != creditManager)
+        if (msg.sender != creditManager) {
             revert CallerNotCreditManagerException();
+        }
         _;
     }
 

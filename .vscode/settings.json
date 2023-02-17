@@ -3,7 +3,7 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[solidity]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
   },
 
   "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -11,7 +11,7 @@
   "editor.tabSize": 2,
   "eslint.validate": ["javascript", "typescript"],
   "files.eol": "\n",
-  "solidity.formatter": "prettier",
+  "solidity.formatter": "forge",
   "solidity.packageDefaultDependenciesContractsDirectory": "contracts",
   "solidity.packageDefaultDependenciesDirectory": "node_modules",
   "solidity.remappings": [

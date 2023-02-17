@@ -2,6 +2,7 @@
 // Gearbox. Generalized leverage protocol that allows to take leverage and then use it across other DeFi protocols and platforms in a composable way.
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
+
 pragma abicoder v2;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -39,8 +40,9 @@ abstract contract ContractUpgrader is Ownable {
     }
 
     function destoy() external onlyOwner {
-        if (ACL(addressProvider.getACL()).owner() == address(this))
+        if (ACL(addressProvider.getACL()).owner() == address(this)) {
             revert RootSelfDestoyException();
+        }
         selfdestruct(payable(msg.sender));
     }
 }

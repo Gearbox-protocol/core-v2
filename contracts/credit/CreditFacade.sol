@@ -11,6 +11,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuar
 //  DATA
 import { MultiCall } from "../libraries/MultiCall.sol";
 import { Balance, BalanceOps } from "../libraries/Balances.sol";
+import { QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
 
 /// INTERFACES
 import { ICreditFacade, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
@@ -105,8 +106,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Restricts actions for users with opened credit accounts only
     modifier creditConfiguratorOnly() {
-        if (msg.sender != creditManager.creditConfigurator())
+        if (msg.sender != creditManager.creditConfigurator()) {
             revert CreditConfiguratorOnlyException();
+        }
 
         _;
     }
@@ -188,8 +190,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // In order for the account to pass the health check after opening,
         // the inequality "(amount + borrowedAmount) * LTU > borrowedAmount" must hold
         // this can be transformed into "amount * LTU > borrowedAmount * (1 - LTU)"
-        if (amount * ltu <= borrowedAmount * (PERCENTAGE_FACTOR - ltu))
-            revert NotEnoughCollateralException(); // F:[FA-6]
+        if (amount * ltu <= borrowedAmount * (PERCENTAGE_FACTOR - ltu)) {
+            revert NotEnoughCollateralException();
+        } // F:[FA-6]
 
         // Opens credit accnount and borrows funds from the pool
         // Returns the new credit account's address
@@ -256,8 +259,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // F:[FA-10]: no free flashloans through opening a Credit Account
         // and immediately decreasing debt
-        if (calls.length != 0)
-            _multicall(calls, onBehalfOf, creditAccount, false, true); // F:[FA-8]
+        if (calls.length != 0) {
+            _multicall(calls, onBehalfOf, creditAccount, false, true);
+        } // F:[FA-8]
 
         // Checks that the new credit account has enough collateral to cover the debt
         creditManager.fullCollateralCheck(creditAccount); // F:[FA-8, 9]
@@ -294,8 +298,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _wrapETH(); // F:[FA-3C]
 
         // [FA-13]: Calls to CreditFacade are forbidden during closure
-        if (calls.length != 0)
-            _multicall(calls, msg.sender, creditAccount, true, false); // F:[FA-2, 12, 13]
+        if (calls.length != 0) {
+            _multicall(calls, msg.sender, creditAccount, true, false);
+        } // F:[FA-2, 12, 13]
 
         // Requests the Credit manager to close the Credit Account
         creditManager.closeCreditAccount(
@@ -358,8 +363,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         ); // F:[FA-14]
 
         // An account can't be liquidated if hf >= 1
-        if (!isLiquidatable)
-            revert CantLiquidateWithSuchHealthFactorException(); // F:[FA-14]
+        if (!isLiquidatable) {
+            revert CantLiquidateWithSuchHealthFactorException();
+        } // F:[FA-14]
 
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3D]
@@ -368,8 +374,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // Checks if the liquidation is done while the contract is paused
             bool emergencyLiquidation = _checkIfEmergencyLiquidator(true);
 
-            if (calls.length != 0)
-                _multicall(calls, borrower, creditAccount, true, false); // F:[FA-15]
+            if (calls.length != 0) {
+                _multicall(calls, borrower, creditAccount, true, false);
+            } // F:[FA-15]
 
             if (emergencyLiquidation) {
                 _checkIfEmergencyLiquidator(false);
@@ -458,14 +465,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Checks if the liquidsation during pause
         bool emergencyLiquidation = _checkIfEmergencyLiquidator(true);
 
-        if (calls.length != 0)
-            _multicall(calls, borrower, creditAccount, true, false); // F:[FA-49]
+        if (calls.length != 0) {
+            _multicall(calls, borrower, creditAccount, true, false);
+        } // F:[FA-49]
 
         if (emergencyLiquidation) {
             _checkIfEmergencyLiquidator(false);
         }
 
-        bool blacklisted;
+        /// @notice Keeps balcklistHelper balance and used as a flag (>0 - that blacklist helper is enabled)
+        uint256 blacklistedBalanceBefore;
 
         // If the borrower is blacklisted, transfer the account to a special recovery contract,
         // so that the attempt to transfer remaining funds to a blacklisted borrower does not
@@ -478,12 +487,14 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             )
         ) {
             creditManager.transferAccountOwnership(borrower, blacklistHelper);
-            blacklisted = true;
+            blacklistedBalanceBefore =
+                IERC20(underlying).balanceOf(blacklistHelper) +
+                1; // +1 is added to use the var as a flag
         }
 
         // Liquidates the CA and sends the remaining funds to the borrower
         uint256 remainingFunds = creditManager.closeCreditAccount(
-            blacklisted ? blacklistHelper : borrower,
+            blacklistedBalanceBefore > 0 ? blacklistHelper : borrower,
             ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT,
             totalValue,
             msg.sender,
@@ -494,12 +505,14 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
         /// borrower can recover funds to a different address
-        if (blacklisted && remainingFunds > 1) {
+        if (blacklistedBalanceBefore > 0 && remainingFunds > 1) {
             IBlacklistHelper(blacklistHelper).addClaimable(
                 underlying,
                 borrower,
-                remainingFunds
+                IERC20(underlying).balanceOf(blacklistHelper) -
+                    blacklistedBalanceBefore
             );
+            // TODO: add event that funds were traffered to BlackListHelper
         }
 
         // Emits event
@@ -536,8 +549,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         uint256 amount
     ) internal {
         // It is forbidden to take new debt if increaseDebtForbidden mode is enabled
-        if (params.isIncreaseDebtForbidden)
-            revert IncreaseDebtForbiddenException(); // F:[FA-18C]
+        if (params.isIncreaseDebtForbidden) {
+            revert IncreaseDebtForbiddenException();
+        } // F:[FA-18C]
 
         // Checks that the borrowed amount does not violate the per block limit
         _checkAndUpdateBorrowedBlockLimit(amount); // F:[FA-18A]
@@ -776,7 +790,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                     if (
                         method !=
                         ICreditFacadeExtended.revertIfReceivedLessThan.selector
-                    ) revert ForbiddenDuringClosureException(); // F:[FA-13]
+                    ) {
+                        revert ForbiddenDuringClosureException();
+                    } // F:[FA-13]
                 }
 
                 //
@@ -821,8 +837,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // If expectedBalances was set by calling revertIfGetLessThan,
         // checks that actual token balances are not less than expected balances
-        if (expectedBalances.length != 0)
+        if (expectedBalances.length != 0) {
             _compareBalances(expectedBalances, creditAccount);
+        }
 
         // Emits event for multicall end - used in analytics to track actions within multicalls
         emit MultiCallFinished(); // F:[FA-27,27,29]
@@ -864,8 +881,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // contains deltas that are added to the current balances
             // Calling this function again could potentially override old values
             // and cause confusion, especially if called later in the MultiCall
-            if (expectedBalances.length != 0)
-                revert ExpectedBalancesAlreadySetException(); // F:[FA-45A]
+            if (expectedBalances.length != 0) {
+                revert ExpectedBalancesAlreadySetException();
+            } // F:[FA-45A]
 
             // Retrieves the balance list from calldata
             expectedBalances = abi.decode(callData[4:], (Balance[])); // F:[FA-45]
@@ -911,8 +929,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         else if (method == ICreditFacade.decreaseDebt.selector) {
             // it's forbidden to call decreaseDebt after increaseDebt, in the same multicall
-            if (increaseDebtWasCalled)
-                revert IncreaseAndDecreaseForbiddenInOneCallException(); // F:[FA-28]
+            if (increaseDebtWasCalled) {
+                revert IncreaseAndDecreaseForbiddenInOneCallException();
+            } // F:[FA-28]
 
             // Parses parameters from calldata
             uint256 amount = abi.decode(callData[4:], (uint256)); // F:[FA-27]
@@ -932,7 +951,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // DISABLE TOKEN
         //
-        // This is an extenstion method used to disable tokens on a Credit Account
+        // This is an extension method used to disable tokens on a Credit Account
         // Can be used to remove troublesome tokens (e.g., forbidden tokens) from an account
         else if (method == ICreditFacadeExtended.disableToken.selector) {
             // Parses token
@@ -940,6 +959,31 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
             // Executes disableToken for creditAccount
             _disableToken(borrower, creditAccount, token); // F: [FA-54]
+        }
+        // //
+        // // UPDATE QUOTA
+        // //
+        // // This is an extension method that allows borrowers to increase or decrease their
+        // // Credit Account's quota for given token. Higher quota allows larger fraction of
+        // // token balance to be accounted for in collateral calculations, but account must
+        // // pay higher risk fee for this
+        // else if (method == ICreditFacadeExtended.updateQuota.selector) {
+        //     (address token, int96 quotaChange) = abi.decode(
+        //         callData[4:],
+        //         (address, int96)
+        //     );
+        //     creditManager.updateQuota(creditAccount, token, quotaChange);
+        // }
+        //
+        // UPDATE QUOTAS
+        //
+        // Same as the previous one, but updates quotas for multiple tokens in batch
+        else if (method == ICreditFacadeExtended.updateQuotas.selector) {
+            QuotaUpdate[] memory quotaUpdates = abi.decode(
+                callData[4:],
+                (QuotaUpdate[])
+            );
+            creditManager.updateQuotas(creditAccount, quotaUpdates);
         } else {
             // Reverts if the passed selector is unrecognized
             revert UnknownMethodException(); // F:[FA-23]
@@ -980,7 +1024,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             if (
                 IERC20(expected[i].token).balanceOf(creditAccount) <
                 expected[i].balance
-            ) revert BalanceLessThanMinimumDesiredException(expected[i].token); // F:[FA-45]
+            ) {
+                revert BalanceLessThanMinimumDesiredException(
+                    expected[i].token
+                );
+            } // F:[FA-45]
             unchecked {
                 ++i;
             }
@@ -1003,17 +1051,17 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (
             creditManager.contractToAdapter(targetContract) == address(0) ||
             upgradeableContracts.contains(targetContract)
-        )
+        ) {
             // F: [FA-51]
-            revert TargetContractNotAllowedException(); // F:[FA-30]
+            revert TargetContractNotAllowedException();
+        } // F:[FA-30]
+
+        /// TODO: transfer account to CF
 
         // Requests Credit Manager to set token allowance from Credit Account to contract
-        creditManager.approveCreditAccount(
-            msg.sender,
-            targetContract,
-            token,
-            amount
-        ); // F:[FA-31]
+        creditManager.approveCreditAccount(targetContract, token, amount); // F:[FA-31]
+
+        /// TODO: transfer account back
     }
 
     /// @dev Transfers credit account to another user
@@ -1035,8 +1083,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         ); // F:[FA-2]
 
         // Checks that transfer is allowed
-        if (!transfersAllowed[msg.sender][to])
-            revert AccountTransferNotAllowedException(); // F:[FA-33]
+        if (!transfersAllowed[msg.sender][to]) {
+            revert AccountTransferNotAllowedException();
+        } // F:[FA-33]
 
         /// Checks that the account hf > 1, as it is forbidden to transfer
         /// accounts that are liquidatable
@@ -1060,8 +1109,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @param onBehalfOf Account which would own credit account
     function _revertIfOpenCreditAccountNotAllowed(address onBehalfOf) internal {
         // Opening new Credit Accounts is prohibited in increaseDebtForbidden mode
-        if (params.isIncreaseDebtForbidden)
-            revert IncreaseDebtForbiddenException(); // F:[FA-7]
+        if (params.isIncreaseDebtForbidden) {
+            revert IncreaseDebtForbiddenException();
+        } // F:[FA-7]
 
         // Checks that this CreditFacade is not expired
         if (_isExpired()) {
@@ -1085,8 +1135,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
             // In whitelisted mode, users can only open an account by burning a DegenNFT
             // And opening an account for another address is forbidden
-            if (whitelisted && msg.sender != onBehalfOf)
-                revert NotAllowedInWhitelistedMode(); // F:[FA-4B]
+            if (whitelisted && msg.sender != onBehalfOf) {
+                revert NotAllowedInWhitelistedMode();
+            } // F:[FA-4B]
 
             IDegenNFT(degenNFT).burn(onBehalfOf, 1); // F:[FA-4B]
         }
@@ -1105,7 +1156,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (
             msg.sender != onBehalfOf &&
             !transfersAllowed[msg.sender][onBehalfOf]
-        ) revert AccountTransferNotAllowedException(); // F:[FA-04C]
+        ) {
+            revert AccountTransferNotAllowedException();
+        } // F:[FA-04C]
     }
 
     /// @dev Checks that the per-block borrow limit was not violated and updates the
@@ -1128,8 +1181,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                     ? amount + lastLimit // F:[FA-37]
                     : amount; // F:[FA-18, 37]
 
-                if (newLimit > _limitPerBlock)
-                    revert BorrowedBlockLimitException(); // F:[FA-18]
+                if (newLimit > _limitPerBlock) {
+                    revert BorrowedBlockLimitException();
+                } // F:[FA-18]
 
                 _updateTotalBorrowedInBlock(uint128(newLimit)); // F:[FA-37]
             }
@@ -1146,7 +1200,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (
             borrowedAmount < uint256(limits.minBorrowedAmount) ||
             borrowedAmount > uint256(limits.maxBorrowedAmount)
-        ) revert BorrowAmountOutOfLimitsException(); // F:
+        ) {
+            revert BorrowAmountOutOfLimitsException();
+        } // F:
     }
 
     function _checkIfEmergencyLiquidator(bool state) internal returns (bool) {
@@ -1228,6 +1284,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         } // F: [FA-54]
     }
 
+    //
     // GETTERS
     //
 

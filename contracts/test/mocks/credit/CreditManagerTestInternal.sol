@@ -23,7 +23,7 @@ contract CreditManagerTestInternal is CreditManager {
     function setCumulativeDropAtFastCheck(address creditAccount, uint16 value)
         external
     {
-        cumulativeDropAtFastCheckRAY[creditAccount] = value;
+        // cumulativeDropAtFastCheckRAY[creditAccount] = value;
     }
 
     function calcNewCumulativeIndex(

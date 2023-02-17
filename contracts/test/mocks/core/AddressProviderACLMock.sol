@@ -14,10 +14,13 @@ contract AddressProviderACLMock {
     address public getPriceOracle;
     mapping(address => address) public priceFeeds;
 
+    address public owner;
+
     constructor() {
         getACL = address(this);
         getPriceOracle = address(this);
         isConfigurator[msg.sender] = true;
+        owner = msg.sender;
     }
 
     function setPriceFeed(address token, address feed) external {

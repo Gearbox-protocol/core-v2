@@ -10,7 +10,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
 import { PriceFeedChecker } from "./PriceFeedChecker.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 // CONSTANTS
 
@@ -27,7 +27,7 @@ uint256 constant DECIMALS_SHIFT = 162;
 
 /// @title Price Oracle based on Chainlink's price feeds
 /// @notice Works as router and provide cross rates using converting via USD
-contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
+contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     using Address for address;
 
     /// @dev Map of token addresses to corresponding price feeds and their parameters,
@@ -38,7 +38,7 @@ contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
     uint256 public constant version = 2;
 
     constructor(address addressProvider, PriceFeedConfig[] memory defaults)
-        ACLTrait(addressProvider)
+        ACLNonReentrantTrait(addressProvider)
     {
         uint256 len = defaults.length;
         for (uint256 i = 0; i < len; ) {
@@ -64,13 +64,15 @@ contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
     /// @param token Address of the token to set the price feed for
     /// @param priceFeed Address of a USD price feed adhering to Chainlink's interface
     function _addPriceFeed(address token, address priceFeed) internal {
-        if (token == address(0) || priceFeed == address(0))
-            revert ZeroAddressException(); // F:[PO-2]
+        if (token == address(0) || priceFeed == address(0)) {
+            revert ZeroAddressException();
+        } // F:[PO-2]
 
         if (!token.isContract()) revert AddressIsNotContractException(token); // F:[PO-2]
 
-        if (!priceFeed.isContract())
-            revert AddressIsNotContractException(priceFeed); // F:[PO-2]
+        if (!priceFeed.isContract()) {
+            revert AddressIsNotContractException(priceFeed);
+        } // F:[PO-2]
 
         try AggregatorV3Interface(priceFeed).decimals() returns (
             uint8 _decimals
@@ -103,8 +105,9 @@ contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
             uint80 answeredInRound
         ) {
             // Checks result if skipCheck is not set
-            if (!skipCheck)
+            if (!skipCheck) {
                 _checkAnswer(roundID, price, updatedAt, answeredInRound);
+            }
         } catch {
             revert IncorrectPriceFeedException(); // F:[PO-2]
         }
@@ -134,7 +137,6 @@ contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
         address priceFeed;
         bool skipCheck;
         (priceFeed, skipCheck, decimals) = priceFeedsWithFlags(token); //
-
         (
             uint80 roundID,
             int256 _price,
@@ -144,8 +146,9 @@ contract PriceOracle is ACLTrait, IPriceOracleV2, PriceFeedChecker {
         ) = AggregatorV3Interface(priceFeed).latestRoundData(); // F:[PO-6]
 
         // Checks if SKIP_PRICE_CHECK_FLAG is not set
-        if (!skipCheck)
-            _checkAnswer(roundID, _price, updatedAt, answeredInRound); // F:[PO-5]
+        if (!skipCheck) {
+            _checkAnswer(roundID, _price, updatedAt, answeredInRound);
+        } // F:[PO-5]
 
         price = (uint256(_price)); // F:[PO-6]
     }

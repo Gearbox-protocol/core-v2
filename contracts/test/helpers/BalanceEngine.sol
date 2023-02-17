@@ -27,7 +27,7 @@ contract BalanceEngine is DSTest {
     ) internal {
         uint256 balance = IERC20(token).balanceOf(holder);
 
-        if (balance < minBalance)
+        if (balance < minBalance) {
             emit log_named_address(
                 string(
                     abi.encodePacked(
@@ -39,6 +39,7 @@ contract BalanceEngine is DSTest {
                 ),
                 holder
             );
+        }
 
         assertGe(balance, minBalance);
     }
@@ -51,7 +52,7 @@ contract BalanceEngine is DSTest {
     ) internal {
         uint256 balance = IERC20(token).balanceOf(holder);
 
-        if (balance > maxBalance)
+        if (balance > maxBalance) {
             emit log_named_address(
                 string(
                     abi.encodePacked(
@@ -63,6 +64,7 @@ contract BalanceEngine is DSTest {
                 ),
                 holder
             );
+        }
 
         assertLe(balance, maxBalance);
     }
@@ -75,7 +77,7 @@ contract BalanceEngine is DSTest {
     ) internal {
         uint256 balance = IERC20(token).balanceOf(holder);
 
-        if (balance != expectedBalance)
+        if (balance != expectedBalance) {
             emit log_named_address(
                 string(
                     abi.encodePacked(
@@ -87,6 +89,7 @@ contract BalanceEngine is DSTest {
                 ),
                 holder
             );
+        }
 
         assertEq(balance, expectedBalance);
     }
@@ -103,7 +106,7 @@ contract BalanceEngine is DSTest {
         string memory reason
     ) internal {
         uint256 balance = account.balance;
-        if (balance != expectedBalance)
+        if (balance != expectedBalance) {
             emit log_named_address(
                 string(
                     abi.encodePacked(
@@ -113,6 +116,7 @@ contract BalanceEngine is DSTest {
                 ),
                 account
             );
+        }
 
         assertEq(balance, expectedBalance);
     }

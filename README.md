@@ -43,7 +43,7 @@ This directory contains code used for third-party integration. Since this reposi
 This directory contains protocol contracts related to access, contract discovery, data reporting, etc.
 
 1. `AccountFactory.sol` is used to deploy Credit Accounts and managed the existing Credit Account queue. Credit Managers take accounts from the factory when a new account in Gearbox is opened and return them after the account is closed.
-2. `ACL.sol` is the main access control contract in the system. Contracts that inherit `ACLTrait.sol` use `ACL.sol` to determine access to configurator-only functions.
+2. `ACL.sol` is the main access control contract in the system. Contracts that inherit `ACLNonReentrantTrait.sol` use `ACL.sol` to determine access to configurator-only functions.
 3. `AddressProvider.sol` is used by other contracts in the system to determine the up-to-date addresses of core contracts, such as `ACL`, `PriceOracle`, `GearToken`, etc.
 4. `ContractsRegister.sol` contains a list of legitimate Gearbox Credit Managers and pools connected to the system.
 5. `DataCompressor.sol` is used to retrieve detailed data on particular Credit Managers and Credit Accounts.

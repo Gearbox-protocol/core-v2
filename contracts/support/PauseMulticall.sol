@@ -2,23 +2,27 @@
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
-import { ACLTrait } from "../core/ACLTrait.sol";
+
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { ACL } from "../core/ACL.sol";
 import { ContractsRegister } from "../core/ContractsRegister.sol";
 import { CallerNotPausableAdminException } from "../interfaces/IErrors.sol";
 
-contract PauseMulticall is ACLTrait {
+contract PauseMulticall is ACLNonReentrantTrait {
     ACL public immutable acl;
     ContractsRegister public immutable cr;
 
     modifier pausableAdminOnly() {
-        if (!acl.isPausableAdmin(msg.sender))
-            revert CallerNotPausableAdminException(); // F:[PM-05]
+        if (!acl.isPausableAdmin(msg.sender)) {
+            revert CallerNotPausableAdminException();
+        } // F:[PM-05]
         _;
     }
 
-    constructor(address _addressProvider) ACLTrait(_addressProvider) {
+    constructor(address _addressProvider)
+        ACLNonReentrantTrait(_addressProvider)
+    {
         IAddressProvider ap = IAddressProvider(_addressProvider);
         acl = ACL(ap.getACL()); // F: [PM-01]
 
@@ -54,7 +58,7 @@ contract PauseMulticall is ACLTrait {
         uint256 len = contractsToPause.length;
         for (uint256 i = 0; i < len; ) {
             // try-catch block to ignore some contracts which are already paused
-            try ACLTrait(contractsToPause[i]).pause() {} catch {}
+            try ACLNonReentrantTrait(contractsToPause[i]).pause() {} catch {}
             unchecked {
                 ++i;
             }

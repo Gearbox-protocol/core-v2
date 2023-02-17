@@ -2,6 +2,7 @@
 // Gearbox. Generalized leverage protocol that allows to take leverage and then use it across other DeFi protocols and platforms in a composable way.
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
+
 import { ITokenTestSuite } from "./ITokenTestSuite.sol";
 import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
 import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";

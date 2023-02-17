@@ -43,7 +43,8 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         tokenTestSuite = new TokensTestSuite();
         psts = new PoolServiceTestSuite(
             tokenTestSuite,
-            tokenTestSuite.addressOf(Tokens.DAI)
+            tokenTestSuite.addressOf(Tokens.DAI),
+            false
         );
 
         poolService = psts.poolService();
@@ -635,9 +636,12 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     {
         LinearInterestRateModel newIR = new LinearInterestRateModel(
             8000,
+            9000,
             200,
             500,
-            7500
+            4000,
+            7500,
+            false
         );
 
         evm.expectEmit(true, false, false, false);
@@ -659,9 +663,12 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     {
         LinearInterestRateModel newIR = new LinearInterestRateModel(
             8000,
+            9000,
             200,
             500,
-            7500
+            4000,
+            7500,
+            false
         );
 
         evm.prank(CONFIGURATOR);

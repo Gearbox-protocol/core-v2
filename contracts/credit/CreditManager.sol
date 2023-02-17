@@ -9,16 +9,19 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 // INTERFACES
 import { IAccountFactory } from "../interfaces/IAccountFactory.sol";
 import { ICreditAccount } from "../interfaces/ICreditAccount.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
+import { IPool4626 } from "../interfaces/IPool4626.sol";
 import { IWETHGateway } from "../interfaces/IWETHGateway.sol";
 import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
+import { IPoolQuotaKeeper, QuotaUpdate, LimitTokenCalc } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IVersion } from "../interfaces/IVersion.sol";
 
 // CONSTANTS
 import { RAY } from "../libraries/Constants.sol";
@@ -52,15 +55,12 @@ struct Slot1 {
 /// @notice Encapsulates the business logic for managing Credit Accounts
 ///
 /// More info: https://dev.gearbox.fi/developers/credit/credit_manager
-contract CreditManager is ICreditManagerV2, ACLTrait {
+contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     using SafeERC20 for IERC20;
     using Address for address payable;
     using SafeCast for uint256;
 
-    /// @dev used to protect against reentrancy. Bool is gas-optimal,
-    /// since there are other non-zero values packed into the same slot
-    bool private entered;
-
+    /// @dev True if current operation is emergency liquidaiton
     bool public emergencyLiquidation;
 
     /// @dev The maximal number of enabled tokens on a single Credit Account
@@ -80,10 +80,6 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
 
     /// @dev Address of the underlying asset
     address public immutable override underlying;
-
-    /// @dev Address of the connected pool
-    /// @notice [DEPRECATED]: use pool() instead.
-    address public immutable override poolService;
 
     /// @dev Address of the connected pool
     address public immutable override pool;
@@ -142,31 +138,31 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/integrations/universal
     address public universalAdapter;
 
+    /// QUOTA-RELATED PARAMS
+
+    /// @dev Whether the CM supports quota-related logic
+    bool public immutable supportsQuotas;
+
+    /// @dev Mask of tokens to apply quotas for
+    uint256 public limitedTokenMask;
+
+    mapping(address => uint256) public cumulativeQuotaPremiums;
+
     /// @dev contract version
-    uint256 public constant override version = 2;
+    uint256 public constant override version = 2_10;
 
     //
     // MODIFIERS
     //
-
-    /// @dev Protects against reentrancy.
-    /// @notice Custom ReentrancyGuard implementation is used to optimize storage reads.
-    modifier nonReentrant() {
-        if (entered) {
-            revert ReentrancyLockException();
-        }
-
-        entered = true;
-        _;
-        entered = false;
-    }
 
     /// @dev Restricts calls to Credit Facade or allowed adapters
     modifier adaptersOrCreditFacadeOnly() {
         if (
             adapterToContract[msg.sender] == address(0) &&
             msg.sender != creditFacade
-        ) revert AdaptersOrCreditFacadeOnlyException(); //
+        ) {
+            revert AdaptersOrCreditFacadeOnlyException();
+        } //
         _;
     }
 
@@ -178,8 +174,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
 
     /// @dev Restricts calls to Credit Configurator only
     modifier creditConfiguratorOnly() {
-        if (msg.sender != creditConfigurator)
+        if (msg.sender != creditConfigurator) {
             revert CreditConfiguratorOnlyException();
+        }
         _;
     }
 
@@ -191,16 +188,19 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     /// @dev Constructor
     /// @param _pool Address of the pool to borrow funds from
     constructor(address _pool)
-        ACLTrait(address(IPoolService(_pool).addressProvider()))
+        ACLNonReentrantTrait(address(IPoolService(_pool).addressProvider()))
     {
         IAddressProvider addressProvider = IPoolService(_pool)
             .addressProvider();
 
         pool = _pool; // F:[CM-1]
-        poolService = _pool; // F:[CM-1]
 
         address _underlying = IPoolService(pool).underlyingToken(); // F:[CM-1]
         underlying = _underlying; // F:[CM-1]
+
+        try IPool4626(pool).supportQuotaPremiums() returns (bool sq) {
+            supportsQuotas = sq;
+        } catch {}
 
         // The underlying is the first token added as collateral
         _addToken(_underlying); // F:[CM-1]
@@ -247,6 +247,8 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
 
         // Initializes the enabled token mask for Credit Account to 1 (only the underlying is enabled)
         enabledTokensMap[creditAccount] = 1; // F:[CM-8]
+
+        if (supportsQuotas) cumulativeQuotaPremiums[creditAccount] = 1; // TODO: Add test
 
         // Returns the address of the opened Credit Account
         return creditAccount; // F:[CM-8]
@@ -304,7 +306,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
                     ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT)
             ) {
                 closureActionType = ClosureAction.LIQUIDATE_PAUSED; // F: [CM-12, 13]
-            } else revert("Pausable: paused"); // F:[CM-5]
+            } else {
+                revert("Pausable: paused");
+            } // F:[CM-5]
         }
 
         // Checks that the Credit Account exists for the borrower
@@ -325,11 +329,29 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
             uint256 profit;
             uint256 loss;
             uint256 borrowedAmountWithInterest;
+            uint256 quotaPremiums;
+
+            if (supportsQuotas) {
+                LimitTokenCalc[] memory tokens = getLimitedTokens(
+                    creditAccount
+                );
+
+                /// Check the tokens.len >0
+                quotaPremiums = cumulativeQuotaPremiums[creditAccount];
+
+                if (tokens.length > 0) {
+                    quotaPremiums += poolQuotaKeeper().closeCreditAccount(
+                        creditAccount,
+                        tokens
+                    );
+                }
+            }
+
             (
                 borrowedAmount,
                 borrowedAmountWithInterest,
 
-            ) = calcCreditAccountAccruedInterest(creditAccount); // F:
+            ) = calcCreditAccountAccruedInterest(creditAccount, quotaPremiums); // F:
 
             (amountToPool, remainingFunds, profit, loss) = calcClosePayments(
                 totalValue,
@@ -622,12 +644,11 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     }
 
     /// @dev Requests the Credit Account to approve a collateral token to another contract.
-    /// @param borrower Borrower's address
+
     /// @param targetContract Spender to change allowance for
     /// @param token Collateral token to approve
     /// @param amount New allowance amount
     function approveCreditAccount(
-        address borrower,
         address targetContract,
         address token,
         uint256 amount
@@ -652,7 +673,7 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         // sell them off
         if (tokenMasksMap(token) == 0) revert TokenNotAllowedException(); // F:
 
-        address creditAccount = getCreditAccountOrRevert(borrower); // F:[CM-6]
+        address creditAccount = getCreditAccountOrRevert(creditFacade); // F:[CM-6]
 
         // Attempts to set allowance directly to the required amount
         // If unsuccessful, assumes that the token requires setting allowance to zero first
@@ -685,8 +706,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
                 )
             )
         returns (bytes memory result) {
-            if (result.length == 0 || abi.decode(result, (bool)) == true)
+            if (result.length == 0 || abi.decode(result, (bool)) == true) {
                 return true;
+            }
         } catch {}
 
         // On the first try, failure is allowed to handle tokens
@@ -698,14 +720,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
 
     /// @dev Requests a Credit Account to make a low-level call with provided data
     /// This is the intended pathway for state-changing interactions with 3rd-party protocols
-    /// @param borrower Borrower's address
     /// @param targetContract Contract to be called
     /// @param data Data to pass with the call
-    function executeOrder(
-        address borrower,
-        address targetContract,
-        bytes memory data
-    )
+    function executeOrder(address targetContract, bytes memory data)
         external
         override
         whenNotPausedOrEmergency // F:[CM-5]
@@ -719,14 +736,15 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
             adapterToContract[msg.sender] != targetContract ||
             targetContract == address(0)
         ) {
-            if (msg.sender != universalAdapter)
-                revert TargetContractNotAllowedException(); // F:[CM-28]
+            if (msg.sender != universalAdapter) {
+                revert TargetContractNotAllowedException();
+            } // F:[CM-28]
         }
 
-        address creditAccount = getCreditAccountOrRevert(borrower); // F:[CM-6]
+        address creditAccount = getCreditAccountOrRevert(creditFacade); // F:[CM-6]
 
         // Emits an event
-        emit ExecuteOrder(borrower, targetContract); // F:[CM-29]
+        emit ExecuteOrder(creditAccount, targetContract); // F:[CM-29]
 
         // Returned data is provided as-is to the caller;
         // It is expected that is is parsed and returned as a correct type
@@ -762,13 +780,15 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
 
         // Checks that the token is valid collateral recognized by the system
         // and that it is not forbidden
-        if (tokenMask == 0 || forbiddenTokenMask & tokenMask != 0)
-            revert TokenNotAllowedException(); // F:[CM-30]
+        if (tokenMask == 0 || forbiddenTokenMask & tokenMask != 0) {
+            revert TokenNotAllowedException();
+        } // F:[CM-30]
 
         // Performs an inclusion check using token masks,
         // to avoid accidentally disabling the token
-        if (enabledTokensMap[creditAccount] & tokenMask == 0)
-            enabledTokensMap[creditAccount] |= tokenMask; // F:[CM-31]
+        if (enabledTokensMap[creditAccount] & tokenMask == 0) {
+            enabledTokensMap[creditAccount] |= tokenMask;
+        } // F:[CM-31]
     }
 
     /// @dev Optimized health check for individual swap-like operations.
@@ -799,60 +819,43 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     {
         // Checks that inbound collateral is known and not forbidden
         // Enables it if disabled, to include it into TWV
-        _checkAndEnableToken(creditAccount, tokenOut); // [CM-32]
-
-        uint256 balanceInAfter = IERC20(tokenIn).balanceOf(creditAccount); // F: [CM-34]
-        uint256 balanceOutAfter = IERC20(tokenOut).balanceOf(creditAccount); // F: [CM-34]
-
-        (uint256 amountInCollateral, uint256 amountOutCollateral) = slot1
-            .priceOracle
-            .fastCheck(
-                balanceInBefore - balanceInAfter,
-                tokenIn,
-                balanceOutAfter - balanceOutBefore,
-                tokenOut
-            ); // F:[CM-34]
-
-        // Disables tokenIn if the entire balance was spent by the operation
-        if (balanceInAfter <= 1) _disableToken(creditAccount, tokenIn); // F:[CM-33]
-
-        // Collateral values must be compared weighted by respective LTs,
-        // as otherwise a high-LT (e.g., underlying) token can be swapped
-        // to an equivalent amount of a low-LT asset. Without weighting, this would
-        // pass the check (since inbound and outbound values are equal),
-        // while the health factor of the account would be reduced severely.
-        amountOutCollateral *= liquidationThresholds(tokenOut); // F:[CM-34]
-        amountInCollateral *= liquidationThresholds(tokenIn); // F:[CM-34]
-
-        // If the value of inbound collateral is larger than inbound collateral
-        // a health check does not need to be performed;
-        // However, the number of enabled tokens needs to be checked against the limit,
-        // as a new collateral token was potentially enabled
-        if (amountOutCollateral >= amountInCollateral) {
-            _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-35]
-            return; // F:[CM-34]
-        }
-
-        // The new cumulative drop in value is computed in RAY format, for precision
-        uint256 cumulativeDropRAY = RAY -
-            ((amountOutCollateral * RAY) / amountInCollateral) +
-            cumulativeDropAtFastCheckRAY[creditAccount]; // F:[CM-36]
-
-        // If then new cumulative drop is less than feeLiquidation, the check is successful,
-        // otherwise, a full collateral check is required
-        if (
-            cumulativeDropRAY <=
-            (slot1.feeLiquidation * RAY) / PERCENTAGE_FACTOR
-        ) {
-            cumulativeDropAtFastCheckRAY[creditAccount] = cumulativeDropRAY; // F:[CM-36]
-            _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-37]
-            return;
-        }
-
-        // If a fast collateral check didn't pass, a full check is performed and
-        // the cumulative drop is reset back to 0 (1 for gas-efficiency).
-        _fullCollateralCheck(creditAccount); // F:[CM-34,36]
-        cumulativeDropAtFastCheckRAY[creditAccount] = 1; // F:[CM-36]
+        // _checkAndEnableToken(creditAccount, tokenOut); // [CM-32]
+        // uint256 balanceInAfter = IERC20(tokenIn).balanceOf(creditAccount); // F: [CM-34]
+        // uint256 balanceOutAfter = IERC20(tokenOut).balanceOf(creditAccount); // F: [CM-34]
+        // (uint256 amountInCollateral, uint256 amountOutCollateral) = slot1.priceOracle.fastCheck(
+        //     balanceInBefore - balanceInAfter, tokenIn, balanceOutAfter - balanceOutBefore, tokenOut
+        // ); // F:[CM-34]
+        // // Disables tokenIn if the entire balance was spent by the operation
+        // if (balanceInAfter <= 1) _disableToken(creditAccount, tokenIn); // F:[CM-33]
+        // // Collateral values must be compared weighted by respective LTs,
+        // // as otherwise a high-LT (e.g., underlying) token can be swapped
+        // // to an equivalent amount of a low-LT asset. Without weighting, this would
+        // // pass the check (since inbound and outbound values are equal),
+        // // while the health factor of the account would be reduced severely.
+        // amountOutCollateral *= liquidationThresholds(tokenOut); // F:[CM-34]
+        // amountInCollateral *= liquidationThresholds(tokenIn); // F:[CM-34]
+        // // If the value of inbound collateral is larger than inbound collateral
+        // // a health check does not need to be performed;
+        // // However, the number of enabled tokens needs to be checked against the limit,
+        // // as a new collateral token was potentially enabled
+        // if (amountOutCollateral >= amountInCollateral) {
+        //     _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-35]
+        //     return; // F:[CM-34]
+        // }
+        // // The new cumulative drop in value is computed in RAY format, for precision
+        // uint256 cumulativeDropRAY =
+        //     RAY - ((amountOutCollateral * RAY) / amountInCollateral) + cumulativeDropAtFastCheckRAY[creditAccount]; // F:[CM-36]
+        // // If then new cumulative drop is less than feeLiquidation, the check is successful,
+        // // otherwise, a full collateral check is required
+        // if (cumulativeDropRAY <= (slot1.feeLiquidation * RAY) / PERCENTAGE_FACTOR) {
+        //     cumulativeDropAtFastCheckRAY[creditAccount] = cumulativeDropRAY; // F:[CM-36]
+        //     _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-37]
+        //     return;
+        // }
+        // // If a fast collateral check didn't pass, a full check is performed and
+        // // the cumulative drop is reset back to 0 (1 for gas-efficiency).
+        // _fullCollateralCheck(creditAccount); // F:[CM-34,36]
+        // cumulativeDropAtFastCheckRAY[creditAccount] = 1; // F:[CM-36]
     }
 
     /// @dev Performs a full health check on an account, summing up
@@ -875,14 +878,38 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
         uint256 borrowAmountPlusInterestRateUSD;
         uint256 len;
+        uint256 twvUSD;
         unchecked {
+            uint256 quotaPremiums;
+            if (supportsQuotas) {
+                LimitTokenCalc[] memory tokens = getLimitedTokens(
+                    creditAccount
+                );
+
+                if (tokens.length > 0) {
+                    /// If credit account has any connected token - then check that
+                    (twvUSD, quotaPremiums) = poolQuotaKeeper()
+                        .computeQuotedCollateralUSD(
+                            address(this),
+                            creditAccount,
+                            address(_priceOracle),
+                            tokens
+                        );
+
+                    // TODO: check that we removed all tokens
+                    enabledTokenMask = enabledTokenMask & (~limitedTokenMask);
+                }
+
+                quotaPremiums += cumulativeQuotaPremiums[creditAccount];
+            }
+
             // The total weighted value of a Credit Account has to be compared
             // with the entire debt sum, including interest and fees
             (
                 ,
                 ,
                 uint256 borrowedAmountWithInterestAndFees
-            ) = calcCreditAccountAccruedInterest(creditAccount);
+            ) = calcCreditAccountAccruedInterest(creditAccount, quotaPremiums);
 
             borrowAmountPlusInterestRateUSD = _priceOracle.convertToUSD(
                 borrowedAmountWithInterestAndFees * PERCENTAGE_FACTOR,
@@ -892,8 +919,10 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
             len = _getMaxIndex(enabledTokenMask) + 1;
         }
 
+        /// CHECK if twv > borrowAmountPlusInterestRateUSD if supportedQuotas
+
         uint256 tokenMask;
-        uint256 twvUSD;
+
         bool atLeastOneTokenWasDisabled;
 
         for (uint256 i; i < len; ) {
@@ -951,6 +980,7 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
                         } else {
                             // Saves enabledTokensMask if at least one token was disabled
                             if (atLeastOneTokenWasDisabled) {
+                                // TODO: check with limit mask, it's incorrect
                                 enabledTokensMap[
                                     creditAccount
                                 ] = enabledTokenMask; // F:[CM-39]
@@ -973,6 +1003,36 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
             }
         }
         revert NotEnoughCollateralException();
+    }
+
+    function getLimitedTokens(address creditAccount)
+        public
+        view
+        returns (LimitTokenCalc[] memory tokens)
+    {
+        uint256 limitMask = enabledTokensMap[creditAccount] & limitedTokenMask;
+
+        if (limitMask > 0) {
+            tokens = new LimitTokenCalc[](maxAllowedEnabledTokenLength + 1);
+
+            uint256 maxIndex = _getMaxIndex(limitMask);
+            uint256 tokenMask;
+
+            uint256 j;
+
+            unchecked {
+                for (uint256 i = 1; tokenMask <= maxIndex; ++i) {
+                    tokenMask = 1 << i;
+                    if (limitMask & tokenMask != 0) {
+                        (address token, uint16 lt) = collateralTokensByMask(
+                            tokenMask
+                        );
+                        tokens[j] = LimitTokenCalc({ token: token, lt: lt });
+                        ++j;
+                    }
+                }
+            }
+        }
     }
 
     /// @dev Checks that the number of enabled tokens on a Credit Account
@@ -1100,6 +1160,41 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         }
     }
 
+    //
+    // QUOTAS MANAGEMENT
+    //
+
+    // /// @dev Updates credit account's quota for given token
+    // /// @param creditAccount Address of credit account
+    // /// @param token Address of the token to change the quota for
+    // /// @param quotaChange Requested quota change in pool's underlying asset units
+    // function updateQuota(
+    //     address creditAccount,
+    //     address token,
+    //     int96 quotaChange
+    // ) external override creditFacadeOnly {
+    //     cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper().updateQuota(
+    //         creditAccount,
+    //         token,
+    //         quotaChange
+    //     );
+
+    /// Add enable & disable token(!)
+    // }
+
+    /// @dev Updates credit account's quotas for multiple tokens
+    /// @param creditAccount Address of credit account
+    /// @param quotaUpdates Requested quota updates, see `QuotaUpdate`
+    function updateQuotas(
+        address creditAccount,
+        QuotaUpdate[] memory quotaUpdates
+    ) external override creditFacadeOnly {
+        cumulativeQuotaPremiums[creditAccount] += poolQuotaKeeper()
+            .updateQuotas(creditAccount, quotaUpdates);
+
+        /// TODO: Add enable & disable token(!)
+    }
+
     /// @dev Checks if the contract is paused; if true, checks that the caller is emergency liquidator
     /// and temporarily enables a special emergencyLiquidator mode to allow liquidation.
     /// @notice Some whenNotPausedOrEmergency functions in CreditManager need to be executable to perform
@@ -1213,8 +1308,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     function _safeCreditAccountSet(address borrower, address creditAccount)
         internal
     {
-        if (borrower == address(0) || creditAccounts[borrower] != address(0))
-            revert ZeroAddressOrUserAlreadyHasAccountException(); // F:[CM-7]
+        if (borrower == address(0) || creditAccounts[borrower] != address(0)) {
+            revert ZeroAddressOrUserAlreadyHasAccountException();
+        } // F:[CM-7]
         creditAccounts[borrower] = creditAccount; // F:[CM-7]
     }
 
@@ -1404,15 +1500,32 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         if (result == address(0)) revert HasNoOpenedAccountException(); // F:[CM-48]
     }
 
+    /// TODO: change name with "_" prefix
+    function calcCreditAccountAccruedInterest(address creditAccount)
+        external
+        view
+        override
+        returns (
+            uint256 borrowedAmount,
+            uint256 borrowedAmountWithInterest,
+            uint256 borrowedAmountWithInterestAndFees
+        )
+    {
+        /// TODO: Add  quota premuim calculation instead of '0"
+        return calcCreditAccountAccruedInterest(creditAccount, 0);
+    }
+
     /// @dev Calculates the debt accrued by a Credit Account
     /// @param creditAccount Address of the Credit Account
     /// @return borrowedAmount The debt principal
     /// @return borrowedAmountWithInterest The debt principal + accrued interest
     /// @return borrowedAmountWithInterestAndFees The debt principal + accrued interest and protocol fees
-    function calcCreditAccountAccruedInterest(address creditAccount)
-        public
+    function calcCreditAccountAccruedInterest(
+        address creditAccount,
+        uint256 quotaPremiums
+    )
+        internal
         view
-        override
         returns (
             uint256 borrowedAmount,
             uint256 borrowedAmountWithInterest,
@@ -1432,7 +1545,8 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         // and the cumulative index recorded in the Credit Account
         borrowedAmountWithInterest =
             (borrowedAmount * cumulativeIndexNow_RAY) /
-            cumulativeIndexAtOpen_RAY; // F:[CM-49]
+            cumulativeIndexAtOpen_RAY +
+            quotaPremiums; // F:[CM-49]
 
         // Fees are computed as a percentage of interest
         borrowedAmountWithInterestAndFees =
@@ -1551,6 +1665,16 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
         return slot1.priceOracle;
     }
 
+    /// @dev Address of the connected pool
+    /// @notice [DEPRECATED]: use pool() instead.
+    function poolService() external view returns (address) {
+        return pool;
+    }
+
+    function poolQuotaKeeper() public view returns (IPoolQuotaKeeper) {
+        return IPoolQuotaKeeper(IPool4626(pool).poolQuotaKeeper());
+    }
+
     //
     // CONFIGURATION
     //
@@ -1571,8 +1695,9 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     /// @param token Address of the token to add
     function _addToken(address token) internal {
         // Checks that the token is not already known (has an associated token mask)
-        if (tokenMasksMapInternal[token] > 0)
-            revert TokenAlreadyAddedException(); // F:[CM-52]
+        if (tokenMasksMapInternal[token] > 0) {
+            revert TokenAlreadyAddedException();
+        } // F:[CM-52]
 
         // Checks that there aren't too many tokens
         // Since token masks are 256 bit numbers with each bit corresponding to 1 token,
