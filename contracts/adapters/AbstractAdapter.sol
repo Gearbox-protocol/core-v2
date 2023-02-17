@@ -70,6 +70,7 @@ abstract contract AbstractAdapter is IAdapter {
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
+    ///      without explicit approval to spend `tokenIn`
     /// @param creditAccount Credit Account from which the call is made
     /// @param tokenIn The token that the call is expected to spend
     /// @param tokenOut The token that the call is expected to produce
@@ -77,7 +78,7 @@ abstract contract AbstractAdapter is IAdapter {
     /// @param disableTokenIn Whether the input token should be disabled afterwards
     ///        (for operations that spend the entire balance)
     /// @return result Call output
-    function _executeSwap(
+    function _executeSwapNoApprove(
         address creditAccount,
         address tokenIn,
         address tokenOut,
@@ -96,9 +97,9 @@ abstract contract AbstractAdapter is IAdapter {
             );
     }
 
-    /// @dev Wrapper for `_executeSwap` that computes the Credit Account on the spot
+    /// @dev Wrapper for `_executeSwapNoApprove` that computes the Credit Account on the spot
     /// See params and other details above
-    function _executeSwap(
+    function _executeSwapNoApprove(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
@@ -117,7 +118,7 @@ abstract contract AbstractAdapter is IAdapter {
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
-    ///      with maximal allowance, and then resets the allowance back to max
+    ///      with maximal `tokenIn` allowance, and then sets the allowance to max again
     /// @param creditAccount Credit Account from which the call is made
     /// @param tokenIn The token that the call is expected to spend
     /// @param tokenOut The token that the call is expected to produce
@@ -126,7 +127,7 @@ abstract contract AbstractAdapter is IAdapter {
     ///        (for operations that spend the entire balance)
     /// @return result Call output
     /// @notice Must only be used for highly secure and immutable protocols, such as Uniswap & Curve
-    function _executeSwapMaxAllowance(
+    function _executeSwapMaxApprove(
         address creditAccount,
         address tokenIn,
         address tokenOut,
@@ -145,9 +146,9 @@ abstract contract AbstractAdapter is IAdapter {
             );
     }
 
-    /// @dev Wrapper for `_executeSwapMaxAllowance` that computes the Credit Account on the spot
+    /// @dev Wrapper for `_executeSwapMaxApprove` that computes the Credit Account on the spot
     /// See params and other details above
-    function _executeSwapMaxAllowance(
+    function _executeSwapMaxApprove(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
@@ -166,7 +167,7 @@ abstract contract AbstractAdapter is IAdapter {
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
-    ///      with maximal allowance, and then sets it to 1
+    ///      with maximal `tokenIn` allowance, and then sets the allowance to 1
     /// @param creditAccount Credit Account from which the call is made
     /// @param tokenIn The token that the call is expected to spend
     /// @param tokenOut The token that the call is expected to produce
@@ -174,7 +175,7 @@ abstract contract AbstractAdapter is IAdapter {
     /// @param disableTokenIn Whether the input token should be disabled afterwards
     ///        (for operations that spend the entire balance)
     /// @return result Call output
-    function _executeSwapSafeAllowance(
+    function _executeSwapSafeApprove(
         address creditAccount,
         address tokenIn,
         address tokenOut,
@@ -193,9 +194,9 @@ abstract contract AbstractAdapter is IAdapter {
             );
     }
 
-    /// @dev Wrapper for `_executeSwapSafeAllowance` that computes the Credit Account on the spot
+    /// @dev Wrapper for `_executeSwapSafeApprove` that computes the Credit Account on the spot
     /// See params and other details above
-    function _executeSwapSafeAllowance(
+    function _executeSwapSafeApprove(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
