@@ -267,7 +267,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         } // F:[FA-8]
 
         // Checks that the new credit account has enough collateral to cover the debt
-        creditManager.fullCollateralCheck(creditAccount); // F:[FA-8, 9]
+        _fullCollateralCheck(creditAccount); // F:[FA-8, 9]
     }
 
     /// @dev Runs a batch of transactions within a multicall and closes the account
@@ -293,9 +293,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
         // Check for existing CA
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
+        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
 
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3C]
@@ -352,9 +350,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
         // Checks that the CA exists to revert early for late liquidations and save gas
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            borrower
-        ); // F:[FA-2]
+        address creditAccount = _getCreditAccountOrRevert(borrower); // F:[FA-2]
 
         // Checks that the to address is not zero
         if (to == address(0)) revert ZeroAddressException(); // F:[FA-16A]
@@ -417,9 +413,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
         // Checks that the CA exists to revert early for late liquidations and save gas
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            borrower
-        );
+        address creditAccount = _getCreditAccountOrRevert(borrower);
 
         // Checks that the to address is not zero
         if (to == address(0)) revert ZeroAddressException();
@@ -478,7 +472,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // so that the attempt to transfer remaining funds to a blacklisted borrower does not
         // break the liquidation. The borrower can retrieve the funds from the recovery contract afterwards.
         if (helperBalance > 0) {
-            creditManager.transferAccountOwnership(borrower, blacklistHelper);
+            _transferAccount(borrower, blacklistHelper);
         } // F:[FA-56]
 
         // Liquidates the CA and sends the remaining funds to the borrower or blacklist helper
@@ -555,14 +549,12 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ///
     /// @param amount Amount to borrow
     function increaseDebt(uint256 amount) external override nonReentrant {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
+        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
 
         _increaseDebt(msg.sender, creditAccount, amount);
 
         // Checks that the credit account has enough collateral to cover the new borrowed amount
-        creditManager.fullCollateralCheck(creditAccount); // F:[FA-17]
+        _fullCollateralCheck(creditAccount); // F:[FA-17]
     }
 
     /// @dev IMPLEMENTATION: increaseDebt
@@ -630,15 +622,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ///
     /// @param amount Amount to increase borrowed amount
     function decreaseDebt(uint256 amount) external override nonReentrant {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
+        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
 
         _decreaseDebt(msg.sender, creditAccount, amount); // F:[FA-19]
 
         // We need this check, cause after paying debt back, it potentially could be
         // another portfolio structure, which has lower Hf
-        creditManager.fullCollateralCheck(creditAccount); // F:[FA-19]
+        _fullCollateralCheck(creditAccount); // F:[FA-19]
     }
 
     /// @dev IMPLEMENTATION: decreaseDebt
@@ -674,9 +664,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _wrapETH(); // F:[FA-3E]
 
         // Checks that onBehalfOf has an account
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            onBehalfOf
-        ); // F:[FA-2]
+        address creditAccount = _getCreditAccountOrRevert(onBehalfOf); // F:[FA-2]
 
         addCollateral(onBehalfOf, creditAccount, token, amount);
 
@@ -718,9 +706,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         nonReentrant
     {
         // Checks that msg.sender has an account
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        );
+        address creditAccount = _getCreditAccountOrRevert(msg.sender);
 
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3F]
@@ -731,7 +717,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // Performs a fullCollateralCheck
             // During a multicall, all intermediary health checks are skipped,
             // as one fullCollateralCheck at the end is sufficient
-            creditManager.fullCollateralCheck(creditAccount);
+            _fullCollateralCheck(creditAccount);
         }
     }
 
@@ -756,9 +742,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
 
         // Checks that msg.sender has an account
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            borrower
-        );
+        address creditAccount = _getCreditAccountOrRevert(borrower);
 
         if (calls.length != 0) {
             _multicall(calls, borrower, creditAccount, false, false); // F: [FA-58]
@@ -766,7 +750,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // Performs a fullCollateralCheck
             // During a multicall, all intermediary health checks are skipped,
             // as one fullCollateralCheck at the end is sufficient
-            creditManager.fullCollateralCheck(creditAccount); // F: [FA-58]
+            _fullCollateralCheck(creditAccount); // F: [FA-58]
         }
     }
 
@@ -791,7 +775,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         bool increaseDebtWasCalled
     ) internal {
         // Takes ownership of the Credit Account
-        creditManager.transferAccountOwnership(borrower, address(this)); // F:[FA-26]
+        _transferAccount(borrower, address(this)); // F:[FA-26]
 
         // Emits event for multicall start - used in analytics to track actions within multicalls
         emit MultiCallStarted(borrower); // F:[FA-26]
@@ -868,7 +852,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         emit MultiCallFinished(); // F:[FA-27,27,29]
 
         // Returns ownership back to the borrower
-        creditManager.transferAccountOwnership(address(this), borrower); // F:[FA-27,27,29]
+        _transferAccount(address(this), borrower); // F:[FA-27,27,29]
     }
 
     /// @dev Internal function for processing calls to Credit Facade within the multicall
@@ -930,7 +914,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                 onBehalfOf,
                 onBehalfOf == borrower
                     ? creditAccount
-                    : creditManager.getCreditAccountOrRevert(onBehalfOf),
+                    : _getCreditAccountOrRevert(onBehalfOf),
                 token,
                 amount
             ); // F:[FA-26, 27]
@@ -1082,12 +1066,12 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Since Credit Manager internal functions only work on Credit Accounts owned by the Credit Facade,
         // we need to transfer account ownership to the Credit Facade before the operations and back
         // afterwards
-        creditManager.transferAccountOwnership(msg.sender, address(this)); // F:[FA-31]
+        _transferAccount(msg.sender, address(this)); // F:[FA-31]
 
         // Requests Credit Manager to set token allowance from Credit Account to contract
         creditManager.approveCreditAccount(targetContract, token, amount); // F:[FA-31]
 
-        creditManager.transferAccountOwnership(address(this), msg.sender); // F:[FA-31]
+        _transferAccount(address(this), msg.sender); // F:[FA-31]
     }
 
     /// @dev Transfers credit account to another user
@@ -1104,9 +1088,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // So this action is prohibited
         if (whitelisted) revert NotAllowedInWhitelistedMode(); // F:[FA-32]
 
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
+        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
 
         // Checks that transfer is allowed
         if (!transfersAllowed[msg.sender][to]) {
@@ -1120,7 +1102,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (isLiquidatable) revert CantTransferLiquidatableAccountException(); // F:[FA-34]
 
         // Requests the Credit Manager to transfer the account
-        creditManager.transferAccountOwnership(msg.sender, to); // F:[FA-35]
+        _transferAccount(msg.sender, to); // F:[FA-35]
 
         // Emits event
         emit TransferAccount(msg.sender, to); // F:[FA-35]
@@ -1263,9 +1245,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Enables token in enabledTokenMask for the Credit Account of msg.sender
     /// @param token Address of token to enable
     function enableToken(address token) external override nonReentrant {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
+        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
 
         _enableToken(msg.sender, creditAccount, token);
 
@@ -1302,6 +1282,32 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // Emits event
             emit TokenDisabled(borrower, token);
         } // F: [FA-54]
+    }
+
+    //
+    // HELPERS
+    //
+
+    /// @dev Internal wrapper for `creditManager.transferAccountOwnership()`
+    /// @notice The external call is wrapped to optimize contract size
+    function _transferAccount(address from, address to) internal {
+        creditManager.transferAccountOwnership(from, to);
+    }
+
+    /// @dev Internal wrapper for `creditManager.getCreditAccountOrRevert()`
+    /// @notice The external call is wrapped to optimize contract size
+    function _getCreditAccountOrRevert(address borrower)
+        internal
+        view
+        returns (address)
+    {
+        return creditManager.getCreditAccountOrRevert(borrower);
+    }
+
+    /// @dev Internal wrapper for `creditManager.fullCollateralCheck()`
+    /// @notice The external call is wrapped to optimize contract size
+    function _fullCollateralCheck(address creditAccount) internal {
+        creditManager.fullCollateralCheck(creditAccount);
     }
 
     //
