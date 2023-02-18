@@ -506,7 +506,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
                     // is set to the current cumulative index - which means interest starts accruing
                     // on the new principal from zero
-                    newCumulativeIndex = cumulativeIndexAtOpen_RAY; // F:[CM-21]
+                    newCumulativeIndex = cumulativeIndexNow_RAY; // F:[CM-21]
                 } else {
                     // If the amount is not enough to cover interest and fees,
                     // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
