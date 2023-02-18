@@ -468,103 +468,76 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             // Requests the pool to lend additional funds to the Credit Account
             IPoolService(pool).lendCreditAccount(amount, creditAccount); // F:[CM-20]
         } else {
+            // Decrease
             uint256 amountRepaid = amount;
             uint256 amountProfit = 0;
 
             if (supportsQuotas) {
-                uint256 quotaFeesAccrued;
-
-                uint256 cp = cumulativeQuotaPremiums[creditAccount];
-                if (cp > 2) {
-                    quotaFeesAccrued += cp - 1;
-                }
-
-                TokenLT[] memory tokens = getLimitedTokens(creditAccount);
-                if (tokens.length > 0) {
-                    quotaFeesAccrued += poolQuotaKeeper().accrueQuotaPremiums(
-                        creditAccount,
-                        tokens
-                    );
-                }
-
-                uint256 quotaProfit = (quotaFeesAccrued * slot1.feeInterest) /
-                    PERCENTAGE_FACTOR;
-
-                if (amountRepaid >= quotaFeesAccrued + quotaProfit) {
-                    amountRepaid -= quotaFeesAccrued + quotaProfit;
-                    amountProfit += quotaProfit;
-                    _setCumulativeQuotaPremiums(creditAccount, 1);
-                } else {
-                    uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
-                        (PERCENTAGE_FACTOR + slot1.feeInterest);
-                    {
-                        uint256 amountToDao = amountRepaid - amountToPool;
-
-                        amountRepaid = 0;
-                        amountProfit += amountToDao;
-                    }
-
-                    _setCumulativeQuotaPremiums(
-                        creditAccount,
-                        quotaFeesAccrued - amountToPool
-                    );
-                }
+                (amountRepaid, amountProfit) = _computeQuotasAmountDebtIncrease(
+                    creditAccount,
+                    amountRepaid,
+                    amountProfit
+                );
             }
 
-            // Computes the interest accrued thus far
-            uint256 interestAccrued = (borrowedAmount *
-                cumulativeIndexNow_RAY) /
-                cumulativeIndexAtOpen_RAY -
-                borrowedAmount; // F:[CM-21]
-
-            // Computes profit, taken as a percentage of the interest rate
-            uint256 profit = (interestAccrued * slot1.feeInterest) /
-                PERCENTAGE_FACTOR; // F:[CM-21]
-
-            if (amountRepaid >= interestAccrued + profit) {
-                // If the amount covers all of the interest and fees, they are
-                // paid first, and the remainder is used to pay the principal
-                newBorrowedAmount =
-                    borrowedAmount +
-                    interestAccrued +
-                    profit -
-                    amount;
-
-                amountRepaid -= interestAccrued + profit;
-                amountProfit += profit;
-
-                // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
-                // is set to the current cumulative index - which means interest starts accruing
-                // on the new principal from zero
-                newCumulativeIndex = IPoolService(pool)
-                    .calcLinearCumulative_RAY(); // F:[CM-21]
-            } else {
-                // If the amount is not enough to cover interest and fees,
-                // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
-                // of interest, this ensures that the new fee is consistent with the
-                // new pending interest
-
-                uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
-                    (PERCENTAGE_FACTOR + slot1.feeInterest);
-                uint256 amountToDao = amountRepaid - amountToPool;
-
-                amountRepaid = 0;
-                amountProfit += amountToDao;
-
-                // Since interest and fees are paid out first, the principal
-                // remains unchanged
+            if (amountRepaid == 0) {
+                // Do nothig if amount was spent for quota repaying
                 newBorrowedAmount = borrowedAmount;
+            } else {
+                // Computes the interest accrued thus far
+                uint256 interestAccrued = (borrowedAmount *
+                    cumulativeIndexNow_RAY) /
+                    cumulativeIndexAtOpen_RAY -
+                    borrowedAmount; // F:[CM-21]
 
-                // Since the interest was only repaid partially, we need to recompute the
-                // cumulativeIndexAtOpen, so that "borrowAmount * (indexNow / indexAtOpenNew - 1)"
-                // is equal to interestAccrued - amountToInterest
-                newCumulativeIndex = _calcNewCumulativeIndex(
-                    borrowedAmount,
-                    amountToPool,
-                    cumulativeIndexNow_RAY,
-                    cumulativeIndexAtOpen_RAY,
-                    false
-                );
+                // Computes profit, taken as a percentage of the interest rate
+                uint256 profit = (interestAccrued * slot1.feeInterest) /
+                    PERCENTAGE_FACTOR; // F:[CM-21]
+
+                if (amountRepaid >= interestAccrued + profit) {
+                    // If the amount covers all of the interest and fees, they are
+                    // paid first, and the remainder is used to pay the principal
+                    newBorrowedAmount =
+                        borrowedAmount +
+                        interestAccrued +
+                        profit -
+                        amount;
+
+                    amountRepaid -= interestAccrued + profit;
+                    amountProfit += profit;
+
+                    // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
+                    // is set to the current cumulative index - which means interest starts accruing
+                    // on the new principal from zero
+                    newCumulativeIndex = cumulativeIndexNow_RAY; // F:[CM-21]
+                } else {
+                    // If the amount is not enough to cover interest and fees,
+                    // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
+                    // of interest, this ensures that the new fee is consistent with the
+                    // new pending interest
+
+                    uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
+                        (PERCENTAGE_FACTOR + slot1.feeInterest);
+                    uint256 amountToDao = amountRepaid - amountToPool;
+
+                    amountRepaid = 0;
+                    amountProfit += amountToDao;
+
+                    // Since interest and fees are paid out first, the principal
+                    // remains unchanged
+                    newBorrowedAmount = borrowedAmount;
+
+                    // Since the interest was only repaid partially, we need to recompute the
+                    // cumulativeIndexAtOpen, so that "borrowAmount * (indexNow / indexAtOpenNew - 1)"
+                    // is equal to interestAccrued - amountToInterest
+                    newCumulativeIndex = _calcNewCumulativeIndex(
+                        borrowedAmount,
+                        amountToPool,
+                        cumulativeIndexNow_RAY,
+                        cumulativeIndexAtOpen_RAY,
+                        false
+                    );
+                }
             }
 
             // Pays the amount back to the pool
@@ -588,18 +561,45 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         ); // F:[CM-20. 21]
     }
 
-    function _calculatePartialRepaymentSplit(
-        uint256 amount,
-        uint256 interestAccrued,
-        uint256 quotaFeesAccrued
-    ) internal view returns (uint256 amountToInterest, uint256 amountToQuotas) {
-        uint256 amountToInterestAndQuotas = (amount * PERCENTAGE_FACTOR) /
-            (PERCENTAGE_FACTOR + slot1.feeInterest);
+    function _computeQuotasAmountDebtIncrease(
+        address creditAccount,
+        uint256 _amountRepaid,
+        uint256 _amountProfit
+    ) internal returns (uint256 amountRepaid, uint256 amountProfit) {
+        amountRepaid = _amountRepaid;
+        amountProfit = _amountProfit;
 
-        amountToInterest =
-            (amountToInterestAndQuotas * interestAccrued) /
-            (interestAccrued + quotaFeesAccrued);
-        amountToQuotas = amountToInterestAndQuotas - amountToInterest;
+        uint16 fee = slot1.feeInterest;
+        uint256 quotaFeesAccrued = cumulativeQuotaPremiums[creditAccount];
+
+        TokenLT[] memory tokens = getLimitedTokens(creditAccount);
+        if (tokens.length > 0) {
+            quotaFeesAccrued += poolQuotaKeeper().accrueQuotaPremiums(
+                creditAccount,
+                tokens
+            );
+        }
+
+        if (quotaFeesAccrued > 2) {
+            uint256 quotaProfit = (quotaFeesAccrued * fee) / PERCENTAGE_FACTOR;
+
+            if (amountRepaid >= quotaFeesAccrued + quotaProfit) {
+                amountRepaid -= quotaFeesAccrued + quotaProfit;
+                amountProfit += quotaProfit;
+                cumulativeQuotaPremiums[creditAccount] = 1;
+            } else {
+                uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
+                    (PERCENTAGE_FACTOR + fee);
+
+                amountRepaid = 0;
+                amountProfit += amountRepaid - amountToPool;
+
+                cumulativeQuotaPremiums[creditAccount] =
+                    quotaFeesAccrued -
+                    amountToPool +
+                    1;
+            }
+        }
     }
 
     function _setCumulativeQuotaPremiums(address creditAccount, uint256 amount)
@@ -1109,8 +1109,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             uint256 enabledTokensMask = enabledTokensMap[creditAccount];
 
             for (uint256 i = 0; i < len; ) {
-                if (statusChanges[i])
+                if (statusChanges[i]) {
                     enabledTokensMask ^= tokenMasksMap(quotaUpdates[i].token);
+                }
 
                 unchecked {
                     ++i;
@@ -1118,8 +1119,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             }
 
             uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokensMask);
-            if (totalTokensEnabled > maxAllowedEnabledTokenLength)
+            if (totalTokensEnabled > maxAllowedEnabledTokenLength) {
                 revert TooManyEnabledTokensException();
+            }
 
             enabledTokensMap[creditAccount] = enabledTokensMask;
         }
