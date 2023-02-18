@@ -339,6 +339,14 @@ contract CreditManagerTest is
         return tokensEnabled;
     }
 
+    function _openAccountAndTransferToCF()
+        internal
+        returns (address creditAccount)
+    {
+        (, , , creditAccount) = _openCreditAccount();
+        creditManager.transferAccountOwnership(USER, address(this));
+    }
+
     ///
     ///
     ///  TESTS
@@ -1741,134 +1749,176 @@ contract CreditManagerTest is
     // APPROVE CREDIT ACCOUNT
     //
 
-    // TODO: FIX THE TEST
+    /// @dev [CM-25]: approveCreditAccount reverts if adapter is not connected with target contract
+    function test_CM_25_approveCreditAccount_reverts_if_adapter_isnt_connected_with_contract_or_0()
+        public
+    {
+        _openAccountAndTransferToCF();
 
-    // /// @dev [CM-25]: approveCreditAccount reverts if adapter is not connected with target contract
-    // function test_CM_25_approveCreditAccount_reverts_if_adapter_isnt_connected_with_contract_or_0() public {
-    //     _openCreditAccount();
+        evm.prank(CONFIGURATOR);
+        creditManager.changeContractAllowance(DUMB_ADDRESS, FRIEND);
 
-    //     evm.prank(CONFIGURATOR);
-    //     creditManager.changeContractAllowance(DUMB_ADDRESS, FRIEND);
+        evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
 
-    //     evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
+        evm.prank(DUMB_ADDRESS);
+        creditManager.approveCreditAccount(DUMB_ADDRESS, DUMB_ADDRESS, 100);
 
-    //     evm.prank(DUMB_ADDRESS);
-    //     creditManager.approveCreditAccount(USER, DUMB_ADDRESS, DUMB_ADDRESS, 100);
+        // Address 0 case
+        evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
+        evm.prank(DUMB_ADDRESS);
+        creditManager.approveCreditAccount(address(0), DUMB_ADDRESS, 100);
+    }
 
-    //     // Address 0 case
-    //     evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
-    //     evm.prank(DUMB_ADDRESS);
-    //     creditManager.approveCreditAccount(USER, address(0), DUMB_ADDRESS, 100);
-    // }
+    /// @dev [CM-25A]: approveCreditAccount reverts if the token is not added
+    function test_CM_25A_approveCreditAccount_reverts_if_the_token_is_not_added()
+        public
+    {
+        _openAccountAndTransferToCF();
 
-    // TODO: FIX THE TEST
+        evm.expectRevert(TokenNotAllowedException.selector);
 
-    // /// @dev [CM-25A]: approveCreditAccount reverts if the token is not added
-    // function test_CM_25A_approveCreditAccount_reverts_if_the_token_is_not_added() public {
-    //     _openCreditAccount();
-
-    //     evm.expectRevert(TokenNotAllowedException.selector);
-
-    //     creditManager.approveCreditAccount(USER, DUMB_ADDRESS, DUMB_ADDRESS, 100);
-    // }
-
-    // TODO: FIX THE TEST
+        creditManager.approveCreditAccount(DUMB_ADDRESS, DUMB_ADDRESS, 100);
+    }
 
     /// @dev [CM-26]: approveCreditAccount approves with desired allowance
-    // function test_CM_26_approveCreditAccount_approves_with_desired_allowance() public {
-    //     (,,, address creditAccount) = _openCreditAccount();
+    function test_CM_26_approveCreditAccount_approves_with_desired_allowance()
+        public
+    {
+        address creditAccount = _openAccountAndTransferToCF();
 
-    //     // Case, when current allowance > ALLOWANCE_THRESHOLD
-    //     tokenTestSuite.approve(Tokens.DAI, creditAccount, DUMB_ADDRESS, 200);
-    //     creditManager.approveCreditAccount(
-    //         USER, DUMB_ADDRESS, tokenTestSuite.addressOf(Tokens.DAI), DAI_EXCHANGE_AMOUNT
-    //     );
+        // Case, when current allowance > ALLOWANCE_THRESHOLD
+        tokenTestSuite.approve(Tokens.DAI, creditAccount, DUMB_ADDRESS, 200);
+        creditManager.approveCreditAccount(
+            DUMB_ADDRESS,
+            tokenTestSuite.addressOf(Tokens.DAI),
+            DAI_EXCHANGE_AMOUNT
+        );
 
-    //     expectAllowance(Tokens.DAI, creditAccount, DUMB_ADDRESS, DAI_EXCHANGE_AMOUNT);
-    // }
+        expectAllowance(
+            Tokens.DAI,
+            creditAccount,
+            DUMB_ADDRESS,
+            DAI_EXCHANGE_AMOUNT
+        );
+    }
 
-    // TODO: FIX THE TEST
+    /// @dev [CM-27A]: approveCreditAccount works for ERC20 that revert if allowance > 0 before approve
+    function test_CM_27A_approveCreditAccount_works_for_ERC20_with_approve_restrictions()
+        public
+    {
+        address creditAccount = _openAccountAndTransferToCF();
 
-    // /// @dev [CM-27A]: approveCreditAccount works for ERC20 that revert if allowance > 0 before approve
-    // function test_CM_27A_approveCreditAccount_works_for_ERC20_with_approve_restrictions() public {
-    //     (,,, address creditAccount) = _openCreditAccount();
+        address approveRevertToken = address(
+            new ERC20ApproveRestrictedRevert()
+        );
 
-    //     address approveRevertToken = address(new ERC20ApproveRestrictedRevert());
+        evm.prank(CONFIGURATOR);
+        creditManager.addToken(approveRevertToken);
 
-    //     evm.prank(CONFIGURATOR);
-    //     creditManager.addToken(approveRevertToken);
+        creditManager.approveCreditAccount(
+            DUMB_ADDRESS,
+            approveRevertToken,
+            DAI_EXCHANGE_AMOUNT
+        );
 
-    //     creditManager.approveCreditAccount(USER, DUMB_ADDRESS, approveRevertToken, DAI_EXCHANGE_AMOUNT);
+        creditManager.approveCreditAccount(
+            DUMB_ADDRESS,
+            approveRevertToken,
+            2 * DAI_EXCHANGE_AMOUNT
+        );
 
-    //     creditManager.approveCreditAccount(USER, DUMB_ADDRESS, approveRevertToken, 2 * DAI_EXCHANGE_AMOUNT);
-
-    //     expectAllowance(approveRevertToken, creditAccount, DUMB_ADDRESS, 2 * DAI_EXCHANGE_AMOUNT);
-    // }
-
-    // TODO: FIX THE TEST
+        expectAllowance(
+            approveRevertToken,
+            creditAccount,
+            DUMB_ADDRESS,
+            2 * DAI_EXCHANGE_AMOUNT
+        );
+    }
 
     // /// @dev [CM-27B]: approveCreditAccount works for ERC20 that returns false if allowance > 0 before approve
-    // function test_CM_27B_approveCreditAccount_works_for_ERC20_with_approve_restrictions() public {
-    //     (,,, address creditAccount) = _openCreditAccount();
+    function test_CM_27B_approveCreditAccount_works_for_ERC20_with_approve_restrictions()
+        public
+    {
+        address creditAccount = _openAccountAndTransferToCF();
 
-    //     address approveFalseToken = address(new ERC20ApproveRestrictedFalse());
+        address approveFalseToken = address(new ERC20ApproveRestrictedFalse());
 
-    //     evm.prank(CONFIGURATOR);
-    //     creditManager.addToken(approveFalseToken);
+        evm.prank(CONFIGURATOR);
+        creditManager.addToken(approveFalseToken);
 
-    //     creditManager.approveCreditAccount(USER, DUMB_ADDRESS, approveFalseToken, DAI_EXCHANGE_AMOUNT);
+        creditManager.approveCreditAccount(
+            DUMB_ADDRESS,
+            approveFalseToken,
+            DAI_EXCHANGE_AMOUNT
+        );
 
-    //     creditManager.approveCreditAccount(USER, DUMB_ADDRESS, approveFalseToken, 2 * DAI_EXCHANGE_AMOUNT);
+        creditManager.approveCreditAccount(
+            DUMB_ADDRESS,
+            approveFalseToken,
+            2 * DAI_EXCHANGE_AMOUNT
+        );
 
-    //     expectAllowance(approveFalseToken, creditAccount, DUMB_ADDRESS, 2 * DAI_EXCHANGE_AMOUNT);
-    // }
+        expectAllowance(
+            approveFalseToken,
+            creditAccount,
+            DUMB_ADDRESS,
+            2 * DAI_EXCHANGE_AMOUNT
+        );
+    }
 
     //
     // EXECUTE ORDER
     //
 
-    // TODO: FIX THE TEST
+    /// @dev [CM-28]: executeOrder reverts if adapter is not connected with target contract
+    function test_CM_28_executeOrder_reverts_if_adapter_is_not_connected_with_target_contract()
+        public
+    {
+        _openAccountAndTransferToCF();
 
-    // /// @dev [CM-28]: executeOrder reverts if adapter is not connected with target contract
-    // function test_CM_28_executeOrder_reverts_if_adapter_is_not_connected_with_target_contract() public {
-    //     _openCreditAccount();
+        evm.prank(CONFIGURATOR);
+        creditManager.changeContractAllowance(ADAPTER, FRIEND);
 
-    //     evm.prank(CONFIGURATOR);
-    //     creditManager.changeContractAllowance(ADAPTER, FRIEND);
+        // Address 0 case
+        evm.expectRevert(TargetContractNotAllowedException.selector);
 
-    //     // Address 0 case
-    //     evm.expectRevert(TargetContractNotAllowedException.selector);
+        evm.prank(ADAPTER);
+        creditManager.executeOrder(DUMB_ADDRESS, bytes("Hello, world!"));
+    }
 
-    //     evm.prank(ADAPTER);
-    //     creditManager.executeOrder(USER, DUMB_ADDRESS, bytes("Hello, world!"));
-    // }
+    /// @dev [CM-29]: executeOrder calls credit account method and emit event
+    function test_CM_29_executeOrder_calls_credit_account_method_and_emit_event()
+        public
+    {
+        address creditAccount = _openAccountAndTransferToCF();
 
-    // TODO: FIX THE TEST
+        TargetContractMock targetMock = new TargetContractMock();
 
-    // /// @dev [CM-29]: executeOrder calls credit account method and emit event
-    // function test_CM_29_executeOrder_calls_credit_account_method_and_emit_event() public {
-    //     (,,, address creditAccount) = _openCreditAccount();
+        evm.prank(CONFIGURATOR);
+        creditManager.changeContractAllowance(ADAPTER, address(targetMock));
 
-    //     TargetContractMock targetMock = new TargetContractMock();
+        bytes memory callData = bytes("Hello, world!");
 
-    //     evm.prank(CONFIGURATOR);
-    //     creditManager.changeContractAllowance(ADAPTER, address(targetMock));
+        // we emit the event we expect to see.
+        evm.expectEmit(true, true, false, false);
+        emit ExecuteOrder(creditAccount, address(targetMock));
 
-    //     bytes memory callData = bytes("Hello, world!");
+        // stack trace check
+        evm.expectCall(
+            creditAccount,
+            abi.encodeWithSignature(
+                "execute(address,bytes)",
+                address(targetMock),
+                callData
+            )
+        );
+        evm.expectCall(address(targetMock), callData);
 
-    //     // we emit the event we expect to see.
-    //     evm.expectEmit(true, true, false, false);
-    //     emit ExecuteOrder(USER, address(targetMock));
+        evm.prank(ADAPTER);
+        creditManager.executeOrder(address(targetMock), callData);
 
-    //     // stack trace check
-    //     evm.expectCall(creditAccount, abi.encodeWithSignature("execute(address,bytes)", address(targetMock), callData));
-    //     evm.expectCall(address(targetMock), callData);
-
-    //     evm.prank(ADAPTER);
-    //     creditManager.executeOrder(USER, address(targetMock), callData);
-
-    //     assertEq0(targetMock.callData(), callData, "Incorrect calldata");
-    // }
+        assertEq0(targetMock.callData(), callData, "Incorrect calldata");
+    }
 
     //
     // CHECK AND ENABLE TOKEN
@@ -2944,25 +2994,32 @@ contract CreditManagerTest is
         }
     }
 
-    // TODO: FIX THE TEST
+    /// @dev [CM-60]: CreditManager allows approveCreditAccount and executeOrder for universal adapter
+    function test_CM_60_universal_adapter_can_call_adapter_restricted_functions()
+        public
+    {
+        TargetContractMock targetMock = new TargetContractMock();
 
-    // /// @dev [CM-60]: CreditManager allows approveCreditAccount and executeOrder for universal adapter
-    // function test_CM_60_universal_adapter_can_call_adapter_restricted_functions() public {
-    //     TargetContractMock targetMock = new TargetContractMock();
+        evm.prank(CONFIGURATOR);
+        creditManager.changeContractAllowance(
+            ADAPTER,
+            UNIVERSAL_CONTRACT_ADDRESS
+        );
 
-    //     evm.prank(CONFIGURATOR);
-    //     creditManager.changeContractAllowance(ADAPTER, UNIVERSAL_CONTRACT_ADDRESS);
+        _openAccountAndTransferToCF();
 
-    //     _openCreditAccount();
+        evm.prank(ADAPTER);
+        creditManager.approveCreditAccount(
+            DUMB_ADDRESS,
+            underlying,
+            type(uint256).max
+        );
 
-    //     evm.prank(ADAPTER);
-    //     creditManager.approveCreditAccount(USER, DUMB_ADDRESS, underlying, type(uint256).max);
+        bytes memory callData = bytes("Hello");
 
-    //     bytes memory callData = bytes("Hello");
-
-    //     evm.prank(ADAPTER);
-    //     creditManager.executeOrder(USER, address(targetMock), callData);
-    // }
+        evm.prank(ADAPTER);
+        creditManager.executeOrder(address(targetMock), callData);
+    }
 
     /// @dev [CM-61]: setMaxEnabledToken correctly sets value
     function test_CM_61_setMaxEnabledTokens_works_correctly() public {
