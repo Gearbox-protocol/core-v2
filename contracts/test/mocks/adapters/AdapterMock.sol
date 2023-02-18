@@ -8,26 +8,35 @@ import { AdapterType } from "../../../interfaces/adapters/IAdapter.sol";
 
 /// @title Adapter Mock
 contract AdapterMock is AbstractAdapter {
-    /// @dev Constructor
-    /// @param _creditManager Address Credit manager
+    AdapterType public constant override _gearboxAdapterType =
+        AdapterType.ABSTRACT;
+    uint16 public constant override _gearboxAdapterVersion = 1;
 
+    /// @notice Constructor
+    /// @param _creditManager Credit manager address
+    /// @param _targetContract Target contract address
     constructor(address _creditManager, address _targetContract)
         AbstractAdapter(_creditManager, _targetContract)
     {}
 
-    AdapterType public constant _gearboxAdapterType = AdapterType.ABSTRACT;
-    uint16 public constant _gearboxAdapterVersion = 1;
+    function creditFacade() external view returns (address) {
+        return _creditFacade();
+    }
+
+    function creditAccount() external view returns (address) {
+        return _creditAccount();
+    }
 
     function executeSwapNoApprove(
-        address creditAccount,
+        address account,
         address tokenIn,
         address tokenOut,
         bytes memory callData,
         bool disableTokenIn
-    ) external returns (bytes memory result) {
+    ) external creditFacadeOnly returns (bytes memory result) {
         return
             _executeSwapNoApprove(
-                creditAccount,
+                account,
                 tokenIn,
                 tokenOut,
                 callData,
@@ -40,21 +49,21 @@ contract AdapterMock is AbstractAdapter {
         address tokenOut,
         bytes memory callData,
         bool disableTokenIn
-    ) external returns (bytes memory result) {
+    ) external creditFacadeOnly returns (bytes memory result) {
         return
             _executeSwapNoApprove(tokenIn, tokenOut, callData, disableTokenIn);
     }
 
     function executeSwapMaxApprove(
-        address creditAccount,
+        address account,
         address tokenIn,
         address tokenOut,
         bytes memory callData,
         bool disableTokenIn
-    ) external returns (bytes memory result) {
+    ) external creditFacadeOnly returns (bytes memory result) {
         return
             _executeSwapMaxApprove(
-                creditAccount,
+                account,
                 tokenIn,
                 tokenOut,
                 callData,
@@ -67,21 +76,21 @@ contract AdapterMock is AbstractAdapter {
         address tokenOut,
         bytes memory callData,
         bool disableTokenIn
-    ) external returns (bytes memory result) {
+    ) external creditFacadeOnly returns (bytes memory result) {
         return
             _executeSwapMaxApprove(tokenIn, tokenOut, callData, disableTokenIn);
     }
 
     function executeSwapSafeApprove(
-        address creditAccount,
+        address account,
         address tokenIn,
         address tokenOut,
         bytes memory callData,
         bool disableTokenIn
-    ) external returns (bytes memory result) {
+    ) external creditFacadeOnly returns (bytes memory result) {
         return
             _executeSwapSafeApprove(
-                creditAccount,
+                account,
                 tokenIn,
                 tokenOut,
                 callData,
@@ -94,7 +103,7 @@ contract AdapterMock is AbstractAdapter {
         address tokenOut,
         bytes memory callData,
         bool disableTokenIn
-    ) external returns (bytes memory result) {
+    ) external creditFacadeOnly returns (bytes memory result) {
         return
             _executeSwapSafeApprove(
                 tokenIn,
@@ -106,16 +115,20 @@ contract AdapterMock is AbstractAdapter {
 
     function execute(bytes memory callData)
         external
+        creditFacadeOnly
         returns (bytes memory result)
     {
         result = _execute(callData);
     }
 
-    function approveToken(address token, uint256 amount) external {
+    function approveToken(address token, uint256 amount)
+        external
+        creditFacadeOnly
+    {
         _approveToken(token, amount);
     }
 
-    fallback() external {
+    fallback() external creditFacadeOnly {
         _execute(msg.data);
     }
 }

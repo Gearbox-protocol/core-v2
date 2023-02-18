@@ -8,6 +8,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AccountFactory } from "../../core/AccountFactory.sol";
 import { CreditFacade } from "../../credit/CreditFacade.sol";
 
+import { ICreditAccount } from "../../interfaces/ICreditAccount.sol";
 import { ICreditFacade, MultiCall } from "../../interfaces/ICreditFacade.sol";
 import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICreditManagerV2.sol";
 import { ICreditFacadeEvents, ICreditFacadeExceptions } from "../../interfaces/ICreditFacade.sol";
@@ -118,8 +119,119 @@ contract AbstractAdapterTest is
         am = new AdapterMock(address(creditManager), address(0));
     }
 
-    /// @dev [AA-3]: _executeSwapNoApprove correctly passes parameters to CreditManager
-    function test_AA_03_executeSwapNoApprove_correctly_passes_to_credit_manager()
+    /// @dev [AA-3]: AbstractAdapter uses correct credit facade
+    function test_AA_03_adapter_uses_correct_credit_facade() public {
+        address facade = adapterMock.creditFacade();
+        assertEq(facade, address(creditFacade));
+    }
+
+    /// @dev [AA-4]: AbstractAdapter creditFacadeOnly functions revert if called not from credit facade
+    function test_AA_04_creditFacadeOnly_function_reverts_if_called_not_from_credit_facade()
+        public
+    {
+        bytes memory DUMB_CALLDATA = abi.encodeWithSignature(
+            "hello(string)",
+            "world"
+        );
+
+        evm.prank(USER);
+        evm.expectRevert(CreditFacadeOnlyException.selector);
+        adapterMock.execute(DUMB_CALLDATA);
+    }
+
+    /// @dev [AA-5]: AbstractAdapter functions revert if user has no credit account
+    function test_AA_05_adapter_reverts_if_user_has_no_credit_account() public {
+        bytes memory DUMB_CALLDATA = abi.encodeWithSignature(
+            "hello(string)",
+            "world"
+        );
+        evm.prank(USER);
+        evm.expectRevert(HasNoOpenedAccountException.selector);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: abi.encodeCall(
+                        AdapterMock.execute,
+                        (DUMB_CALLDATA)
+                    )
+                })
+            )
+        );
+
+        evm.prank(USER);
+        evm.expectRevert(HasNoOpenedAccountException.selector);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: abi.encodeCall(
+                        AdapterMock.approveToken,
+                        (usdc, 1)
+                    )
+                })
+            )
+        );
+
+        evm.expectRevert(HasNoOpenedAccountException.selector);
+        adapterMock.creditAccount();
+    }
+
+    /// @dev [AA-6]: AbstractAdapter functions use correct credit account
+    function test_AA_06_adapter_uses_correct_credit_account() public {
+        (address creditAccount, ) = _openTestCreditAccount();
+
+        bytes memory DUMB_CALLDATA = abi.encodeWithSignature(
+            "hello(string)",
+            "world"
+        );
+        evm.prank(USER);
+        evm.expectCall(
+            creditAccount,
+            abi.encodeCall(
+                ICreditAccount.execute,
+                (address(targetMock), DUMB_CALLDATA)
+            )
+        );
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: abi.encodeCall(
+                        AdapterMock.execute,
+                        (DUMB_CALLDATA)
+                    )
+                })
+            )
+        );
+
+        evm.prank(USER);
+        evm.expectCall(
+            creditAccount,
+            abi.encodeCall(
+                ICreditAccount.execute,
+                (usdc, abi.encodeCall(IERC20.approve, (address(targetMock), 1)))
+            )
+        );
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: abi.encodeCall(
+                        AdapterMock.approveToken,
+                        (usdc, 1)
+                    )
+                })
+            )
+        );
+
+        evm.prank(address(creditFacade));
+        creditManager.transferAccountOwnership(USER, address(creditFacade));
+        assertEq(adapterMock.creditAccount(), creditAccount);
+    }
+
+    /// @dev [AA-7]: _executeSwapNoApprove correctly passes parameters to CreditManager
+    function test_AA_07_executeSwapNoApprove_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -190,8 +302,8 @@ contract AbstractAdapterTest is
         }
     }
 
-    /// @dev [AA-4]: _executeSwapMaxApprove correctly passes parameters to CreditManager and sets allowance
-    function test_AA_04_executeSwapMaxApprove_correctly_passes_to_credit_manager()
+    /// @dev [AA-8]: _executeSwapMaxApprove correctly passes parameters to CreditManager and sets allowance
+    function test_AA_08_executeSwapMaxApprove_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -284,8 +396,8 @@ contract AbstractAdapterTest is
         }
     }
 
-    /// @dev [AA-5]: _executeSwapSafeApprove correctly passes parameters to CreditManager and sets allowance
-    function test_AA_05_executeSwapSafeApprove_correctly_passes_to_credit_manager()
+    /// @dev [AA-9]: _executeSwapSafeApprove correctly passes parameters to CreditManager and sets allowance
+    function test_AA_09_executeSwapSafeApprove_correctly_passes_to_credit_manager()
         public
     {
         (address ca, ) = _openTestCreditAccount();
@@ -378,8 +490,8 @@ contract AbstractAdapterTest is
         }
     }
 
-    /// @dev [AA-6]: _execute correctly passes parameters to CreditManager
-    function test_AA_06_execute_correctly_passes_to_credit_manager() public {
+    /// @dev [AA-10]: _execute correctly passes parameters to CreditManager
+    function test_AA_10_execute_correctly_passes_to_credit_manager() public {
         _openTestCreditAccount();
 
         bytes memory DUMB_CALLDATA = abi.encodeWithSignature(
@@ -409,8 +521,8 @@ contract AbstractAdapterTest is
         );
     }
 
-    /// @dev [AA-7]: _approveToken correctly passes parameters to CreditManager
-    function test_AA_07_approveToken_correctly_passes_to_credit_manager()
+    /// @dev [AA-11]: _approveToken correctly passes parameters to CreditManager
+    function test_AA_11_approveToken_correctly_passes_to_credit_manager()
         public
     {
         _openTestCreditAccount();
