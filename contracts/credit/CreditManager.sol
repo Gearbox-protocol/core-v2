@@ -468,15 +468,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             // Requests the pool to lend additional funds to the Credit Account
             IPoolService(pool).lendCreditAccount(amount, creditAccount); // F:[CM-20]
         } else {
-            // Computes the interest accrued thus far
-            uint256 interestAccrued = (borrowedAmount *
-                cumulativeIndexNow_RAY) /
-                cumulativeIndexAtOpen_RAY -
-                borrowedAmount; // F:[CM-21]
-
-            uint256 quotaFeesAccrued;
+            uint256 amountRepaid = amount;
+            uint256 amountProfit = 0;
 
             if (supportsQuotas) {
+                uint256 quotaFeesAccrued;
+
                 uint256 cp = cumulativeQuotaPremiums[creditAccount];
                 if (cp > 2) {
                     quotaFeesAccrued += cp - 1;
@@ -489,37 +486,52 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                         tokens
                     );
                 }
+
+                uint256 quotaProfit = (quotaFeesAccrued * slot1.feeInterest) /
+                    PERCENTAGE_FACTOR;
+
+                if (amountRepaid >= quotaFeesAccrued + quotaProfit) {
+                    amountRepaid -= quotaFeesAccrued + quotaProfit;
+                    amountProfit += quotaProfit;
+                    _setCumulativeQuotaPremiums(creditAccount, 1);
+                } else {
+                    uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
+                        (PERCENTAGE_FACTOR + slot1.feeInterest);
+                    {
+                        uint256 amountToDao = amountRepaid - amountToPool;
+
+                        amountRepaid = 0;
+                        amountProfit += amountToDao;
+                    }
+
+                    _setCumulativeQuotaPremiums(
+                        creditAccount,
+                        quotaFeesAccrued - amountToPool
+                    );
+                }
             }
 
+            // Computes the interest accrued thus far
+            uint256 interestAccrued = (borrowedAmount *
+                cumulativeIndexNow_RAY) /
+                cumulativeIndexAtOpen_RAY -
+                borrowedAmount; // F:[CM-21]
+
             // Computes profit, taken as a percentage of the interest rate
-            uint256 profit = ((interestAccrued + quotaFeesAccrued) *
-                slot1.feeInterest) / PERCENTAGE_FACTOR; // F:[CM-21]
+            uint256 profit = (interestAccrued * slot1.feeInterest) /
+                PERCENTAGE_FACTOR; // F:[CM-21]
 
-            uint256 amountRepaid;
-            uint256 amountProfit;
-
-            if (amount >= interestAccrued + quotaFeesAccrued + profit) {
+            if (amountRepaid >= interestAccrued + profit) {
                 // If the amount covers all of the interest and fees, they are
                 // paid first, and the remainder is used to pay the principal
                 newBorrowedAmount =
                     borrowedAmount +
                     interestAccrued +
-                    quotaFeesAccrued +
                     profit -
                     amount;
 
-                amountRepaid =
-                    amount -
-                    interestAccrued -
-                    quotaFeesAccrued -
-                    profit;
-                amountProfit = profit;
-
-                if (
-                    supportsQuotas && cumulativeQuotaPremiums[creditAccount] > 1
-                ) {
-                    _setCumulativeQuotaPremiums(creditAccount, 1);
-                }
+                amountRepaid -= interestAccrued + profit;
+                amountProfit += profit;
 
                 // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
                 // is set to the current cumulative index - which means interest starts accruing
@@ -527,38 +539,28 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 newCumulativeIndex = IPoolService(pool)
                     .calcLinearCumulative_RAY(); // F:[CM-21]
             } else {
-                // If the amount is not enough to cover interest, quota payments and fees,
+                // If the amount is not enough to cover interest and fees,
                 // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
-                // of interest + quota payments, this ensures that the new fee is consistent with the
+                // of interest, this ensures that the new fee is consistent with the
                 // new pending interest
 
-                (
-                    uint256 amountToInterest,
-                    uint256 amountToQuotas
-                ) = _calculatePartialRepaymentSplit(
-                        amount,
-                        interestAccrued,
-                        quotaFeesAccrued
-                    );
+                uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
+                    (PERCENTAGE_FACTOR + slot1.feeInterest);
+                uint256 amountToDao = amountRepaid - amountToPool;
+
+                amountRepaid = 0;
+                amountProfit += amountToDao;
 
                 // Since interest and fees are paid out first, the principal
                 // remains unchanged
                 newBorrowedAmount = borrowedAmount;
-                amountProfit = amount - amountToInterest - amountToQuotas;
-
-                if (supportsQuotas) {
-                    _setCumulativeQuotaPremiums(
-                        creditAccount,
-                        quotaFeesAccrued - amountToQuotas
-                    );
-                }
 
                 // Since the interest was only repaid partially, we need to recompute the
                 // cumulativeIndexAtOpen, so that "borrowAmount * (indexNow / indexAtOpenNew - 1)"
                 // is equal to interestAccrued - amountToInterest
                 newCumulativeIndex = _calcNewCumulativeIndex(
                     borrowedAmount,
-                    amountToInterest,
+                    amountToPool,
                     cumulativeIndexNow_RAY,
                     cumulativeIndexAtOpen_RAY,
                     false
