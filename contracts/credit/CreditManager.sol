@@ -474,18 +474,17 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 cumulativeIndexAtOpen_RAY -
                 borrowedAmount; // F:[CM-21]
 
-            /// TODO: Account for partial repayment
+            uint256 quotaFeesAccrued;
 
             if (supportsQuotas) {
                 uint256 cp = cumulativeQuotaPremiums[creditAccount];
                 if (cp > 2) {
-                    interestAccrued += cp - 1;
-                    cumulativeQuotaPremiums[creditAccount] = 1;
+                    quotaFeesAccrued += cp - 1;
                 }
 
                 TokenLT[] memory tokens = getLimitedTokens(creditAccount);
                 if (tokens.length > 0) {
-                    interestAccrued += poolQuotaKeeper().accrueQuotaPremiums(
+                    quotaFeesAccrued += poolQuotaKeeper().accrueQuotaPremiums(
                         creditAccount,
                         tokens
                     );
@@ -493,31 +492,34 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             }
 
             // Computes profit, taken as a percentage of the interest rate
-            uint256 profit = (interestAccrued * slot1.feeInterest) /
-                PERCENTAGE_FACTOR; // F:[CM-21]
+            uint256 profit = ((interestAccrued + quotaFeesAccrued) *
+                slot1.feeInterest) / PERCENTAGE_FACTOR; // F:[CM-21]
 
-            if (amount >= interestAccrued + profit) {
+            uint256 amountRepaid;
+            uint256 amountProfit;
+
+            if (amount >= interestAccrued + quotaFeesAccrued + profit) {
                 // If the amount covers all of the interest and fees, they are
                 // paid first, and the remainder is used to pay the principal
                 newBorrowedAmount =
                     borrowedAmount +
                     interestAccrued +
+                    quotaFeesAccrued +
                     profit -
                     amount;
 
-                // Pays the amount back to the pool
-                ICreditAccount(creditAccount).safeTransfer(
-                    underlying,
-                    pool,
-                    amount
-                ); // F:[CM-21]
+                amountRepaid =
+                    amount -
+                    interestAccrued -
+                    quotaFeesAccrued -
+                    profit;
+                amountProfit = profit;
 
-                // Signals the pool that the debt was partially repaid
-                IPoolService(pool).repayCreditAccount(
-                    amount - interestAccrued - profit,
-                    profit,
-                    0
-                ); // F:[CM-21]
+                if (
+                    supportsQuotas && cumulativeQuotaPremiums[creditAccount] > 1
+                ) {
+                    _setCumulativeQuotaPremiums(creditAccount, 1);
+                }
 
                 // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
                 // is set to the current cumulative index - which means interest starts accruing
@@ -525,32 +527,35 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 newCumulativeIndex = IPoolService(pool)
                     .calcLinearCumulative_RAY(); // F:[CM-21]
             } else {
-                // If the amount is not enough to cover interest and fees,
-                // it is split between the two pro-rata. Since the fee is the percentage
-                // of interest, this ensures that the new fee is consistent with the
+                // If the amount is not enough to cover interest, quota payments and fees,
+                // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
+                // of interest + quota payments, this ensures that the new fee is consistent with the
                 // new pending interest
-                uint256 amountToInterest = (amount * PERCENTAGE_FACTOR) /
-                    (PERCENTAGE_FACTOR + slot1.feeInterest);
-                uint256 amountToFees = amount - amountToInterest;
+
+                (
+                    uint256 amountToInterest,
+                    uint256 amountToQuotas
+                ) = _calculatePartialRepaymentSplit(
+                        amount,
+                        interestAccrued,
+                        quotaFeesAccrued
+                    );
 
                 // Since interest and fees are paid out first, the principal
                 // remains unchanged
                 newBorrowedAmount = borrowedAmount;
+                amountProfit = amount - amountToInterest - amountToQuotas;
 
-                // Pays the amount back to the pool
-                ICreditAccount(creditAccount).safeTransfer(
-                    underlying,
-                    pool,
-                    amount
-                ); // F:[CM-21]
-
-                // Signals the pool that the debt was partially repaid
-                IPoolService(pool).repayCreditAccount(0, amountToFees, 0); // F:[CM-21]
+                if (supportsQuotas) {
+                    _setCumulativeQuotaPremiums(
+                        creditAccount,
+                        quotaFeesAccrued - amountToQuotas
+                    );
+                }
 
                 // Since the interest was only repaid partially, we need to recompute the
                 // cumulativeIndexAtOpen, so that "borrowAmount * (indexNow / indexAtOpenNew - 1)"
                 // is equal to interestAccrued - amountToInterest
-
                 newCumulativeIndex = _calcNewCumulativeIndex(
                     borrowedAmount,
                     amountToInterest,
@@ -559,6 +564,19 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     false
                 );
             }
+
+            // Pays the amount back to the pool
+            ICreditAccount(creditAccount).safeTransfer(
+                underlying,
+                pool,
+                amount
+            ); // F:[CM-21]
+
+            IPoolService(pool).repayCreditAccount(
+                amountRepaid,
+                amountProfit,
+                0
+            ); // F:[CM-21]
         }
         //
         // Sets new parameters on the Credit Account
@@ -566,6 +584,26 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             newBorrowedAmount,
             newCumulativeIndex
         ); // F:[CM-20. 21]
+    }
+
+    function _calculatePartialRepaymentSplit(
+        uint256 amount,
+        uint256 interestAccrued,
+        uint256 quotaFeesAccrued
+    ) internal view returns (uint256 amountToInterest, uint256 amountToQuotas) {
+        uint256 amountToInterestAndQuotas = (amount * PERCENTAGE_FACTOR) /
+            (PERCENTAGE_FACTOR + slot1.feeInterest);
+
+        amountToInterest =
+            (amountToInterestAndQuotas * interestAccrued) /
+            (interestAccrued + quotaFeesAccrued);
+        amountToQuotas = amountToInterestAndQuotas - amountToInterest;
+    }
+
+    function _setCumulativeQuotaPremiums(address creditAccount, uint256 amount)
+        internal
+    {
+        cumulativeQuotaPremiums[creditAccount] = amount;
     }
 
     /// @dev Calculates the new cumulative index when debt is updated
