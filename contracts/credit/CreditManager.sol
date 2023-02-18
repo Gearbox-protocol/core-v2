@@ -511,60 +511,65 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 }
             }
 
-            // Computes the interest accrued thus far
-            uint256 interestAccrued = (borrowedAmount *
-                cumulativeIndexNow_RAY) /
-                cumulativeIndexAtOpen_RAY -
-                borrowedAmount; // F:[CM-21]
+            if (amountRepaid > 0) {
+                // Computes the interest accrued thus far
+                uint256 interestAccrued = (borrowedAmount *
+                    cumulativeIndexNow_RAY) /
+                    cumulativeIndexAtOpen_RAY -
+                    borrowedAmount; // F:[CM-21]
 
-            // Computes profit, taken as a percentage of the interest rate
-            uint256 profit = (interestAccrued * slot1.feeInterest) /
-                PERCENTAGE_FACTOR; // F:[CM-21]
+                // Computes profit, taken as a percentage of the interest rate
+                uint256 profit = (interestAccrued * slot1.feeInterest) /
+                    PERCENTAGE_FACTOR; // F:[CM-21]
 
-            if (amountRepaid >= interestAccrued + profit) {
-                // If the amount covers all of the interest and fees, they are
-                // paid first, and the remainder is used to pay the principal
-                newBorrowedAmount =
-                    borrowedAmount +
-                    interestAccrued +
-                    profit -
-                    amount;
+                if (amountRepaid >= interestAccrued + profit) {
+                    // If the amount covers all of the interest and fees, they are
+                    // paid first, and the remainder is used to pay the principal
+                    newBorrowedAmount =
+                        borrowedAmount +
+                        interestAccrued +
+                        profit -
+                        amount;
 
-                amountRepaid -= interestAccrued + profit;
-                amountProfit += profit;
+                    amountRepaid -= interestAccrued + profit;
+                    amountProfit += profit;
 
-                // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
-                // is set to the current cumulative index - which means interest starts accruing
-                // on the new principal from zero
-                newCumulativeIndex = IPoolService(pool)
-                    .calcLinearCumulative_RAY(); // F:[CM-21]
+                    // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
+                    // is set to the current cumulative index - which means interest starts accruing
+                    // on the new principal from zero
+                    newCumulativeIndex = IPoolService(pool)
+                        .calcLinearCumulative_RAY(); // F:[CM-21]
+                } else {
+                    // If the amount is not enough to cover interest and fees,
+                    // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
+                    // of interest, this ensures that the new fee is consistent with the
+                    // new pending interest
+
+                    uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
+                        (PERCENTAGE_FACTOR + slot1.feeInterest);
+                    uint256 amountToDao = amountRepaid - amountToPool;
+
+                    amountRepaid = 0;
+                    amountProfit += amountToDao;
+
+                    // Since interest and fees are paid out first, the principal
+                    // remains unchanged
+                    newBorrowedAmount = borrowedAmount;
+
+                    // Since the interest was only repaid partially, we need to recompute the
+                    // cumulativeIndexAtOpen, so that "borrowAmount * (indexNow / indexAtOpenNew - 1)"
+                    // is equal to interestAccrued - amountToInterest
+                    newCumulativeIndex = _calcNewCumulativeIndex(
+                        borrowedAmount,
+                        amountToPool,
+                        cumulativeIndexNow_RAY,
+                        cumulativeIndexAtOpen_RAY,
+                        false
+                    );
+                }
             } else {
-                // If the amount is not enough to cover interest and fees,
-                // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
-                // of interest, this ensures that the new fee is consistent with the
-                // new pending interest
-
-                uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
-                    (PERCENTAGE_FACTOR + slot1.feeInterest);
-                uint256 amountToDao = amountRepaid - amountToPool;
-
-                amountRepaid = 0;
-                amountProfit += amountToDao;
-
-                // Since interest and fees are paid out first, the principal
-                // remains unchanged
                 newBorrowedAmount = borrowedAmount;
-
-                // Since the interest was only repaid partially, we need to recompute the
-                // cumulativeIndexAtOpen, so that "borrowAmount * (indexNow / indexAtOpenNew - 1)"
-                // is equal to interestAccrued - amountToInterest
-                newCumulativeIndex = _calcNewCumulativeIndex(
-                    borrowedAmount,
-                    amountToPool,
-                    cumulativeIndexNow_RAY,
-                    cumulativeIndexAtOpen_RAY,
-                    false
-                );
+                newCumulativeIndex = cumulativeIndexAtOpen_RAY;
             }
 
             // Pays the amount back to the pool
@@ -581,11 +586,16 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             ); // F:[CM-21]
         }
         //
-        // Sets new parameters on the Credit Account
-        ICreditAccount(creditAccount).updateParameters(
-            newBorrowedAmount,
-            newCumulativeIndex
-        ); // F:[CM-20. 21]
+        // Sets new parameters on the Credit Account if they were changed
+        if (
+            newBorrowedAmount != borrowedAmount ||
+            newCumulativeIndex != cumulativeIndexAtOpen_RAY
+        ) {
+            ICreditAccount(creditAccount).updateParameters(
+                newBorrowedAmount,
+                newCumulativeIndex
+            ); // F:[CM-20. 21]
+        }
     }
 
     function _calculatePartialRepaymentSplit(
