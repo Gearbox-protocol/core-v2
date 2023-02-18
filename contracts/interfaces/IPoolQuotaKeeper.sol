@@ -18,7 +18,7 @@ struct QuotaRateUpdate {
     uint16 rate;
 }
 
-struct LimitTokenCalc {
+struct TokenLT {
     address token;
     uint16 lt;
 }
@@ -30,6 +30,8 @@ interface IPoolQuotaKeeperExceptions {
     error CreditManagerOnlyException();
 
     error IncompatibleCreditManagerException();
+
+    error UnknownQuotaException();
 }
 
 interface IPoolQuotaKeeperEvents {
@@ -59,18 +61,7 @@ interface IPoolQuotaKeeper is
     function getQuotaRate(address) external view returns (uint16);
 
     /// @dev Returns cumulative index in RAY for particular token. If token is not
-    function cumulativeIndex(address token) external view returns (uint256);
-
-    /// @dev Updates quota for particular token, returns how much quota was given
-
-    // /// @param creditAccount Address of credit account
-    // /// @param token Address of the token to change the quota for
-    // /// @param quotaChange Requested quota change in pool's underlying asset units
-    // function updateQuota(
-    //     address creditAccount,
-    //     address token,
-    //     int96 quotaChange
-    // ) external returns (uint256);
+    function cumulativeIndex(address token) external view returns (uint192);
 
     /// @notice Updates credit account's quotas for multiple tokens
     /// @param creditAccount Address of credit account
@@ -94,17 +85,20 @@ interface IPoolQuotaKeeper is
         address creditManager,
         address creditAccount,
         address _priceOracle,
-        LimitTokenCalc[] memory tokens
+        TokenLT[] memory tokens
     ) external view returns (uint256 value, uint256 premium);
 
-    function computeOutstandingPremiums(
+    function closeCreditAccount(address creditAccount, TokenLT[] memory tokens)
+        external
+        returns (uint256);
+
+    function outstandingQuotaPremiums(
         address creditManager,
         address creditAccount,
-        LimitTokenCalc[] memory tokens
-    ) external view returns (uint256 totalPremiums);
+        TokenLT[] memory tokens
+    ) external view returns (uint256 caPremiumChange);
 
-    function closeCreditAccount(
-        address creditAccount,
-        LimitTokenCalc[] memory tokens
-    ) external returns (uint256);
+    function accrueQuotaPremiums(address creditAccount, TokenLT[] memory tokens)
+        external
+        returns (uint256 caPremiumChange);
 }

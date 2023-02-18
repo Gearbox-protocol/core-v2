@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.17;
 
 // LIBRARIES
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -20,7 +20,7 @@ import { IWETHGateway } from "../interfaces/IWETHGateway.sol";
 import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-import { IPoolQuotaKeeper, QuotaUpdate, LimitTokenCalc } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IPoolQuotaKeeper, QuotaUpdate, TokenLT } from "../interfaces/IPoolQuotaKeeper.sol";
 import { IVersion } from "../interfaces/IVersion.sol";
 
 // CONSTANTS
@@ -328,9 +328,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             uint256 quotaPremiums;
 
             if (supportsQuotas) {
-                LimitTokenCalc[] memory tokens = getLimitedTokens(
-                    creditAccount
-                );
+                TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
                 /// Check the tokens.len >0
                 quotaPremiums = cumulativeQuotaPremiums[creditAccount];
@@ -475,6 +473,22 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 cumulativeIndexNow_RAY) /
                 cumulativeIndexAtOpen_RAY -
                 borrowedAmount; // F:[CM-21]
+
+            if (supportsQuotas) {
+                uint256 cp = cumulativeQuotaPremiums[creditAccount];
+                if (cp > 2) {
+                    interestAccrued += cp - 1;
+                    cumulativeQuotaPremiums[creditAccount] = 1;
+                }
+
+                TokenLT[] memory tokens = getLimitedTokens(creditAccount);
+                if (tokens.length > 0) {
+                    interestAccrued += poolQuotaKeeper().accrueQuotaPremiums(
+                        creditAccount,
+                        tokens
+                    );
+                }
+            }
 
             // Computes profit, taken as a percentage of the interest rate
             uint256 profit = (interestAccrued * slot1.feeInterest) /
@@ -699,11 +713,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         try
             ICreditAccount(creditAccount).execute(
                 token,
-                abi.encodeWithSelector(
-                    IERC20.approve.selector,
-                    targetContract,
-                    amount
-                )
+                abi.encodeCall(IERC20.approve, (targetContract, amount))
             )
         returns (bytes memory result) {
             if (result.length == 0 || abi.decode(result, (bool)) == true) {
@@ -818,9 +828,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         unchecked {
             uint256 quotaPremiums;
             if (supportsQuotas) {
-                LimitTokenCalc[] memory tokens = getLimitedTokens(
-                    creditAccount
-                );
+                TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
                 if (tokens.length > 0) {
                     /// If credit account has any connected token - then check that
@@ -857,7 +865,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             // If quoted tokens fully cover the debt, we can stop here
             // after performing some additional cleanup
             if (twvUSD >= borrowAmountPlusInterestRateUSD) {
-                _afterFullCheck(creditAccount, enabledTokenMask, 0, len, false);
+                _afterFullCheck(creditAccount, enabledTokenMask, false);
 
                 return;
             }
@@ -900,13 +908,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                         _afterFullCheck(
                             creditAccount,
                             enabledTokenMask,
-                            // At this stage in the function, at least underlying
-                            // must have been processed, so it can be skipped
-                            1,
-                            // Since the function disables all unused tokens it finds
-                            // and iterates in descending order,
-                            // _optimizeEnabledTokens only needs to check up to len - i
-                            len - i,
                             atLeastOneTokenWasDisabled
                         );
 
@@ -931,32 +932,11 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     function _afterFullCheck(
         address creditAccount,
         uint256 enabledTokenMask,
-        uint256 optimizeStartIndex,
-        uint256 optimizeEndIndex,
         bool atLeastOneTokenWasDisabled
     ) internal {
-        // Since a full collateral check is usually called after an operation or MultiCall
-        // involving many tokens, potentially many new tokens can be enabled. As such,
-        // the function needs to check whether the enabled token limit is violated,
-        // and disable any unused tokens, if so. Note that the number of enabled tokens
-        // is calculated from the updated enabledTokenMask, so some of the unused tokens may have already
-        // been disabled
         uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokenMask);
         if (totalTokensEnabled > maxAllowedEnabledTokenLength) {
-            unchecked {
-                _optimizeEnabledTokens(
-                    creditAccount,
-                    enabledTokenMask,
-                    totalTokensEnabled,
-                    // At this stage in the function, at least underlying
-                    // must have been processed, so it can be skipped
-                    optimizeStartIndex,
-                    // Since the function disables all unused tokens it finds
-                    // and iterates in descending order,
-                    // _optimizeEnabledTokens only needs to check up to len - i
-                    optimizeEndIndex
-                ); // F:[CM-41] where i=0
-            }
+            revert TooManyEnabledTokensException();
         } else {
             // Saves enabledTokensMask if at least one token was disabled
             if (atLeastOneTokenWasDisabled) {
@@ -968,12 +948,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     function getLimitedTokens(address creditAccount)
         public
         view
-        returns (LimitTokenCalc[] memory tokens)
+        returns (TokenLT[] memory tokens)
     {
         uint256 limitMask = enabledTokensMap[creditAccount] & limitedTokenMask;
 
         if (limitMask > 0) {
-            tokens = new LimitTokenCalc[](maxAllowedEnabledTokenLength + 1);
+            tokens = new TokenLT[](maxAllowedEnabledTokenLength + 1);
 
             uint256 maxIndex = _getMaxIndex(limitMask);
             uint256 tokenMask;
@@ -987,7 +967,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                         (address token, uint16 lt) = collateralTokensByMask(
                             tokenMask
                         );
-                        tokens[j] = LimitTokenCalc({ token: token, lt: lt });
+                        tokens[j] = TokenLT({ token: token, lt: lt });
                         ++j;
                     }
                 }
@@ -996,32 +976,19 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     }
 
     /// @dev Checks that the number of enabled tokens on a Credit Account
-    ///      does not violate the maximal enabled token limit and tries
-    ///      to disable unused tokens if it does
+    ///      does not violate the maximal enabled token limit
     /// @param creditAccount Account to check enabled tokens for
-    function checkAndOptimizeEnabledTokens(address creditAccount)
+    function checkEnabledTokensLength(address creditAccount)
         external
+        view
         override
         adaptersOrCreditFacadeOnly // F: [CM-2]
     {
-        _checkAndOptimizeEnabledTokens(creditAccount);
-    }
-
-    /// @dev IMPLEMENTATION: checkAndOptimizeEnabledTokens
-    function _checkAndOptimizeEnabledTokens(address creditAccount) internal {
         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
         uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokenMask);
 
         if (totalTokensEnabled > maxAllowedEnabledTokenLength) {
-            uint256 maxIndex = _getMaxIndex(enabledTokenMask) + 1;
-
-            _optimizeEnabledTokens(
-                creditAccount,
-                enabledTokenMask,
-                totalTokensEnabled,
-                0,
-                maxIndex
-            );
+            revert TooManyEnabledTokensException();
         }
     }
 
@@ -1045,50 +1012,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 enabledTokenMask = enabledTokenMask >> 1;
             }
         }
-    }
-
-    /// @dev Searches for tokens with zero balance among enabled tokens
-    ///      on a Credit Account and disables them, until the total number
-    ///      of enabled tokens is at maxAllowedEnabledTokenLength
-    /// @param creditAccount The Credit Account to optimize
-    /// @param enabledTokenMask Mask encoding the set of currentl enabled tokens
-    /// @param totalTokensEnabled The current number of enabled tokens
-    /// @param minIndex Inclusive lower bound of search range
-    /// @param maxIndex Non-inclusive upper bound of search range
-    function _optimizeEnabledTokens(
-        address creditAccount,
-        uint256 enabledTokenMask,
-        uint256 totalTokensEnabled,
-        uint256 minIndex,
-        uint256 maxIndex
-    ) internal {
-        // The whole block can be marked unchecked, since:
-        // - maxIndex < 256 at all times (i.e., tokenMask < 2 ** 256);
-        // - totalTokensEnabled does not go lower than maxAllowedEnabledTokenLength
-        //   (the function returns at that point)
-        unchecked {
-            for (uint256 i = minIndex; i < maxIndex; ) {
-                uint256 tokenMask = 1 << i;
-                if (enabledTokenMask & tokenMask != 0) {
-                    (address token, ) = collateralTokensByMask(tokenMask);
-                    uint256 balance = IERC20(token).balanceOf(creditAccount);
-
-                    if (balance <= 1) {
-                        enabledTokenMask ^= tokenMask;
-                        --totalTokensEnabled;
-                        if (
-                            totalTokensEnabled <= maxAllowedEnabledTokenLength
-                        ) {
-                            enabledTokensMap[creditAccount] = enabledTokenMask;
-                            return;
-                        }
-                    }
-                }
-
-                ++i;
-            }
-        }
-        revert TooManyEnabledTokensException();
     }
 
     /// @dev Disables a token on a credit account
@@ -1479,12 +1402,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         uint256 quotaPremiums;
 
         if (supportsQuotas) {
-            LimitTokenCalc[] memory tokens = getLimitedTokens(creditAccount);
+            TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
             quotaPremiums = cumulativeQuotaPremiums[creditAccount];
 
             if (tokens.length > 0) {
-                quotaPremiums += poolQuotaKeeper().computeOutstandingPremiums(
+                quotaPremiums += poolQuotaKeeper().outstandingQuotaPremiums(
                     address(this),
                     creditAccount,
                     tokens

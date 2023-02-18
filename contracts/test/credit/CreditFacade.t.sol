@@ -1394,7 +1394,7 @@ contract CreditFacadeTest is
         );
     }
 
-    /// @dev [FA-21C]: addCollateral calls checkAndOptimizeEnabledTokens
+    /// @dev [FA-21C]: addCollateral calls checkEnabledTokensLength
     function test_FA_21C_addCollateral_optimizes_enabled_tokens() public {
         (address creditAccount, ) = _openTestCreditAccount();
 
@@ -1409,7 +1409,7 @@ contract CreditFacadeTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.checkAndOptimizeEnabledTokens.selector,
+                ICreditManagerV2.checkEnabledTokensLength.selector,
                 creditAccount
             )
         );
@@ -2085,7 +2085,7 @@ contract CreditFacadeTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSelector(
-                ICreditManagerV2.checkAndOptimizeEnabledTokens.selector,
+                ICreditManagerV2.checkEnabledTokensLength.selector,
                 creditAccount
             )
         );

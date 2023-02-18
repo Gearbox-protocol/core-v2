@@ -206,7 +206,7 @@ interface ICreditManagerV2 is
     ///      does not violate the maximal enabled token limit and tries
     ///      to disable unused tokens if it does
     /// @param creditAccount Account to check enabled tokens for
-    function checkAndOptimizeEnabledTokens(address creditAccount) external;
+    function checkEnabledTokensLength(address creditAccount) external;
 
     /// @dev Disables a token on a credit account
     /// @notice Usually called by adapters to disable spent tokens during a multicall,

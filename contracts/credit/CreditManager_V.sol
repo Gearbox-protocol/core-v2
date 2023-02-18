@@ -920,7 +920,7 @@ pragma solidity ^0.8.10;
 //         // However, the number of enabled tokens needs to be checked against the limit,
 //         // as a new collateral token was potentially enabled
 //         if (amountOutCollateral >= amountInCollateral) {
-//             _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-35]
+//             _checkEnabledTokensLength(creditAccount); // F:[CM-35]
 //             return; // F:[CM-34]
 //         }
 
@@ -936,7 +936,7 @@ pragma solidity ^0.8.10;
 //             (slot1.feeLiquidation * RAY) / PERCENTAGE_FACTOR
 //         ) {
 //             cumulativeDropAtFastCheckRAY[creditAccount] = cumulativeDropRAY; // F:[CM-36]
-//             _checkAndOptimizeEnabledTokens(creditAccount); // F:[CM-37]
+//             _checkEnabledTokensLength(creditAccount); // F:[CM-37]
 //             return;
 //         }
 
@@ -1156,16 +1156,16 @@ pragma solidity ^0.8.10;
 //     ///      does not violate the maximal enabled token limit and tries
 //     ///      to disable unused tokens if it does
 //     /// @param creditAccount Account to check enabled tokens for
-//     function checkAndOptimizeEnabledTokens(address creditAccount)
+//     function checkEnabledTokensLength(address creditAccount)
 //         external
 //         override
 //         adaptersOrCreditFacadeOnly // F: [CM-2]
 //     {
-//         _checkAndOptimizeEnabledTokens(creditAccount);
+//         _checkEnabledTokensLength(creditAccount);
 //     }
 
-//     /// @dev IMPLEMENTATION: checkAndOptimizeEnabledTokens
-//     function _checkAndOptimizeEnabledTokens(address creditAccount) internal {
+//     /// @dev IMPLEMENTATION: checkEnabledTokensLength
+//     function _checkEnabledTokensLength(address creditAccount) internal {
 //         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
 //         uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokenMask);
 

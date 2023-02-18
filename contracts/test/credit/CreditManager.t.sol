@@ -482,7 +482,7 @@ contract CreditManagerTest is
         creditManager.fullCollateralCheck(DUMB_ADDRESS);
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
-        creditManager.checkAndOptimizeEnabledTokens(DUMB_ADDRESS);
+        creditManager.checkEnabledTokensLength(DUMB_ADDRESS);
 
         evm.stopPrank();
     }
@@ -2069,78 +2069,6 @@ contract CreditManagerTest is
             creditManager.maxAllowedEnabledTokenLength(),
             "Incorrect number of tokens enabled"
         );
-    }
-
-    /// @dev [CM-41B]: fullCollateralCheck correctly optimizes number of enabled tokens
-    function test_CM_41B_fullCollateralCheck_correctly_optimizes_enabled_tokens()
-        public
-    {
-        uint256 randomValue = uint256(keccak256(abi.encodePacked(gasleft())));
-
-        for (
-            uint256 enabledTokens = 0;
-            enabledTokens < 40;
-            enabledTokens += 8
-        ) {
-            uint256 startIndex = enabledTokens > 12 ? enabledTokens - 12 : 0;
-
-            for (
-                uint256 zeroBalanceTokens = startIndex;
-                zeroBalanceTokens <= enabledTokens;
-                zeroBalanceTokens++
-            ) {
-                setUp();
-
-                uint256 maxTokens = creditManager
-                    .maxAllowedEnabledTokenLength();
-
-                if (enabledTokens + 1 - zeroBalanceTokens > 12) {
-                    continue;
-                }
-
-                (
-                    bool[] memory tokenTypes,
-                    uint256 breakpointIdx
-                ) = _getRandomBits(
-                        enabledTokens - zeroBalanceTokens,
-                        zeroBalanceTokens,
-                        randomValue
-                    );
-
-                (
-                    uint256 borrowedAmount,
-                    ,
-                    ,
-                    address creditAccount
-                ) = _openCreditAccount();
-
-                tokenTestSuite.mint(
-                    Tokens.DAI,
-                    creditAccount,
-                    borrowedAmount * 100
-                );
-
-                uint256 enabledTokensLeftAfterFullCheck = prepareForEnabledTokenOptimization(
-                        creditAccount,
-                        tokenTypes,
-                        enabledTokens,
-                        zeroBalanceTokens,
-                        breakpointIdx
-                    );
-
-                if (enabledTokensLeftAfterFullCheck > maxTokens) {
-                    enabledTokensLeftAfterFullCheck = maxTokens;
-                }
-
-                creditManager.fullCollateralCheck(creditAccount);
-
-                assertEq(
-                    calcEnabledTokens(creditAccount),
-                    enabledTokensLeftAfterFullCheck,
-                    "Incorrect number of tokens enabled"
-                );
-            }
-        }
     }
 
     /// @dev [CM-42]: fullCollateralCheck fuzzing test
