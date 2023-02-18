@@ -113,9 +113,9 @@ contract CreditManagerTestInternal is CreditManager {
         }
     }
 
-    function getMaxIndex(uint256 mask) external pure returns (uint256 index) {
-        index = _getMaxIndex(mask);
-    }
+    // function getMaxIndex(uint256 mask) external pure returns (uint256 index) {
+    //     index = _getMaxIndex(mask);
+    // }
 
     function getSlotBytes(uint256 slotNum)
         external

@@ -2980,19 +2980,19 @@ contract CreditManagerTest is
         );
     }
 
-    /// @dev [CM-59]: _getTokenIndexByAddress works properly
-    function test_CM_59_getMaxIndex_works_properly(uint256 noise) public {
-        CreditManagerTestInternal cm = new CreditManagerTestInternal(
-            address(poolMock)
-        );
+    // /// @dev [CM-59]: _getTokenIndexByAddress works properly
+    // function test_CM_59_getMaxIndex_works_properly(uint256 noise) public {
+    //     CreditManagerTestInternal cm = new CreditManagerTestInternal(
+    //         address(poolMock)
+    //     );
 
-        for (uint256 i = 0; i < 256; i++) {
-            uint256 mask = 1 << i;
-            if (mask > noise) mask |= noise;
-            uint256 value = cm.getMaxIndex(mask);
-            assertEq(i, value, "Incorrect result");
-        }
-    }
+    //     for (uint256 i = 0; i < 256; i++) {
+    //         uint256 mask = 1 << i;
+    //         if (mask > noise) mask |= noise;
+    //         uint256 value = cm.getMaxIndex(mask);
+    //         assertEq(i, value, "Incorrect result");
+    //     }
+    // }
 
     /// @dev [CM-60]: CreditManager allows approveCreditAccount and executeOrder for universal adapter
     function test_CM_60_universal_adapter_can_call_adapter_restricted_functions()

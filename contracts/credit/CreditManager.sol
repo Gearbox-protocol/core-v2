@@ -859,20 +859,25 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         adaptersOrCreditFacadeOnly // F:[CM-3]
         nonReentrant
     {
-        _fullCollateralCheck(creditAccount);
+        uint256[] memory collateralHints = new uint256[](0);
+        _fullCollateralCheck(creditAccount, collateralHints);
     }
 
     /// @dev IMPLEMENTATION: fullCollateralCheck
     /// @param creditAccount Address of the Credit Account to check
-    function _fullCollateralCheck(address creditAccount) internal {
+    function _fullCollateralCheck(
+        address creditAccount,
+        uint256[] memory collateralHints
+    ) internal {
         IPriceOracleV2 _priceOracle = slot1.priceOracle;
 
         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
         uint256 checkedTokenMask = enabledTokenMask;
         uint256 borrowAmountPlusInterestRateUSD;
-        uint256 len;
+
         uint256 twvUSD;
-        unchecked {
+
+        {
             uint256 quotaPremiums;
             if (supportsQuotas) {
                 TokenLT[] memory tokens = getLimitedTokens(creditAccount);
@@ -907,8 +912,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 underlying
             );
 
-            len = _getMaxIndex(checkedTokenMask) + 1;
-
             // If quoted tokens fully cover the debt, we can stop here
             // after performing some additional cleanup
             if (twvUSD >= borrowAmountPlusInterestRateUSD) {
@@ -919,17 +922,22 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         }
 
         uint256 tokenMask;
-
         bool atLeastOneTokenWasDisabled;
 
-        for (uint256 i; i < len; ) {
+        uint256 len = collateralHints.length;
+        uint256 i;
+
+        // TODO: add test that we check all values and it's always reachable
+        while (checkedTokenMask != 0) {
+            // [DEPRICIATED]:
             // The order of evaluation is adjusted to optimize for
             // farming, as it is the largest expected use case
             // Since farming positions are at the end of the collateral token list
             // the loop moves through token masks in descending order (except underlying, which is
             // checked first)
+
             unchecked {
-                tokenMask = i == 0 ? 1 : 1 << (len - i);
+                tokenMask = (i < len) ? collateralHints[i] : 1 << (i - len);
             }
 
             // CASE enabledTokenMask & tokenMask == 0 F:[CM-38]
@@ -969,6 +977,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 }
             }
 
+            checkedTokenMask = checkedTokenMask & (~tokenMask);
             unchecked {
                 ++i;
             }
@@ -1002,13 +1011,14 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         if (limitMask > 0) {
             tokens = new TokenLT[](maxAllowedEnabledTokenLength + 1);
 
-            uint256 maxIndex = _getMaxIndex(limitMask);
             uint256 tokenMask;
 
             uint256 j;
 
             unchecked {
-                for (uint256 i = 1; tokenMask <= maxIndex; ++i) {
+                // TODO: we can forbid token witn index 255 and remove i<256
+                // or shift tokenMask = tokenMask << 1 and even remove i in this case
+                for (uint256 i = 1; tokenMask <= limitMask || i < 256; ++i) {
                     tokenMask = 1 << i;
                     if (limitMask & tokenMask != 0) {
                         (address token, uint16 lt) = collateralTokensByMask(
@@ -1562,31 +1572,31 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         mask = (token == underlying) ? 1 : tokenMasksMapInternal[token];
     }
 
-    /// @dev Returns the largest token index out of enabled tokens, based on a mask
-    /// @param mask Bit mask encoding enabled tokens
-    /// @return index Largest index out of the set of enabled tokens
-    function _getMaxIndex(uint256 mask) internal pure returns (uint256 index) {
-        if (mask == 1) return 0;
+    // /// @dev Returns the largest token index out of enabled tokens, based on a mask
+    // /// @param mask Bit mask encoding enabled tokens
+    // /// @return index Largest index out of the set of enabled tokens
+    // function _getMaxIndex(uint256 mask) internal pure returns (uint256 index) {
+    //     if (mask == 1) return 0;
 
-        // Performs a binary search within the range of all token indices
-        // If right-shifting a mask by n turns it into 1, then n is the largest index
+    //     // Performs a binary search within the range of all token indices
+    //     // If right-shifting a mask by n turns it into 1, then n is the largest index
 
-        uint256 high = 256;
-        uint256 low = 1;
+    //     uint256 high = 256;
+    //     uint256 low = 1;
 
-        while (true) {
-            index = (high + low) >> 1;
-            uint256 testMask = 1 << index;
+    //     while (true) {
+    //         index = (high + low) >> 1;
+    //         uint256 testMask = 1 << index;
 
-            if (testMask & mask != 0 && (mask >> index == 1)) break;
+    //         if (testMask & mask != 0 && (mask >> index == 1)) break;
 
-            if (testMask >= mask) {
-                high = index;
-            } else {
-                low = index;
-            }
-        }
-    }
+    //         if (testMask >= mask) {
+    //             high = index;
+    //         } else {
+    //             low = index;
+    //         }
+    //     }
+    // }
 
     /// @dev Returns the fee parameters of the Credit Manager
     /// @return feeInterest Percentage of interest taken by the protocol as profit
