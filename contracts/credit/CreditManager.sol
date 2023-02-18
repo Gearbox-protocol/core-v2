@@ -480,10 +480,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 );
             }
 
-            if (amountRepaid == 0) {
-                // Do nothig if amount was spent for quota repaying
-                newBorrowedAmount = borrowedAmount;
-            } else {
+            if (amountRepaid > 0) {
                 // Computes the interest accrued thus far
                 uint256 interestAccrued = (borrowedAmount *
                     cumulativeIndexNow_RAY) /
@@ -509,7 +506,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
                     // is set to the current cumulative index - which means interest starts accruing
                     // on the new principal from zero
-                    newCumulativeIndex = cumulativeIndexNow_RAY; // F:[CM-21]
+                    newCumulativeIndex = cumulativeIndexAtOpen_RAY; // F:[CM-21]
                 } else {
                     // If the amount is not enough to cover interest and fees,
                     // then the sum is split between dao fees and pool profits pro-rata. Since the fee is the percentage
@@ -538,6 +535,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                         false
                     );
                 }
+            } else {
+                newBorrowedAmount = borrowedAmount;
+                newCumulativeIndex = cumulativeIndexAtOpen_RAY;
             }
 
             // Pays the amount back to the pool
@@ -554,11 +554,16 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             ); // F:[CM-21]
         }
         //
-        // Sets new parameters on the Credit Account
-        ICreditAccount(creditAccount).updateParameters(
-            newBorrowedAmount,
-            newCumulativeIndex
-        ); // F:[CM-20. 21]
+        // Sets new parameters on the Credit Account if they were changed
+        if (
+            newBorrowedAmount != borrowedAmount ||
+            newCumulativeIndex != cumulativeIndexAtOpen_RAY
+        ) {
+            ICreditAccount(creditAccount).updateParameters(
+                newBorrowedAmount,
+                newCumulativeIndex
+            ); // F:[CM-20. 21]
+        }
     }
 
     function _computeQuotasAmountDebtIncrease(
