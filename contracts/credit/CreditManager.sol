@@ -474,6 +474,8 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 cumulativeIndexAtOpen_RAY -
                 borrowedAmount; // F:[CM-21]
 
+            /// TODO: Account for partial repayment
+
             if (supportsQuotas) {
                 uint256 cp = cumulativeQuotaPremiums[creditAccount];
                 if (cp > 2) {
@@ -1074,6 +1076,10 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     ++i;
                 }
             }
+
+            uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokensMask);
+            if (totalTokensEnabled > maxAllowedEnabledTokenLength)
+                revert TooManyEnabledTokensException();
 
             enabledTokensMap[creditAccount] = enabledTokensMask;
         }
