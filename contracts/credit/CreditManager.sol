@@ -494,13 +494,10 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 if (amountRepaid >= interestAccrued + profit) {
                     // If the amount covers all of the interest and fees, they are
                     // paid first, and the remainder is used to pay the principal
-                    newBorrowedAmount =
-                        borrowedAmount +
-                        interestAccrued +
-                        profit -
-                        amount;
 
                     amountRepaid -= interestAccrued + profit;
+                    newBorrowedAmount = borrowedAmount - amountRepaid; //  + interestAccrued + profit - amount;
+
                     amountProfit += profit;
 
                     // Since interest is fully repaid, the Credit Account's cumulativeIndexAtOpen
@@ -546,6 +543,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 pool,
                 amount
             ); // F:[CM-21]
+
+            // TODO: delete after tests or write Invaraiant test
+            require(
+                borrowAmount - newBorrowAmount == amountRepaid,
+                "Ooops, something was wring"
+            );
 
             IPoolService(pool).repayCreditAccount(
                 amountRepaid,
