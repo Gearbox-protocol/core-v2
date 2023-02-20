@@ -20,7 +20,7 @@ import { ContractsRegister } from "../core/ContractsRegister.sol";
 import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 import { Pool4626 } from "./Pool4626.sol";
-import { IPoolQuotaKeeper, QuotaUpdate, QuotaRateUpdate, TokenLT } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IPoolQuotaKeeper, QuotaUpdate, QuotaRateUpdate, TokenLT, QuotaStatusChange } from "../interfaces/IPoolQuotaKeeper.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
 import { IGauge } from "../interfaces/IGauge.sol";
 
@@ -120,28 +120,34 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         override
         creditManagerOnly
         returns (
-            uint256 caPremiumChange,
-            bool[] memory statusChanges,
-            bool oneStatusWasChanged
+            uint256 caQuotaInterestChange,
+            QuotaStatusChange[] memory statusChanges,
+            bool statusWasChanged
         )
     {
         uint256 len = quotaUpdates.length;
         int128 quotaRevenueChange;
 
-        statusChanges = new bool[](len);
+        statusChanges = new QuotaStatusChange[](len);
 
         for (uint256 i; i < len; ) {
-            (int128 qic, uint256 cap, bool statusChanged) = _updateQuota(
-                msg.sender,
-                creditAccount,
-                quotaUpdates[i].token,
-                quotaUpdates[i].quotaChange
-            );
+            (
+                int128 qic,
+                uint256 cap,
+                QuotaStatusChange statusChange
+            ) = _updateQuota(
+                    msg.sender,
+                    creditAccount,
+                    quotaUpdates[i].token,
+                    quotaUpdates[i].quotaChange
+                );
 
             quotaRevenueChange += qic;
-            caPremiumChange += cap;
-            statusChanges[i] = statusChanged;
-            oneStatusWasChanged = oneStatusWasChanged || statusChanged;
+            caQuotaInterestChange += cap;
+            statusChanges[i] = statusChange;
+            statusWasChanged =
+                statusWasChanged ||
+                (statusChange != QuotaStatusChange.NOT_CHANGED);
             unchecked {
                 ++i;
             }
@@ -152,11 +158,11 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         }
     }
 
-    function outstandingQuotaPremiums(
+    function outstandingQuotaInterest(
         address creditManager,
         address creditAccount,
         TokenLT[] memory tokensLT
-    ) external view override returns (uint256 caPremiumChange) {
+    ) external view override returns (uint256 caQuotaInterestChange) {
         uint256 len = tokensLT.length;
 
         for (uint256 i; i < len; ) {
@@ -169,7 +175,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             if (quoted > 1) {
                 TokenQuotaParams storage tq = totalQuotas[token];
                 uint192 cumulativeIndexNow = _cumulativeIndexNow(tq);
-                caPremiumChange += _computeCumulativeQuote(
+                caQuotaInterestChange += _computeOutstandingQuotaInterest(
                     q.quota,
                     cumulativeIndexNow,
                     q.cumulativeIndexLU
@@ -181,10 +187,15 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         }
     }
 
-    function accrueQuotaPremiums(
+    function accrueQuotaInterest(
         address creditAccount,
         TokenLT[] memory tokensLT
-    ) external override creditManagerOnly returns (uint256 caPremiumChange) {
+    )
+        external
+        override
+        creditManagerOnly
+        returns (uint256 caQuotaInterestChange)
+    {
         uint256 len = tokensLT.length;
 
         for (uint256 i; i < len; ) {
@@ -195,7 +206,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             if (quoted > 1) {
                 TokenQuotaParams storage tq = totalQuotas[token];
                 uint192 cumulativeIndexNow = _cumulativeIndexNow(tq);
-                caPremiumChange += _computeCumulativeQuote(
+                caQuotaInterestChange += _computeOutstandingQuotaInterest(
                     q.quota,
                     cumulativeIndexNow,
                     q.cumulativeIndexLU
@@ -217,8 +228,8 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         internal
         returns (
             int128 quotaRevenueChange,
-            uint256 caPremiumChange,
-            bool quotaStatusChanged
+            uint256 caQuotaInterestChange,
+            QuotaStatusChange statusChange
         )
     {
         TokenQuotaParams storage q = totalQuotas[token];
@@ -234,10 +245,8 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         uint96 totalQuoted = q.totalQuoted;
         uint192 cumulativeIndexNow = _cumulativeIndexNow(q);
 
-        /// UPDATE HERE ::: check quota.quota is "1"
         if (quota.quota > 1) {
-            /// TODO: check
-            caPremiumChange = _computeCumulativeQuote(
+            caQuotaInterestChange = _computeOutstandingQuotaInterest(
                 quota.quota,
                 cumulativeIndexNow,
                 quota.cumulativeIndexLU
@@ -248,14 +257,19 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
 
         if (quotaChange > 0) {
             uint96 limit = q.limit;
-            if (totalQuoted > limit) return (0, caPremiumChange, false);
+            if (totalQuoted > limit)
+                return (
+                    0,
+                    caQuotaInterestChange,
+                    QuotaStatusChange.NOT_CHANGED
+                );
             change = (totalQuoted + uint96(quotaChange) > limit)
                 ? int96(limit - totalQuoted)
                 : quotaChange;
             q.totalQuoted = totalQuoted + uint96(change);
 
-            if (quota.quota == 0 && change > 0) {
-                quotaStatusChanged = true;
+            if (quota.quota <= 1 && change > 0) {
+                statusChange = QuotaStatusChange.ZERO_TO_POSITIVE;
             }
 
             quota.quota += uint96(change);
@@ -263,21 +277,24 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             change = quotaChange;
             q.totalQuoted = uint96(int96(totalQuoted) + change);
 
-            if (quota.quota == uint96(-change)) {
-                quotaStatusChanged = true;
+            if (quota.quota <= uint96(-change) + 1) {
+                statusChange = QuotaStatusChange.POSITIVE_TO_ZERO;
             }
 
             quota.quota -= uint96(-change);
         }
 
-        return (change * int16(q.rate), caPremiumChange, quotaStatusChanged);
+        return (change * int16(q.rate), caQuotaInterestChange, statusChange);
     }
 
     function _removeQuota(
         address creditManager,
         address creditAccount,
         address token
-    ) internal returns (int128 quotaRevenueChange, uint256 caPremiumChange) {
+    )
+        internal
+        returns (int128 quotaRevenueChange, uint256 caQuotaInterestChange)
+    {
         AccountQuota storage quota = quotas[creditManager][creditAccount][
             token
         ];
@@ -289,7 +306,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         TokenQuotaParams storage tq = totalQuotas[token];
         uint192 cumulativeIndexNow = _cumulativeIndexNow(tq);
 
-        caPremiumChange = _computeCumulativeQuote(
+        caQuotaInterestChange = _computeOutstandingQuotaInterest(
             quoted,
             cumulativeIndexNow,
             quota.cumulativeIndexLU
@@ -298,10 +315,13 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         tq.totalQuoted -= quoted;
         quota.quota = 1; // TODO: "0" or "1"(?)
 
-        return (-int128(uint128(quoted)) * int16(tq.rate), caPremiumChange);
+        return (
+            -int128(uint128(quoted)) * int16(tq.rate),
+            caQuotaInterestChange
+        );
     }
 
-    function _computeCumulativeQuote(
+    function _computeOutstandingQuotaInterest(
         uint96 quoted,
         uint192 cumulativeIndexNow,
         uint192 cumulativeIndexLU
@@ -353,20 +373,28 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         address creditAccount,
         address _priceOracle,
         TokenLT[] memory tokens
-    ) external view override returns (uint256 value, uint256 premium) {
+    )
+        external
+        view
+        override
+        returns (uint256 value, uint256 totalQuotaInterest)
+    {
         uint256 i;
 
         uint256 len = tokens.length;
         while (i < len && tokens[i].token != address(0)) {
-            (uint256 currentUSD, uint256 p) = _getCollateralValue(
-                creditManager,
-                creditAccount,
-                tokens[i].token,
-                _priceOracle
-            );
+            (
+                uint256 currentUSD,
+                uint256 outstandingInterest
+            ) = _getCollateralValue(
+                    creditManager,
+                    creditAccount,
+                    tokens[i].token,
+                    _priceOracle
+                );
 
             value += currentUSD * tokens[i].lt;
-            premium += p;
+            totalQuotaInterest += outstandingInterest;
 
             unchecked {
                 ++i;
@@ -383,7 +411,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         address creditAccount,
         address token,
         address _priceOracle
-    ) internal view returns (uint256 value, uint256 premium) {
+    ) internal view returns (uint256 value, uint256 interest) {
         AccountQuota storage q = quotas[creditManager][creditAccount][token];
 
         /// TODO: check "1" problem
@@ -401,8 +429,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
                 if (value > quotaValueUSD) value = quotaValueUSD;
             }
 
-            /// TODO: check the calc
-            premium = _computeCumulativeQuote(
+            interest = _computeOutstandingQuotaInterest(
                 q.quota,
                 cumulativeIndex(token),
                 q.cumulativeIndexLU
@@ -414,7 +441,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         external
         override
         creditManagerOnly
-        returns (uint256 premiums)
+        returns (uint256 totalInterest)
     {
         int128 quotaRevenueChange;
 
@@ -422,14 +449,14 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         for (uint256 i; i < len; ) {
             address token = tokens[i].token;
 
-            (int128 qic, uint256 cap) = _removeQuota(
+            (int128 qic, uint256 caqi) = _removeQuota(
                 msg.sender,
                 creditAccount,
                 token
             );
 
             quotaRevenueChange += qic;
-            premiums += cap;
+            totalInterest += caqi;
             unchecked {
                 ++i;
             }

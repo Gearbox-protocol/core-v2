@@ -174,7 +174,7 @@ contract Pool4626Test is
             underlyingToken: underlying,
             interestRateModel: address(psts.linearIRModel()),
             expectedLiquidityLimit: type(uint128).max,
-            supportQuotaPremiums: false
+            supportsQuotas: false
         });
 
         evm.expectRevert(ZeroAddressException.selector);
@@ -201,7 +201,7 @@ contract Pool4626Test is
             underlyingToken: underlying,
             interestRateModel: address(psts.linearIRModel()),
             expectedLiquidityLimit: limit,
-            supportQuotaPremiums: false
+            supportsQuotas: false
         });
 
         evm.expectEmit(true, false, false, false);

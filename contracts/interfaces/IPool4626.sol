@@ -11,7 +11,7 @@ struct Pool4626Opts {
     address underlyingToken;
     address interestRateModel;
     uint256 expectedLiquidityLimit;
-    bool supportQuotaPremiums;
+    bool supportsQuotas;
 }
 
 interface IPool4626Exceptions {
@@ -171,8 +171,8 @@ interface IPool4626 is
     /// @dev Borrow limit for particular credit manager
     function creditManagerLimit(address) external view returns (uint256);
 
-    /// @dev Whether the pool supports quota premiums
-    function supportQuotaPremiums() external view returns (bool);
+    /// @dev Whether the pool supports quotas
+    function supportsQuotas() external view returns (bool);
 
     /// @dev PoolQuotaKeeper address
     function poolQuotaKeeper() external view returns (address);

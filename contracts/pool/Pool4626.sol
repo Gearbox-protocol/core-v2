@@ -59,8 +59,8 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     /// @dev Diesel token Decimals
     uint8 internal immutable _decimals;
 
-    /// @dev True if pool supports risk assets
-    bool public immutable supportQuotaPremiums;
+    /// @dev True if pool supports assets with quotas and associated interest computations
+    bool public immutable supportsQuotas;
 
     /// @dev Contract version
     uint256 public constant override version = 2_10;
@@ -185,7 +185,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
 
         _setExpectedLiquidityLimit(opts.expectedLiquidityLimit); // F:[P4-01, 03]
         _setTotalBorrowedLimit(opts.expectedLiquidityLimit); // F:[P4-03]
-        supportQuotaPremiums = opts.supportQuotaPremiums; // F:[P4-01]
+        supportsQuotas = opts.supportsQuotas; // F:[P4-01]
         wethAddress = AddressProvider(opts.addressProvider).getWethToken(); // F:[P4-01]
     }
 
@@ -702,7 +702,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         return
             _expectedLiquidityLU +
             _calcBaseInterestAccrued() +
-            (supportQuotaPremiums ? _calcQuotasPremiums() : 0); //
+            (supportsQuotas ? _calcOutstandingQuotaRevenue() : 0); //
     }
 
     function _calcBaseInterestAccrued() internal view returns (uint256) {
@@ -719,7 +719,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
             SECONDS_PER_YEAR;
     }
 
-    function _calcQuotasPremiums() internal view returns (uint128) {
+    function _calcOutstandingQuotaRevenue() internal view returns (uint128) {
         return
             uint128(
                 (quotaRevenue * (block.timestamp - lastQuotaRevenueUpdate)) /
@@ -899,7 +899,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
         _borrowRate_RAY = uint128(
             interestRateModel.calcBorrowRate(
                 expectedLiquidityLUcached +
-                    (supportQuotaPremiums ? _calcQuotasPremiums() : 0),
+                    (supportsQuotas ? _calcOutstandingQuotaRevenue() : 0),
                 availableLiquidityChanged == 0
                     ? availableLiquidity()
                     : uint256(
@@ -931,7 +931,7 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     }
 
     function _updateQuotaRevenue(uint128 _newQuotaRevenue) internal {
-        _expectedLiquidityLU += _calcQuotasPremiums();
+        _expectedLiquidityLU += _calcOutstandingQuotaRevenue();
 
         lastQuotaRevenueUpdate = uint40(block.timestamp);
         quotaRevenue = _newQuotaRevenue;

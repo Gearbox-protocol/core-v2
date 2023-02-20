@@ -5,6 +5,12 @@ pragma solidity ^0.8.10;
 
 import { IVersion } from "./IVersion.sol";
 
+enum QuotaStatusChange {
+    NOT_CHANGED,
+    ZERO_TO_POSITIVE,
+    POSITIVE_TO_ZERO
+}
+
 /// @notice Quota update params
 /// @param token Address of the token to change the quota for
 /// @param quotaChange Requested quota change in pool's underlying asset units
@@ -73,7 +79,7 @@ interface IPoolQuotaKeeper is
         external
         returns (
             uint256,
-            bool[] memory,
+            QuotaStatusChange[] memory,
             bool
         );
 
@@ -88,19 +94,19 @@ interface IPoolQuotaKeeper is
         address creditAccount,
         address _priceOracle,
         TokenLT[] memory tokens
-    ) external view returns (uint256 value, uint256 premium);
+    ) external view returns (uint256 value, uint256 totalQuotaInterest);
 
     function closeCreditAccount(address creditAccount, TokenLT[] memory tokens)
         external
         returns (uint256);
 
-    function outstandingQuotaPremiums(
+    function outstandingQuotaInterest(
         address creditManager,
         address creditAccount,
         TokenLT[] memory tokens
-    ) external view returns (uint256 caPremiumChange);
+    ) external view returns (uint256 caQuotaInterestChange);
 
-    function accrueQuotaPremiums(address creditAccount, TokenLT[] memory tokens)
+    function accrueQuotaInterest(address creditAccount, TokenLT[] memory tokens)
         external
-        returns (uint256 caPremiumChange);
+        returns (uint256 caQuotaInterestChange);
 }

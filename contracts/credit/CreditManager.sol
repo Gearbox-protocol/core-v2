@@ -20,7 +20,7 @@ import { IWETHGateway } from "../interfaces/IWETHGateway.sol";
 import { ICreditManagerV2, ClosureAction, CollateralTokenData } from "../interfaces/ICreditManagerV2.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-import { IPoolQuotaKeeper, QuotaUpdate, TokenLT } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IPoolQuotaKeeper, QuotaUpdate, TokenLT, QuotaStatusChange } from "../interfaces/IPoolQuotaKeeper.sol";
 import { IVersion } from "../interfaces/IVersion.sol";
 
 // CONSTANTS
@@ -141,7 +141,11 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     /// @dev Mask of tokens to apply quotas for
     uint256 public limitedTokenMask;
 
-    mapping(address => uint256) public cumulativeQuotaPremiums;
+    /// @dev Previously accrued and unrepaid interest on quotas.
+    ///      This does not always represent the most actual quota interest,
+    ///      since it continuously accrues for all active quotas. The accrued interest
+    ///      needs to be periodically cached to ensure that computations are correct
+    mapping(address => uint256) public cumulativeQuotaInterest;
 
     /// @dev contract version
     uint256 public constant override version = 2_10;
@@ -193,7 +197,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         address _underlying = IPoolService(pool).underlyingToken(); // F:[CM-1]
         underlying = _underlying; // F:[CM-1]
 
-        try IPool4626(pool).supportQuotaPremiums() returns (bool sq) {
+        try IPool4626(pool).supportsQuotas() returns (bool sq) {
             supportsQuotas = sq;
         } catch {}
 
@@ -243,7 +247,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // Initializes the enabled token mask for Credit Account to 1 (only the underlying is enabled)
         enabledTokensMap[creditAccount] = 1; // F:[CM-8]
 
-        if (supportsQuotas) cumulativeQuotaPremiums[creditAccount] = 1; // TODO: Add test
+        if (supportsQuotas) cumulativeQuotaInterest[creditAccount] = 1; // TODO: Add test
 
         // Returns the address of the opened Credit Account
         return creditAccount; // F:[CM-8]
@@ -324,16 +328,15 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             uint256 profit;
             uint256 loss;
             uint256 borrowedAmountWithInterest;
-            uint256 quotaPremiums;
+            uint256 quotaInterest;
 
             if (supportsQuotas) {
                 TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
-                /// Check the tokens.len >0
-                quotaPremiums = cumulativeQuotaPremiums[creditAccount];
+                quotaInterest = cumulativeQuotaInterest[creditAccount];
 
                 if (tokens.length > 0) {
-                    quotaPremiums += poolQuotaKeeper().closeCreditAccount(
+                    quotaInterest += poolQuotaKeeper().closeCreditAccount(
                         creditAccount,
                         tokens
                     );
@@ -344,7 +347,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 borrowedAmount,
                 borrowedAmountWithInterest,
 
-            ) = _calcCreditAccountAccruedInterest(creditAccount, quotaPremiums); // F:
+            ) = _calcCreditAccountAccruedInterest(creditAccount, quotaInterest); // F:
 
             (amountToPool, remainingFunds, profit, loss) = calcClosePayments(
                 totalValue,
@@ -575,23 +578,24 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         amountProfit = _amountProfit;
 
         uint16 fee = slot1.feeInterest;
-        uint256 quotaFeesAccrued = cumulativeQuotaPremiums[creditAccount];
+        uint256 quotaInterestAccrued = cumulativeQuotaInterest[creditAccount];
 
         TokenLT[] memory tokens = getLimitedTokens(creditAccount);
         if (tokens.length > 0) {
-            quotaFeesAccrued += poolQuotaKeeper().accrueQuotaPremiums(
+            quotaInterestAccrued += poolQuotaKeeper().accrueQuotaInterest(
                 creditAccount,
                 tokens
             );
         }
 
-        if (quotaFeesAccrued > 2) {
-            uint256 quotaProfit = (quotaFeesAccrued * fee) / PERCENTAGE_FACTOR;
+        if (quotaInterestAccrued > 2) {
+            uint256 quotaProfit = (quotaInterestAccrued * fee) /
+                PERCENTAGE_FACTOR;
 
-            if (amountRepaid >= quotaFeesAccrued + quotaProfit) {
-                amountRepaid -= quotaFeesAccrued + quotaProfit;
+            if (amountRepaid >= quotaInterestAccrued + quotaProfit) {
+                amountRepaid -= quotaInterestAccrued + quotaProfit;
                 amountProfit += quotaProfit;
-                cumulativeQuotaPremiums[creditAccount] = 1;
+                cumulativeQuotaInterest[creditAccount] = 1;
             } else {
                 uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
                     (PERCENTAGE_FACTOR + fee);
@@ -599,18 +603,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 amountRepaid = 0;
                 amountProfit += amountRepaid - amountToPool;
 
-                cumulativeQuotaPremiums[creditAccount] =
-                    quotaFeesAccrued -
+                cumulativeQuotaInterest[creditAccount] =
+                    quotaInterestAccrued -
                     amountToPool +
                     1;
             }
         }
-    }
-
-    function _setCumulativeQuotaPremiums(address creditAccount, uint256 amount)
-        internal
-    {
-        cumulativeQuotaPremiums[creditAccount] = amount;
     }
 
     /// @dev Calculates the new cumulative index when debt is updated
@@ -882,13 +880,13 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         uint256 twvUSD;
 
         {
-            uint256 quotaPremiums;
+            uint256 quotaInterest;
             if (supportsQuotas) {
                 TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
                 if (tokens.length > 0) {
                     /// If credit account has any connected token - then check that
-                    (twvUSD, quotaPremiums) = poolQuotaKeeper()
+                    (twvUSD, quotaInterest) = poolQuotaKeeper()
                         .computeQuotedCollateralUSD(
                             address(this),
                             creditAccount,
@@ -899,7 +897,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     checkedTokenMask = checkedTokenMask & (~limitedTokenMask);
                 }
 
-                quotaPremiums += cumulativeQuotaPremiums[creditAccount];
+                quotaInterest += cumulativeQuotaInterest[creditAccount];
             }
 
             // The total weighted value of a Credit Account has to be compared
@@ -908,7 +906,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 ,
                 ,
                 uint256 borrowedAmountWithInterestAndFees
-            ) = _calcCreditAccountAccruedInterest(creditAccount, quotaPremiums);
+            ) = _calcCreditAccountAccruedInterest(creditAccount, quotaInterest);
 
             borrowAmountPlusInterestRateUSD = _priceOracle.convertToUSD(
                 borrowedAmountWithInterestAndFees * PERCENTAGE_FACTOR,
@@ -968,7 +966,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     // bit in enabledTokenMask, which is then written into storage at the
                     // very end, to avoid redundant storage writes
                 } else {
-                    enabledTokenMask ^= tokenMask; // F:[CM-39]
+                    enabledTokenMask &= ~tokenMask; // F:[CM-39]
                     atLeastOneTokenWasDisabled = true; // F:[CM-39]
                 }
             }
@@ -1110,20 +1108,24 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         QuotaUpdate[] memory quotaUpdates
     ) external override creditFacadeOnly {
         (
-            uint256 caPremiumChange,
-            bool[] memory statusChanges,
+            uint256 caInterestChange,
+            QuotaStatusChange[] memory statusChanges,
             bool statusWasChanged
         ) = poolQuotaKeeper().updateQuotas(creditAccount, quotaUpdates);
 
-        cumulativeQuotaPremiums[creditAccount] += caPremiumChange;
+        cumulativeQuotaInterest[creditAccount] += caInterestChange;
 
         if (statusWasChanged) {
             uint256 len = quotaUpdates.length;
             uint256 enabledTokensMask = enabledTokensMap[creditAccount];
 
             for (uint256 i = 0; i < len; ) {
-                if (statusChanges[i]) {
-                    enabledTokensMask ^= tokenMasksMap(quotaUpdates[i].token);
+                if (statusChanges[i] == QuotaStatusChange.ZERO_TO_POSITIVE) {
+                    enabledTokensMask |= tokenMasksMap(quotaUpdates[i].token);
+                } else if (
+                    statusChanges[i] == QuotaStatusChange.POSITIVE_TO_ZERO
+                ) {
+                    enabledTokensMask &= ~tokenMasksMap(quotaUpdates[i].token);
                 }
 
                 unchecked {
@@ -1486,15 +1488,15 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             uint256 borrowedAmountWithInterestAndFees
         )
     {
-        uint256 quotaPremiums;
+        uint256 quotaInterest;
 
         if (supportsQuotas) {
             TokenLT[] memory tokens = getLimitedTokens(creditAccount);
 
-            quotaPremiums = cumulativeQuotaPremiums[creditAccount];
+            quotaInterest = cumulativeQuotaInterest[creditAccount];
 
             if (tokens.length > 0) {
-                quotaPremiums += poolQuotaKeeper().outstandingQuotaPremiums(
+                quotaInterest += poolQuotaKeeper().outstandingQuotaInterest(
                     address(this),
                     creditAccount,
                     tokens
@@ -1502,18 +1504,18 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             }
         }
 
-        return _calcCreditAccountAccruedInterest(creditAccount, quotaPremiums);
+        return _calcCreditAccountAccruedInterest(creditAccount, quotaInterest);
     }
 
     /// @dev IMPLEMENTATION: calcCreditAccountAccruedInterest
     /// @param creditAccount Address of the Credit Account
-    /// @param quotaPremiums Total quota premiums accrued, computed elsewhere
+    /// @param quotaInterest Total quota premiums accrued, computed elsewhere
     /// @return borrowedAmount The debt principal
     /// @return borrowedAmountWithInterest The debt principal + accrued interest
     /// @return borrowedAmountWithInterestAndFees The debt principal + accrued interest and protocol fees
     function _calcCreditAccountAccruedInterest(
         address creditAccount,
-        uint256 quotaPremiums
+        uint256 quotaInterest
     )
         internal
         view
@@ -1537,7 +1539,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         borrowedAmountWithInterest =
             (borrowedAmount * cumulativeIndexNow_RAY) /
             cumulativeIndexAtOpen_RAY +
-            quotaPremiums; // F:[CM-49]
+            quotaInterest; // F:[CM-49]
 
         // Fees are computed as a percentage of interest
         borrowedAmountWithInterestAndFees =

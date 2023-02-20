@@ -98,7 +98,7 @@ contract PoolServiceTestSuite {
                 underlyingToken: _underlying,
                 interestRateModel: address(linearIRModel),
                 expectedLiquidityLimit: type(uint256).max,
-                supportQuotaPremiums: false
+                supportsQuotas: false
             });
             pool4626 = isFeeToken
                 ? new Pool4626_USDT(opts)
