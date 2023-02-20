@@ -1999,15 +1999,15 @@ contract CreditManagerTest is
             address creditAccount
         ) = _openCreditAccount();
 
-        uint256 amountToRepayInWETH = (((borrowedAmount *
+        uint256 amountToRepayInLINK = (((borrowedAmount *
             cumulativeIndexNow *
             PERCENTAGE_FACTOR) / cumulativeIndexAtOpen) * (10**8)) /
-            tokenTestSuite.prices(Tokens.WETH) /
+            tokenTestSuite.prices(Tokens.LINK) /
             creditManager.liquidationThresholds(
-                tokenTestSuite.addressOf(Tokens.WETH)
+                tokenTestSuite.addressOf(Tokens.LINK)
             );
 
-        tokenTestSuite.mint(Tokens.WETH, creditAccount, amountToRepayInWETH);
+        tokenTestSuite.mint(Tokens.LINK, creditAccount, amountToRepayInLINK);
 
         // Enable WETH and LINK token. WETH should be disabled adter fullCollateralCheck
         creditManager.checkAndEnableToken(
@@ -2021,8 +2021,8 @@ contract CreditManagerTest is
 
         creditManager.fullCollateralCheck(creditAccount);
 
-        expectTokenIsEnabled(Tokens.LINK, false);
-        expectTokenIsEnabled(Tokens.WETH, true);
+        expectTokenIsEnabled(Tokens.LINK, true);
+        expectTokenIsEnabled(Tokens.WETH, false);
     }
 
     /// @dev [CM-40]: fullCollateralCheck breaks loop if total >= borrowAmountPlusInterestRateUSD and pass the check
@@ -2050,8 +2050,8 @@ contract CreditManagerTest is
         // If fullCollateralCheck doesn't revert, it means that the break works
         evm.startPrank(CONFIGURATOR);
 
-        cm.addToken(revertToken);
         cm.addToken(linkToken);
+        cm.addToken(revertToken);
         cm.setLiquidationThreshold(linkToken, creditConfig.lt(Tokens.LINK));
 
         evm.stopPrank();

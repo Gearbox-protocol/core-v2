@@ -39,6 +39,14 @@ interface ICreditConfiguratorEvents {
         uint16 liquidityThreshold
     );
 
+    event TokenLiquidationThresholdRampScheduled(
+        address indexed token,
+        uint16 liquidationThresholdInitial,
+        uint16 liquidationThresholdFinal,
+        uint40 timestampRampStart,
+        uint40 timestampRampEnd
+    );
+
     /// @dev Emits when a new or a previously forbidden token is allowed
     event TokenAllowed(address indexed token);
 

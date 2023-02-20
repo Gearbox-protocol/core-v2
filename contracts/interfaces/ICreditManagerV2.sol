@@ -14,6 +14,14 @@ enum ClosureAction {
     LIQUIDATE_PAUSED
 }
 
+struct CollateralTokenData {
+    address token;
+    uint16 ltInitial;
+    uint16 ltFinal;
+    uint40 timestampRampStart;
+    uint24 rampDuration;
+}
+
 interface ICreditManagerV2Events {
     /// @dev Emits when a call to an external contract is made through the Credit Manager
     event ExecuteOrder(address indexed borrower, address indexed target);
@@ -69,7 +77,11 @@ interface ICreditManagerV2Exceptions {
     /// @dev Thrown when a reentrancy into the contract is attempted
     // error ReentrancyLockException();
 
+    /// @dev Thrown when attempting to perform a quota-related operation on a non-quota CM
     error CMDoesNotSupportQuotasException();
+
+    /// @dev Thrown when attempting to ramp LT for underlying
+    error CannotRampLTForUnderlyingException();
 }
 
 /// @notice All Credit Manager functions are access-restricted and can only be called

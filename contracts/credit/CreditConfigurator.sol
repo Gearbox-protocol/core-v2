@@ -248,6 +248,60 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
         }
     }
 
+    /// @dev Schedules an LT ramping for any token except underlying
+    /// @param liquidationThresholdFinal Liquidation threshold after ramping
+    /// @param timestampRampStart Timestamp when ramping starts
+    /// @param rampDuration Duration of ramping
+    function rampLiquidationThreshold(
+        address token,
+        uint16 liquidationThresholdFinal,
+        uint40 timestampRampStart,
+        uint24 rampDuration
+    ) external controllerOnly {
+        _rampLiquidationThreshold(
+            token,
+            liquidationThresholdFinal,
+            timestampRampStart,
+            rampDuration
+        );
+    }
+
+    /// @dev IMPLEMENTATION: rampLiquidationThreshold
+    function _rampLiquidationThreshold(
+        address token,
+        uint16 liquidationThresholdFinal,
+        uint40 timestampRampStart,
+        uint24 rampDuration
+    ) internal {
+        // Checks that the token is not underlying, since its LT is determined by Credit Manager params
+        if (token == underlying) revert SetLTForUnderlyingException();
+
+        (, uint16 ltUnderlying) = creditManager.collateralTokens(0);
+        // Sanity check for the liquidation threshold. The LT should be less than underlying
+        if (liquidationThresholdFinal > ltUnderlying) {
+            revert IncorrectLiquidationThresholdException();
+        }
+
+        uint16 currentLT = creditManager.liquidationThresholds(token);
+
+        if (currentLT != liquidationThresholdFinal) {
+            // Sets the LT in Credit Manager, where token existence is checked
+            creditManager.rampLiquidationThreshold(
+                token,
+                liquidationThresholdFinal,
+                timestampRampStart,
+                rampDuration
+            );
+            emit TokenLiquidationThresholdRampScheduled(
+                token,
+                currentLT,
+                liquidationThresholdFinal,
+                timestampRampStart,
+                timestampRampStart + rampDuration
+            );
+        }
+    }
+
     /// @dev Allow a known collateral token if it was forbidden before.
     /// @param token Address of collateral token
     function allowToken(address token)

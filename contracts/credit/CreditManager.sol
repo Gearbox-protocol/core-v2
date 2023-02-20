@@ -17,7 +17,7 @@ import { ICreditAccount } from "../interfaces/ICreditAccount.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IPool4626 } from "../interfaces/IPool4626.sol";
 import { IWETHGateway } from "../interfaces/IWETHGateway.sol";
-import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
+import { ICreditManagerV2, ClosureAction, CollateralTokenData } from "../interfaces/ICreditManagerV2.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IPoolQuotaKeeper, QuotaUpdate, TokenLT } from "../interfaces/IPoolQuotaKeeper.sol";
@@ -93,9 +93,8 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     /// @dev Address of the connected Credit Configurator
     address public creditConfigurator;
 
-    /// @dev Map of token's bit mask to its address and LT compressed into a single uint256
-    /// @notice Use collateralTokens(uint256 i) to get uncompressed values.
-    mapping(uint256 => uint256) internal collateralTokensCompressed;
+    /// @dev Map of token's bit mask to its address and LT parameters in a single-slot struct
+    mapping(uint256 => CollateralTokenData) internal collateralTokensData;
 
     /// @dev Total number of known collateral tokens.
     uint256 public collateralTokensCount;
@@ -415,8 +414,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         _accountFactory.returnCreditAccount(creditAccount); // F:[CM-9]
     }
 
-    /// TODO: Fix decrease debt logic to account for cumulativeQuotaPremiums
-
     /// @dev Manages debt size for borrower:
     ///
     /// - Increase debt:
@@ -546,7 +543,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
             // TODO: delete after tests or write Invaraiant test
             require(
-                borrowAmount - newBorrowAmount == amountRepaid,
+                borrowedAmount - newBorrowedAmount == amountRepaid,
                 "Ooops, something was wring"
             );
 
@@ -1424,18 +1421,44 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             token = underlying; // F:[CM-47]
             liquidationThreshold = slot1.ltUnderlying;
         } else {
-            // The address and LT of a collateral token are compressed into a single uint256
-            // The first 160 bits of the number is the address, and any bits after that are interpreted as LT
-            uint256 collateralTokenCompressed = collateralTokensCompressed[
+            CollateralTokenData memory tokenData = collateralTokensData[
                 tokenMask
             ]; // F:[CM-47]
 
-            // Unsafe downcasting is justified, since the right 160 bits of collateralTokenCompressed
-            // always stores the uint160 encoded address and the extra bits need to be cut
-            token = address(uint160(collateralTokenCompressed)); // F:[CM-47]
-            liquidationThreshold = (collateralTokenCompressed >> ADDR_BIT_SIZE)
-                .toUint16(); // F:[CM-47]
+            token = tokenData.token;
+
+            if (block.timestamp < tokenData.timestampRampStart) {
+                liquidationThreshold = tokenData.ltInitial; // F:[CM-47]
+            } else if (
+                block.timestamp <
+                tokenData.timestampRampStart + tokenData.rampDuration
+            ) {
+                liquidationThreshold = _getRampingLiquidationThreshold(
+                    tokenData.ltInitial,
+                    tokenData.ltFinal,
+                    tokenData.timestampRampStart,
+                    tokenData.timestampRampStart + tokenData.rampDuration
+                );
+            } else {
+                liquidationThreshold = tokenData.ltFinal;
+            }
         }
+    }
+
+    function _getRampingLiquidationThreshold(
+        uint16 ltInitial,
+        uint16 ltFinal,
+        uint40 timestampRampStart,
+        uint40 timestampRampEnd
+    ) internal view returns (uint16) {
+        return
+            uint16(
+                (ltInitial *
+                    (timestampRampEnd - block.timestamp) +
+                    ltFinal *
+                    (block.timestamp - timestampRampStart)) /
+                    (timestampRampEnd - timestampRampStart)
+            );
     }
 
     /// @dev Returns the address of a borrower's Credit Account, or reverts if there is none.
@@ -1678,7 +1701,15 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // (i.e. 2 ** index or 1 << index)
         uint256 tokenMask = 1 << collateralTokensCount;
         tokenMasksMapInternal[token] = tokenMask; // F:[CM-53]
-        collateralTokensCompressed[tokenMask] = uint256(uint160(token)); // F:[CM-47]
+
+        collateralTokensData[tokenMask] = CollateralTokenData({
+            token: token,
+            ltInitial: 0,
+            ltFinal: 0,
+            timestampRampStart: type(uint40).max,
+            rampDuration: 0
+        }); // F:[CM-47]
+
         collateralTokensCount++; // F:[CM-47]
     }
 
@@ -1732,11 +1763,66 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             uint256 tokenMask = tokenMasksMap(token); // F:[CM-47, 54]
             if (tokenMask == 0) revert TokenNotAllowedException();
 
-            // Token address and liquidation threshold are encoded into a single uint256
-            collateralTokensCompressed[tokenMask] =
-                (collateralTokensCompressed[tokenMask] & type(uint160).max) |
-                (uint256(liquidationThreshold) << 160); // F:[CM-47]
+            CollateralTokenData memory tokenData = collateralTokensData[
+                tokenMask
+            ];
+
+            _setLTRampParams(
+                tokenData,
+                tokenMask,
+                liquidationThreshold,
+                liquidationThreshold,
+                type(uint40).max,
+                0
+            ); // F:[CM-47]
         }
+    }
+
+    /// @dev Sets ramping parameters for a token's liquidation threshold
+    /// @notice Ramping parameters allow to decrease the LT gradually over a period of time
+    ///         which gives users/bots time to react and adjust their position for the new LT
+    /// @param token The collateral token to set the LT for
+    /// @param finalLT The final LT after ramping
+    /// @param timestampRampStart Timestamp when the LT starts ramping
+    /// @param rampDuration Duration of ramping
+    function rampLiquidationThreshold(
+        address token,
+        uint16 finalLT,
+        uint40 timestampRampStart,
+        uint24 rampDuration
+    ) external creditConfiguratorOnly {
+        uint256 tokenMask = tokenMasksMap(token);
+
+        if (tokenMask == 0) revert TokenNotAllowedException();
+        if (tokenMask == 1) revert CannotRampLTForUnderlyingException();
+
+        CollateralTokenData memory tokenData = collateralTokensData[tokenMask];
+
+        _setLTRampParams(
+            tokenData,
+            tokenMask,
+            tokenData.ltInitial,
+            finalLT,
+            timestampRampStart,
+            rampDuration
+        );
+    }
+
+    /// @dev Internal function that sets the LT params
+    function _setLTRampParams(
+        CollateralTokenData memory tokenData,
+        uint256 tokenMask,
+        uint16 ltInitial,
+        uint16 ltFinal,
+        uint40 timestampRampStart,
+        uint24 rampDuration
+    ) internal {
+        tokenData.ltInitial = ltInitial;
+        tokenData.ltFinal = ltFinal;
+        tokenData.timestampRampStart = timestampRampStart;
+        tokenData.rampDuration = rampDuration;
+
+        collateralTokensData[tokenMask] = tokenData;
     }
 
     /// @dev Sets the forbidden token mask
