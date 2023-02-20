@@ -79,6 +79,8 @@ interface IPoolQuotaKeeper is
 
     function quotedTokens() external view returns (address[] memory);
 
+    function isQuotedToken(address token) external view returns (bool);
+
     function updateRates(QuotaRateUpdate[] memory qUpdates) external;
 
     function computeQuotedCollateralUSD(

@@ -486,6 +486,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         emit QuotaTokenAdded(token);
 
         qp.cumulativeIndexLU_RAY = uint192(RAY);
+        qp.rate = _rate;
 
         // TODO: add here code to make updateQuotasRate correctly working
         // _updateQuotaRate(token, _rate);
@@ -494,5 +495,14 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
 
     function quotedTokens() external view override returns (address[] memory) {
         return quotaTokensSet.values();
+    }
+
+    function isQuotedToken(address token)
+        external
+        view
+        override
+        returns (bool)
+    {
+        return quotaTokensSet.contains(token);
     }
 }

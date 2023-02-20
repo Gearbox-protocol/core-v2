@@ -896,8 +896,6 @@ contract CreditFacadeTest is
             MultiCall({ target: address(adapterMock), callData: DUMB_CALLDATA })
         );
 
-        // TODO: add Mutlicall events here
-
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSignature(
@@ -2650,14 +2648,13 @@ contract CreditFacadeTest is
             )
         );
 
-        // [TODO]: add check
-        // evm.expectCall(
-        //     address(creditManager),
-        //     abi.encodeWithSelector(
-        //         ICreditManagerV2.checkMaxEnabledTokens.selector,
-        //         creditAccount
-        //     )
-        // );
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeWithSelector(
+                ICreditManagerV2.checkEnabledTokensLength.selector,
+                creditAccount
+            )
+        );
 
         evm.expectEmit(true, false, false, true);
         emit TokenEnabled(USER, token);

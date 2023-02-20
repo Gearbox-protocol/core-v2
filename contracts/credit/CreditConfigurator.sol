@@ -22,6 +22,7 @@ import { ICreditConfigurator, CollateralToken, CreditManagerOpts } from "../inte
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
+import { IPoolQuotaKeeper } from "../interfaces/IPoolQuotaKeeper.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException } from "../interfaces/IErrors.sol";
@@ -145,34 +146,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
         }
     }
 
-    /// @dev Migration function used to populate the new CC's allowedContractsSet based on the previous CC's values
-    /// @param allowedContractsPrev List of allowed contracts to migrate
-    /// @notice Only callable once
-    function migrateAllowedContractsSet(address[] calldata allowedContractsPrev)
-        external
-        configuratorOnly
-    {
-        if (allowedContractsSet.length() != 0) {
-            revert MigratableParameterAlreadySet();
-        }
-
-        uint256 len = allowedContractsPrev.length;
-        for (uint256 i = 0; i < len; ) {
-            if (
-                creditManager.contractToAdapter(allowedContractsPrev[i]) ==
-                address(0)
-            ) {
-                revert ContractIsNotAnAllowedTargetException();
-            }
-
-            allowedContractsSet.add(allowedContractsPrev[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
     //
     // CONFIGURATION: TOKEN MANAGEMENT
     //
@@ -258,21 +231,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
         uint40 timestampRampStart,
         uint24 rampDuration
     ) external controllerOnly {
-        _rampLiquidationThreshold(
-            token,
-            liquidationThresholdFinal,
-            timestampRampStart,
-            rampDuration
-        );
-    }
-
-    /// @dev IMPLEMENTATION: rampLiquidationThreshold
-    function _rampLiquidationThreshold(
-        address token,
-        uint16 liquidationThresholdFinal,
-        uint40 timestampRampStart,
-        uint24 rampDuration
-    ) internal {
         // Checks that the token is not underlying, since its LT is determined by Credit Manager params
         if (token == underlying) revert SetLTForUnderlyingException();
 
@@ -346,6 +304,32 @@ contract CreditConfigurator is ICreditConfigurator, ACLNonReentrantTrait {
             forbiddenTokenMask |= tokenMask; // F:[CC-11]
             creditManager.setForbidMask(forbiddenTokenMask); // F:[CC-11]
             emit TokenForbidden(token); // F:[CC-11]
+        }
+    }
+
+    /// @dev Marks the token as limited, which enables quota logic and additional interest for it
+    /// @param token Token to make limited
+    /// @notice This action is irreversible!
+    function makeTokenLimited(address token) external configuratorOnly {
+        // Verifies whether the quota keeper has a token registered as quotable
+        IPoolQuotaKeeper quotaKeeper = creditManager.poolQuotaKeeper();
+
+        if (!quotaKeeper.isQuotedToken(token)) {
+            revert TokenIsNotQuotedException();
+        }
+
+        // Gets token masks. Reverts if the token was not added as collateral or is the underlying
+        uint256 tokenMask = _getAndCheckTokenMaskForSettingLT(token);
+
+        // Gets current limited mask
+        uint256 limitedTokenMask = creditManager.limitedTokenMask();
+
+        // If the token was not limited before, flips the corresponding bit in the mask,
+        // otherwise no actions done.
+        if (limitedTokenMask & tokenMask == 0) {
+            limitedTokenMask |= tokenMask;
+            creditManager.setLimitedMask(limitedTokenMask);
+            emit TokenLimited(token);
         }
     }
 

@@ -845,7 +845,11 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
         // Performs an inclusion check using token masks,
         // to avoid accidentally disabling the token
-        if (enabledTokensMap[creditAccount] & tokenMask == 0) {
+        // Also checks that the token is not in limited token mask,
+        // as limited tokens are only enabled and disabled by setting quotas
+        if (
+            enabledTokensMap[creditAccount] & tokenMask & limitedTokenMask == 0
+        ) {
             enabledTokensMap[creditAccount] |= tokenMask;
         } // F:[CM-31]
     }
@@ -1082,8 +1086,13 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     {
         // The enabled token mask encodes all enabled tokens as 1,
         // therefore the corresponding bit is set to 0 to disable it
+        // Also checks that the token is not in limitedTokenMask,
+        // as limited tokens are only enabled and disabled by setting quotas
         uint256 tokenMask = tokenMasksMap(token);
-        if (enabledTokensMap[creditAccount] & tokenMask != 0) {
+        if (
+            (enabledTokensMap[creditAccount] & tokenMask != 0) &&
+            (tokenMask & limitedTokenMask == 0)
+        ) {
             enabledTokensMap[creditAccount] &= ~tokenMask; // F:[CM-46]
             wasChanged = true;
         }
@@ -1825,6 +1834,18 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         creditConfiguratorOnly // F:[CM-4]
     {
         forbiddenTokenMask = _forbidMask; // F:[CM-55]
+    }
+
+    /// @dev Sets the limited token mask
+    /// @param _limitedTokenMask The new mask
+    /// @notice Limited tokens are counted as collateral not based on their balances,
+    ///         but instead based on their quotas set in the poolQuotaKeeper contract
+    ///         Tokens in the mask also incur additional interest based on their quotas
+    function setLimitedMask(uint256 _limitedTokenMask)
+        external
+        creditConfiguratorOnly
+    {
+        limitedTokenMask = _limitedTokenMask;
     }
 
     /// @dev Sets the maximal number of enabled tokens on a single Credit Account.

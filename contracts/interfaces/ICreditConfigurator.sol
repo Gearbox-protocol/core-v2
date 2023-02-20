@@ -109,6 +109,9 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when the bot list is updated in Credit Facade
     event BotListUpdated(address);
+
+    /// @dev Emits when the token is set as limited
+    event TokenLimited(address);
 }
 
 /// @dev CreditConfigurator Exceptions
@@ -146,8 +149,8 @@ interface ICreditConfiguratorExceptions {
     /// @dev Thrown if attempting to forbid or migrate a target contract that is not allowed for the Credit Manager
     error ContractIsNotAnAllowedTargetException();
 
-    /// @dev Thrown if attempting to set a migratable parameter that is already non-zero
-    error MigratableParameterAlreadySet();
+    /// @dev Thrown when attempting to limit a token that is not quotable in PoolQuotaKeeper
+    error TokenIsNotQuotedException();
 }
 
 interface ICreditConfigurator is
@@ -155,16 +158,6 @@ interface ICreditConfigurator is
     ICreditConfiguratorExceptions,
     IVersion
 {
-    //
-    // PARAMETER MIGRATION FUNCTIONS
-    //
-
-    /// @dev Migration function used to populate the new CC's allowedContractsSet based on the previous CC's values
-    /// @param allowedContractsPrev List of allowed contracts to migrate
-    /// @notice Only callable once
-    function migrateAllowedContractsSet(address[] calldata allowedContractsPrev)
-        external;
-
     //
     // STATE-CHANGING FUNCTIONS
     //
