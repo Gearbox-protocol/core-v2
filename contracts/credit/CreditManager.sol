@@ -892,7 +892,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                             tokens
                         );
 
-                    // TODO: check that we removed all tokens
                     checkedTokenMask = checkedTokenMask & (~limitedTokenMask);
                 }
 
@@ -929,13 +928,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
         // TODO: add test that we check all values and it's always reachable
         while (checkedTokenMask != 0) {
-            // [DEPRICIATED]:
-            // The order of evaluation is adjusted to optimize for
-            // farming, as it is the largest expected use case
-            // Since farming positions are at the end of the collateral token list
-            // the loop moves through token masks in descending order (except underlying, which is
-            // checked first)
-
             unchecked {
                 tokenMask = (i < len) ? collateralHints[i] : 1 << (i - len);
             }
@@ -1011,23 +1003,20 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         if (limitMask > 0) {
             tokens = new TokenLT[](maxAllowedEnabledTokenLength + 1);
 
-            uint256 tokenMask;
+            uint256 tokenMask = 2;
 
             uint256 j;
 
-            unchecked {
-                // TODO: we can forbid token witn index 255 and remove i<256
-                // or shift tokenMask = tokenMask << 1 and even remove i in this case
-                for (uint256 i = 1; tokenMask <= limitMask || i < 256; ++i) {
-                    tokenMask = 1 << i;
-                    if (limitMask & tokenMask != 0) {
-                        (address token, uint16 lt) = collateralTokensByMask(
-                            tokenMask
-                        );
-                        tokens[j] = TokenLT({ token: token, lt: lt });
-                        ++j;
-                    }
+            while (tokenMask <= limitMask) {
+                if (limitMask & tokenMask != 0) {
+                    (address token, uint16 lt) = collateralTokensByMask(
+                        tokenMask
+                    );
+                    tokens[j] = TokenLT({ token: token, lt: lt });
+                    ++j;
                 }
+
+                tokenMask = tokenMask << 1;
             }
         }
     }
