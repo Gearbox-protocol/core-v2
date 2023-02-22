@@ -82,6 +82,9 @@ interface ICreditManagerV2Exceptions {
 
     /// @dev Thrown when attempting to ramp LT for underlying
     error CannotRampLTForUnderlyingException();
+
+    /// @dev Thrown when a custom HF parameter lower than 10000 is passed into a full collateral check
+    error CustomHealthFactorTooLowException();
 }
 
 /// @notice All Credit Manager functions are access-restricted and can only be called
@@ -209,10 +212,32 @@ interface ICreditManagerV2 is
     /// @param token Address of the token to be enabled
     function checkAndEnableToken(address creditAccount, address token) external;
 
-    /// @dev Performs a full health check on an account, summing up
-    /// value of all enabled collateral tokens
+    // /// @dev Performs a full health check on an account, summing up
+    // /// value of all enabled collateral tokens
+    // /// @param creditAccount Address of the Credit Account to check
+    // function fullCollateralCheck(address creditAccount) external;
+
+    // /// @dev Performs a full health check on an account with a custom
+    // ///      order of evaluated tokens
+    // /// @param creditAccount Address of the Credit Account to check
+    // /// @param collateralHints Array of token masks in the desired order of evaluation
+    // /// @notice Full collateral check with hints will first evaluate limited tokens as normal (this is done in PoolQuotaKeeper),
+    // ///         then evaluate the hinted tokens in the order of hints, and then will move on to other tokens if the check is still not satisfied
+    // function fullCollateralCheck(
+    //     address creditAccount,
+    //     uint256[] memory collateralHints
+    // ) external;
+
+    /// @dev Performs a full health check on an account with a custom order of evaluated tokens and
+    ///      a custom minimal health factor
     /// @param creditAccount Address of the Credit Account to check
-    function fullCollateralCheck(address creditAccount) external;
+    /// @param collateralHints Array of token masks in the desired order of evaluation
+    /// @param minHealthFactor Minimal health factor of the account, in PERCENTAGE format
+    function fullCollateralCheck(
+        address creditAccount,
+        uint256[] memory collateralHints,
+        uint16 minHealthFactor
+    ) external;
 
     /// @dev Checks that the number of enabled tokens on a Credit Account
     ///      does not violate the maximal enabled token limit and tries

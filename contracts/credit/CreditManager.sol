@@ -852,25 +852,55 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         } // F:[CM-31]
     }
 
-    /// @dev Performs a full health check on an account, summing up
-    /// value of all enabled collateral tokens
+    // /// @dev Performs a full health check on an account, summing up
+    // /// value of all enabled collateral tokens
+    // /// @param creditAccount Address of the Credit Account to check
+    // function fullCollateralCheck(address creditAccount)
+    //     external
+    //     override
+    //     adaptersOrCreditFacadeOnly // F:[CM-3]
+    //     nonReentrant
+    // {
+    //     uint256[] memory collateralHints = new uint256[](0);
+    //     _fullCollateralCheck(creditAccount, collateralHints, PERCENTAGE_FACTOR);
+    // }
+
+    // /// @dev Performs a full health check on an account with a custom
+    // ///      order of evaluated tokens
+    // /// @param creditAccount Address of the Credit Account to check
+    // /// @param collateralHints Array of token masks in the desired order of evaluation
+    // /// @notice Full collateral check with hints will first evaluate limited tokens as normal (this is done in PoolQuotaKeeper),
+    // ///         then evaluate the hinted tokens in the order of hints, and then will move on to other tokens if the check is still not satisfied
+    // function fullCollateralCheck(
+    //     address creditAccount,
+    //     uint256[] memory collateralHints
+    // ) external adaptersOrCreditFacadeOnly nonReentrant {
+    //     _fullCollateralCheck(creditAccount, collateralHints, PERCENTAGE_FACTOR);
+    // }
+
+    /// @dev Performs a full health check on an account with a custom order of evaluated tokens and
+    ///      a custom minimal health factor
     /// @param creditAccount Address of the Credit Account to check
-    function fullCollateralCheck(address creditAccount)
-        external
-        override
-        adaptersOrCreditFacadeOnly // F:[CM-3]
-        nonReentrant
-    {
-        uint256[] memory collateralHints = new uint256[](0);
-        _fullCollateralCheck(creditAccount, collateralHints);
+    /// @param collateralHints Array of token masks in the desired order of evaluation
+    /// @param minHealthFactor Minimal health factor of the account, in PERCENTAGE format
+    function fullCollateralCheck(
+        address creditAccount,
+        uint256[] memory collateralHints,
+        uint16 minHealthFactor
+    ) external adaptersOrCreditFacadeOnly nonReentrant {
+        if (minHealthFactor < PERCENTAGE_FACTOR) {
+            revert CustomHealthFactorTooLowException();
+        }
+
+        _fullCollateralCheck(creditAccount, collateralHints, minHealthFactor);
     }
 
     /// @dev IMPLEMENTATION: fullCollateralCheck
-    /// @param creditAccount Address of the Credit Account to check
     function _fullCollateralCheck(
         address creditAccount,
-        uint256[] memory collateralHints
-    ) internal {
+        uint256[] memory collateralHints,
+        uint16 minHealthFactor
+    ) internal virtual {
         IPriceOracleV2 _priceOracle = slot1.priceOracle;
 
         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
@@ -909,7 +939,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             ) = _calcCreditAccountAccruedInterest(creditAccount, quotaInterest);
 
             borrowAmountPlusInterestRateUSD = _priceOracle.convertToUSD(
-                borrowedAmountWithInterestAndFees * PERCENTAGE_FACTOR,
+                borrowedAmountWithInterestAndFees * minHealthFactor, // F: [CM-42]
                 underlying
             );
 
@@ -922,6 +952,26 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             }
         }
 
+        _checkNonLimitedTokens(
+            creditAccount,
+            enabledTokenMask,
+            checkedTokenMask,
+            twvUSD,
+            borrowAmountPlusInterestRateUSD,
+            collateralHints,
+            _priceOracle
+        );
+    }
+
+    function _checkNonLimitedTokens(
+        address creditAccount,
+        uint256 enabledTokenMask,
+        uint256 checkedTokenMask,
+        uint256 twvUSD,
+        uint256 borrowAmountPlusInterestRateUSD,
+        uint256[] memory collateralHints,
+        IPriceOracleV2 _priceOracle
+    ) internal {
         uint256 tokenMask;
         bool atLeastOneTokenWasDisabled;
 
@@ -931,7 +981,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // TODO: add test that we check all values and it's always reachable
         while (checkedTokenMask != 0) {
             unchecked {
-                tokenMask = (i < len) ? collateralHints[i] : 1 << (i - len);
+                tokenMask = (i < len) ? collateralHints[i] : 1 << (i - len); // F: [CM-68]
             }
 
             // CASE enabledTokenMask & tokenMask == 0 F:[CM-38]
@@ -1426,6 +1476,10 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             ]; // F:[CM-47]
 
             token = tokenData.token;
+
+            if (token == address(0)) {
+                revert TokenNotAllowedException();
+            }
 
             if (block.timestamp < tokenData.timestampRampStart) {
                 liquidationThreshold = tokenData.ltInitial; // F:[CM-47]

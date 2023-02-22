@@ -247,10 +247,6 @@ contract CreditFacadeTest is
         );
 
         evm.expectRevert(NO_CREDIT_ACCOUNT_EXCEPTION);
-        evm.prank(USER);
-        creditFacade.increaseDebt(1);
-
-        evm.expectRevert(NO_CREDIT_ACCOUNT_EXCEPTION);
         creditFacade.addCollateral(USER, underlying, 1);
 
         evm.expectRevert(NO_CREDIT_ACCOUNT_EXCEPTION);
@@ -265,15 +261,7 @@ contract CreditFacadeTest is
 
         evm.expectRevert(NO_CREDIT_ACCOUNT_EXCEPTION);
         evm.prank(USER);
-        creditFacade.approve(address(targetMock), underlying, 1);
-
-        evm.expectRevert(NO_CREDIT_ACCOUNT_EXCEPTION);
-        evm.prank(USER);
         creditFacade.transferAccountOwnership(FRIEND);
-
-        evm.expectRevert(NO_CREDIT_ACCOUNT_EXCEPTION);
-        evm.prank(USER);
-        creditFacade.enableToken(underlying);
     }
 
     //
@@ -657,7 +645,7 @@ contract CreditFacadeTest is
             MultiCall({
                 target: address(creditFacade),
                 callData: abi.encodeWithSelector(
-                    ICreditFacade.increaseDebt.selector,
+                    ICreditFacadeExtended.increaseDebt.selector,
                     WAD
                 )
             })
@@ -736,8 +724,10 @@ contract CreditFacadeTest is
         evm.expectCall(
             address(creditManager),
             abi.encodeWithSignature(
-                "fullCollateralCheck(address)",
-                expectedCreditAccountAddress
+                "fullCollateralCheck(address,uint256[],uint16)",
+                expectedCreditAccountAddress,
+                new uint256[](0),
+                10000
             )
         );
 
@@ -836,7 +826,7 @@ contract CreditFacadeTest is
                 MultiCall({
                     target: address(creditFacade),
                     callData: abi.encodeWithSelector(
-                        ICreditFacade.decreaseDebt.selector,
+                        ICreditFacadeExtended.decreaseDebt.selector,
                         812
                     )
                 })
@@ -1207,7 +1197,17 @@ contract CreditFacadeTest is
         emit IncreaseBorrowedAmount(USER, 512);
 
         evm.prank(USER);
-        creditFacade.increaseDebt(512);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.increaseDebt,
+                        (512)
+                    )
+                })
+            )
+        );
     }
 
     /// @dev [FA-18A]: increaseDebt revets if more than block limit
@@ -1219,7 +1219,17 @@ contract CreditFacadeTest is
         evm.expectRevert(BorrowedBlockLimitException.selector);
 
         evm.prank(USER);
-        creditFacade.increaseDebt(limit + 1);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.increaseDebt,
+                        (limit + 1)
+                    )
+                })
+            )
+        );
     }
 
     /// @dev [FA-18B]: increaseDebt revets if more than maxBorrowedAmount
@@ -1235,7 +1245,17 @@ contract CreditFacadeTest is
         evm.expectRevert(BorrowAmountOutOfLimitsException.selector);
 
         evm.prank(USER);
-        creditFacade.increaseDebt(amount);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.increaseDebt,
+                        (amount)
+                    )
+                })
+            )
+        );
     }
 
     /// @dev [FA-18C]: increaseDebt revets isIncreaseDebtForbidden is enabled
@@ -1250,7 +1270,17 @@ contract CreditFacadeTest is
         evm.expectRevert(IncreaseDebtForbiddenException.selector);
 
         evm.prank(USER);
-        creditFacade.increaseDebt(1);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.increaseDebt,
+                        (1)
+                    )
+                })
+            )
+        );
     }
 
     /// @dev [FA-18D]: increaseDebt reverts if there is a forbidden token on account
@@ -1260,7 +1290,17 @@ contract CreditFacadeTest is
         address link = tokenTestSuite.addressOf(Tokens.LINK);
 
         evm.prank(USER);
-        creditFacade.enableToken(link);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.enableToken,
+                        (link)
+                    )
+                })
+            )
+        );
 
         evm.prank(CONFIGURATOR);
         creditConfigurator.forbidToken(link);
@@ -1268,7 +1308,17 @@ contract CreditFacadeTest is
         evm.expectRevert(ActionProhibitedWithForbiddenTokensException.selector);
 
         evm.prank(USER);
-        creditFacade.increaseDebt(1);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.increaseDebt,
+                        (1)
+                    )
+                })
+            )
+        );
     }
 
     /// @dev [FA-19]: decreaseDebt executes function as expected
@@ -1297,7 +1347,17 @@ contract CreditFacadeTest is
         emit DecreaseBorrowedAmount(USER, 512);
 
         evm.prank(USER);
-        creditFacade.decreaseDebt(512);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.decreaseDebt,
+                        (512)
+                    )
+                })
+            )
+        );
     }
 
     /// @dev [FA-20]:decreaseDebt revets if less than minBorrowedAmount
@@ -1315,7 +1375,17 @@ contract CreditFacadeTest is
         evm.expectRevert(BorrowAmountOutOfLimitsException.selector);
 
         evm.prank(USER);
-        creditFacade.decreaseDebt(amount);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.decreaseDebt,
+                        (amount)
+                    )
+                })
+            )
+        );
     }
 
     //
@@ -1582,7 +1652,7 @@ contract CreditFacadeTest is
                 MultiCall({
                     target: address(creditFacade),
                     callData: abi.encodeWithSelector(
-                        ICreditFacade.increaseDebt.selector,
+                        ICreditFacadeExtended.increaseDebt.selector,
                         256
                     )
                 })
@@ -1674,7 +1744,7 @@ contract CreditFacadeTest is
                 MultiCall({
                     target: address(creditFacade),
                     callData: abi.encodeWithSelector(
-                        ICreditFacade.decreaseDebt.selector,
+                        ICreditFacadeExtended.decreaseDebt.selector,
                         256
                     )
                 })
@@ -1698,14 +1768,14 @@ contract CreditFacadeTest is
                 MultiCall({
                     target: address(creditFacade),
                     callData: abi.encodeWithSelector(
-                        ICreditFacade.increaseDebt.selector,
+                        ICreditFacadeExtended.increaseDebt.selector,
                         256
                     )
                 }),
                 MultiCall({
                     target: address(creditFacade),
                     callData: abi.encodeWithSelector(
-                        ICreditFacade.decreaseDebt.selector,
+                        ICreditFacadeExtended.decreaseDebt.selector,
                         256
                     )
                 })
@@ -1784,91 +1854,6 @@ contract CreditFacadeTest is
                     callData: DUMB_CALLDATA
                 })
             )
-        );
-    }
-
-    /// @dev [FA-30]: approve reverts for not allowed token and not allowed token
-    function test_FA_30_approve_reverts_for_not_allowed_token_and_not_allower_contract()
-        public
-    {
-        address daiToken = tokenTestSuite.addressOf(Tokens.DAI);
-        address lunaToken = tokenTestSuite.addressOf(Tokens.LUNA);
-
-        evm.expectRevert(TargetContractNotAllowedException.selector);
-        evm.prank(USER);
-        creditFacade.approve(DUMB_ADDRESS, daiToken, 1);
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.allowContract(
-            address(targetMock),
-            address(adapterMock)
-        );
-
-        evm.expectRevert(
-            ICreditManagerV2Exceptions.HasNoOpenedAccountException.selector
-        );
-        evm.prank(FRIEND);
-        creditFacade.approve(address(targetMock), daiToken, 1);
-
-        _openTestCreditAccount();
-
-        evm.expectRevert(TokenNotAllowedException.selector);
-        evm.prank(USER);
-        creditFacade.approve(address(targetMock), lunaToken, 1);
-    }
-
-    /// @dev [FA-31]: approve works as expected
-    function test_FA_31_approve_works_as_expected() public {
-        (address creditAccount, ) = _openTestCreditAccount();
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.allowContract(
-            address(targetMock),
-            address(adapterMock)
-        );
-
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-
-        evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(
-                ICreditManagerV2.transferAccountOwnership.selector,
-                USER,
-                address(creditFacade)
-            )
-        );
-
-        evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(
-                ICreditManagerV2.approveCreditAccount.selector,
-                address(targetMock),
-                usdcToken,
-                USDC_EXCHANGE_AMOUNT
-            )
-        );
-
-        evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(
-                ICreditManagerV2.transferAccountOwnership.selector,
-                address(creditFacade),
-                USER
-            )
-        );
-
-        evm.prank(USER);
-        creditFacade.approve(
-            address(targetMock),
-            usdcToken,
-            USDC_EXCHANGE_AMOUNT
-        );
-
-        expectAllowance(
-            Tokens.USDC,
-            creditAccount,
-            address(targetMock),
-            USDC_EXCHANGE_AMOUNT
         );
     }
 
@@ -1988,7 +1973,17 @@ contract CreditFacadeTest is
         );
 
         evm.prank(USER);
-        creditFacade.increaseDebt(DAI_EXCHANGE_AMOUNT);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.increaseDebt,
+                        (DAI_EXCHANGE_AMOUNT)
+                    )
+                })
+            )
+        );
 
         (blockLastUpdate, borrowedInBlock) = creditFacade
             .getTotalBorrowedInBlock();
@@ -2004,7 +1999,17 @@ contract CreditFacadeTest is
         evm.roll(block.number + 1);
 
         evm.prank(USER);
-        creditFacade.increaseDebt(DAI_EXCHANGE_AMOUNT);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.increaseDebt,
+                        (DAI_EXCHANGE_AMOUNT)
+                    )
+                })
+            )
+        );
 
         (blockLastUpdate, borrowedInBlock) = creditFacade
             .getTotalBorrowedInBlock();
@@ -2066,30 +2071,19 @@ contract CreditFacadeTest is
         tokenTestSuite.mint(Tokens.USDC, creditAccount, 100);
 
         evm.prank(USER);
-        creditFacade.enableToken(usdcToken);
-
-        expectTokenIsEnabled(Tokens.USDC, true);
-    }
-
-    /// @dev [FA-39A]: enable token optimizes enabled tokens
-    function test_FA_39A_enable_token_is_correct() public {
-        (address creditAccount, ) = _openTestCreditAccount();
-
-        address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-        expectTokenIsEnabled(Tokens.USDC, false);
-
-        tokenTestSuite.mint(Tokens.USDC, creditAccount, 100);
-
-        evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(
-                ICreditManagerV2.checkEnabledTokensLength.selector,
-                creditAccount
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.enableToken,
+                        (usdcToken)
+                    )
+                })
             )
         );
 
-        evm.prank(USER);
-        creditFacade.enableToken(usdcToken);
+        expectTokenIsEnabled(Tokens.USDC, true);
     }
 
     //
@@ -2159,7 +2153,17 @@ contract CreditFacadeTest is
         // ENABLES USDC
 
         evm.prank(USER);
-        creditFacade.enableToken(usdcToken);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeCall(
+                        ICreditFacadeExtended.enableToken,
+                        (usdcToken)
+                    )
+                })
+            )
+        );
 
         expectedTV += 10 * WAD;
         expectedTWV += (10 * WAD * 9000) / PERCENTAGE_FACTOR;
@@ -2620,50 +2624,9 @@ contract CreditFacadeTest is
         );
     }
 
-    /// @dev [FA-51]: approve reverts for upgradeable contract
-    function test_FA_51_approve_reverts_for_upgradeable_contract() public {
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.addContractToUpgradeable(address(targetMock));
-
-        evm.expectRevert(TargetContractNotAllowedException.selector);
-        evm.prank(USER);
-        creditFacade.approve(address(targetMock), underlying, 1);
-    }
-
     ///
     /// ENABLE TOKEN
     ///
-    /// @dev [FA-52]: enableToken works as expected
-    function test_FA_52_enableToken_works_as_expected() public {
-        (address creditAccount, ) = _openTestCreditAccount();
-
-        address token = tokenTestSuite.addressOf(Tokens.USDC);
-
-        evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(
-                ICreditManagerV2.checkAndEnableToken.selector,
-                creditAccount,
-                token
-            )
-        );
-
-        evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(
-                ICreditManagerV2.checkEnabledTokensLength.selector,
-                creditAccount
-            )
-        );
-
-        evm.expectEmit(true, false, false, true);
-        emit TokenEnabled(USER, token);
-
-        evm.prank(USER);
-        creditFacade.enableToken(token);
-
-        expectTokenIsEnabled(Tokens.USDC, true);
-    }
 
     /// @dev [FA-53]: enableToken works as expected in a multicall
     function test_FA_53_enableToken_works_as_expected_multicall() public {
@@ -2689,7 +2652,7 @@ contract CreditFacadeTest is
                 MultiCall({
                     target: address(creditFacade),
                     callData: abi.encodeWithSelector(
-                        ICreditFacade.enableToken.selector,
+                        ICreditFacadeExtended.enableToken.selector,
                         token
                     )
                 })
@@ -2706,7 +2669,17 @@ contract CreditFacadeTest is
         address token = tokenTestSuite.addressOf(Tokens.USDC);
 
         evm.prank(USER);
-        creditFacade.enableToken(token);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeWithSelector(
+                        ICreditFacadeExtended.enableToken.selector,
+                        token
+                    )
+                })
+            )
+        );
 
         evm.expectCall(
             address(creditManager),
@@ -2959,6 +2932,40 @@ contract CreditFacadeTest is
                 MultiCall({
                     target: address(adapterMock),
                     callData: DUMB_CALLDATA
+                })
+            )
+        );
+    }
+
+    /// @dev [FA-59]: setFullCheckParams performs correct full check after multicall
+    function test_FA_59_setFullCheckParams_correctly_passes_params_to_fullCollateralCheck()
+        public
+    {
+        (address creditAccount, ) = _openTestCreditAccount();
+
+        uint256[] memory collateralHints = new uint256[](1);
+        collateralHints[0] = creditManager.tokenMasksMap(
+            tokenTestSuite.addressOf(Tokens.USDC)
+        );
+
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeCall(
+                ICreditManagerV2.fullCollateralCheck,
+                (creditAccount, collateralHints, 10001)
+            )
+        );
+
+        evm.prank(USER);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeWithSelector(
+                        ICreditFacadeExtended.setFullCheckParams.selector,
+                        collateralHints,
+                        10001
+                    )
                 })
             )
         );

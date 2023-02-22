@@ -14,7 +14,7 @@ import { Balance, BalanceOps } from "../libraries/Balances.sol";
 import { QuotaUpdate } from "../interfaces/IPoolQuotaKeeper.sol";
 
 /// INTERFACES
-import { ICreditFacade, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
+import { ICreditFacade, ICreditFacadeExtended, FullCheckParams } from "../interfaces/ICreditFacade.sol";
 import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
@@ -260,14 +260,23 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             referralCode
         ); // F:[FA-8]
 
+        FullCheckParams memory fullCheckParams;
+        fullCheckParams.minHealthFactor = PERCENTAGE_FACTOR;
+
         // F:[FA-10]: no free flashloans through opening a Credit Account
         // and immediately decreasing debt
         if (calls.length != 0) {
-            _multicall(calls, onBehalfOf, creditAccount, false, true);
+            fullCheckParams = _multicall(
+                calls,
+                onBehalfOf,
+                creditAccount,
+                false,
+                true
+            );
         } // F:[FA-8]
 
         // Checks that the new credit account has enough collateral to cover the debt
-        _fullCollateralCheck(creditAccount); // F:[FA-8, 9]
+        _fullCollateralCheck(creditAccount, fullCheckParams); // F:[FA-8, 9]
     }
 
     /// @dev Runs a batch of transactions within a multicall and closes the account
@@ -541,23 +550,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
     }
 
-    /// @dev Increases debt for msg.sender's Credit Account
-    /// - Borrows the requested amount from the pool
-    /// - Updates the CA's borrowAmount / cumulativeIndexOpen
-    ///   to correctly compute interest going forward
-    /// - Performs a full collateral check
-    ///
+    /// @dev Increases debt for a Credit Account
+    /// @param borrower Owner of the account
+    /// @param creditAccount CA to increase debt for
     /// @param amount Amount to borrow
-    function increaseDebt(uint256 amount) external override nonReentrant {
-        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
-
-        _increaseDebt(msg.sender, creditAccount, amount);
-
-        // Checks that the credit account has enough collateral to cover the new borrowed amount
-        _fullCollateralCheck(creditAccount); // F:[FA-17]
-    }
-
-    /// @dev IMPLEMENTATION: increaseDebt
     function _increaseDebt(
         address borrower,
         address creditAccount,
@@ -615,23 +611,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
     }
 
-    /// @dev Decrease debt
-    /// - Decreases the debt by paying the requested amount + accrued interest + fees back to the pool
-    /// - It's also include to this payment interest accrued at the moment and fees
-    /// - Updates cunulativeIndex to cumulativeIndex now
-    ///
-    /// @param amount Amount to increase borrowed amount
-    function decreaseDebt(uint256 amount) external override nonReentrant {
-        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
-
-        _decreaseDebt(msg.sender, creditAccount, amount); // F:[FA-19]
-
-        // We need this check, cause after paying debt back, it potentially could be
-        // another portfolio structure, which has lower Hf
-        _fullCollateralCheck(creditAccount); // F:[FA-19]
-    }
-
-    /// @dev IMPLEMENTATION: decreaseDebt
+    /// @dev Decreases debt for a Credit Account
+    /// @param borrower Owner of the account
+    /// @param creditAccount Account to decrease debt for
+    /// @param amount Amount to repay
     function _decreaseDebt(
         address borrower,
         address creditAccount,
@@ -712,12 +695,18 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _wrapETH(); // F:[FA-3F]
 
         if (calls.length != 0) {
-            _multicall(calls, msg.sender, creditAccount, false, false);
+            FullCheckParams memory fullCheckParams = _multicall(
+                calls,
+                msg.sender,
+                creditAccount,
+                false,
+                false
+            );
 
             // Performs a fullCollateralCheck
             // During a multicall, all intermediary health checks are skipped,
             // as one fullCollateralCheck at the end is sufficient
-            _fullCollateralCheck(creditAccount);
+            _fullCollateralCheck(creditAccount, fullCheckParams);
         }
     }
 
@@ -745,12 +734,18 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         address creditAccount = _getCreditAccountOrRevert(borrower);
 
         if (calls.length != 0) {
-            _multicall(calls, borrower, creditAccount, false, false); // F: [FA-58]
+            FullCheckParams memory fullCheckParams = _multicall(
+                calls,
+                borrower,
+                creditAccount,
+                false,
+                false
+            ); // F: [FA-58]
 
             // Performs a fullCollateralCheck
             // During a multicall, all intermediary health checks are skipped,
             // as one fullCollateralCheck at the end is sufficient
-            _fullCollateralCheck(creditAccount); // F: [FA-58]
+            _fullCollateralCheck(creditAccount, fullCheckParams); // F: [FA-58]
         }
     }
 
@@ -767,13 +762,17 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ///                  multicalls on closure.
     /// @param increaseDebtWasCalled True if debt was increased before or during the multicall. Used to prevent free flashloans by
     ///                  increasing and decreasing debt within a single multicall.
+    /// @return fullCheckParams Parameters for the full collateral check which can be changed with a special function in a multicall
+    ///                         - collateralHints: Array of token masks that determines the order in which tokens are checked, to optimize
+    ///                                            gas in the fullCollateralCheck cycle
+    ///                         - minHealthFactor: A custom minimal HF threshold. Cannot be lower than PERCENTAGE_FACTOR
     function _multicall(
         MultiCall[] calldata calls,
         address borrower,
         address creditAccount,
         bool isClosure,
         bool increaseDebtWasCalled
-    ) internal {
+    ) internal returns (FullCheckParams memory fullCheckParams) {
         // Takes ownership of the Credit Account
         _transferAccount(borrower, address(this)); // F:[FA-26]
 
@@ -782,6 +781,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // Declares the expectedBalances array, which can later be used for slippage control
         Balance[] memory expectedBalances;
+
+        // Minimal HF is set to PERCENTAGE_FACTOR by default
+        fullCheckParams.minHealthFactor = PERCENTAGE_FACTOR;
 
         uint256 len = calls.length; // F:[FA-26]
         for (uint256 i = 0; i < len; ) {
@@ -810,13 +812,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                 // therefore they are passed to the internal function processor, which returns updated values
                 (
                     increaseDebtWasCalled,
-                    expectedBalances
+                    expectedBalances,
+                    fullCheckParams
                 ) = _processCreditFacadeMulticall(
                     borrower,
                     creditAccount,
                     mcall.callData,
                     increaseDebtWasCalled,
-                    expectedBalances
+                    expectedBalances,
+                    fullCheckParams
                 );
             } else {
                 //
@@ -866,10 +870,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         address creditAccount,
         bytes calldata callData,
         bool increaseDebtWasCalledBefore,
-        Balance[] memory expectedBalancesBefore
+        Balance[] memory expectedBalancesBefore,
+        FullCheckParams memory fullCheckParams
     )
         internal
-        returns (bool increaseDebtWasCalled, Balance[] memory expectedBalances)
+        returns (
+            bool increaseDebtWasCalled,
+            Balance[] memory expectedBalances,
+            FullCheckParams memory
+        )
     {
         increaseDebtWasCalled = increaseDebtWasCalledBefore;
         expectedBalances = expectedBalancesBefore;
@@ -877,9 +886,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         bytes4 method = bytes4(callData);
 
         //
-        // REVERT_IF_GET_LESS_THAN
+        // REVERT_IF_RECEIVED_LESS_THAN
         //
-
         // This is an extension function that instructs CreditFacade to check token balances at the end
         // Used to control slippage after the entire sequence of operations, since tracking slippage
         // On each operation is not ideal
@@ -897,6 +905,17 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
             // Sets expected balances to currentBalance + delta
             expectedBalances = _storeBalances(expectedBalances, creditAccount); // F:[FA-45]
+            //
+            // SET FULL CHECK PARAMS
+            //
+        } else if (
+            method == ICreditFacadeExtended.setFullCheckParams.selector
+        ) {
+            (uint256[] memory collateralHints, uint16 minHealthFactor) = abi
+                .decode(callData[4:], (uint256[], uint16));
+
+            fullCheckParams.collateralHints = collateralHints;
+            fullCheckParams.minHealthFactor = minHealthFactor;
         }
         //
         // ADD COLLATERAL
@@ -922,7 +941,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // INCREASE DEBT
         //
-        else if (method == ICreditFacade.increaseDebt.selector) {
+        else if (method == ICreditFacadeExtended.increaseDebt.selector) {
             // Sets increaseDebtWasCalled to prevent debt reductions afterwards,
             // as that could be used to get free flash loans
             increaseDebtWasCalled = true; // F:[FA-28]
@@ -934,7 +953,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // DECREASE DEBT
         //
-        else if (method == ICreditFacade.decreaseDebt.selector) {
+        else if (method == ICreditFacadeExtended.decreaseDebt.selector) {
             // it's forbidden to call decreaseDebt after increaseDebt, in the same multicall
             if (increaseDebtWasCalled) {
                 revert IncreaseAndDecreaseForbiddenInOneCallException();
@@ -948,7 +967,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // ENABLE TOKEN
         //
-        else if (method == ICreditFacade.enableToken.selector) {
+        else if (method == ICreditFacadeExtended.enableToken.selector) {
             // Parses token
             address token = abi.decode(callData[4:], (address)); // F: [FA-53]
 
@@ -967,20 +986,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // Executes disableToken for creditAccount
             _disableToken(borrower, creditAccount, token); // F: [FA-54]
         }
-        // //
-        // // UPDATE QUOTA
-        // //
-        // // This is an extension method that allows borrowers to increase or decrease their
-        // // Credit Account's quota for given token. Higher quota allows larger fraction of
-        // // token balance to be accounted for in collateral calculations, but account must
-        // // pay higher risk fee for this
-        // else if (method == ICreditFacadeExtended.updateQuota.selector) {
-        //     (address token, int96 quotaChange) = abi.decode(
-        //         callData[4:],
-        //         (address, int96)
-        //     );
-        //     creditManager.updateQuota(creditAccount, token, quotaChange);
-        // }
         //
         // UPDATE QUOTAS
         //
@@ -995,6 +1000,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             // Reverts if the passed selector is unrecognized
             revert UnknownMethodException(); // F:[FA-23]
         }
+
+        return (increaseDebtWasCalled, expectedBalances, fullCheckParams);
     }
 
     /// @dev Adds expected deltas to current balances on a Credit account and returns the result
@@ -1040,38 +1047,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                 ++i;
             }
         }
-    }
-
-    /// @dev Sets token allowance from msg.sender's Credit Account to a connected target contract
-    /// @param targetContract Contract to set allowance to. Cannot be in the list of upgradeable contracts
-    /// @param token Token address
-    /// @param amount Allowance amount
-    function approve(
-        address targetContract,
-        address token,
-        uint256 amount
-    ) external override nonReentrant {
-        // Checks that targetContract is a non-zero address and is not in the upgradeable contracts list
-        // If an upgradeable contract is compromised, and an attacker is able to call transferFrom from it,
-        // they would be able to steal funds from Credit Accounts while circumventing all health checks
-        // Thus, this action is only allowed for immutable and highly secure contracts
-        if (
-            creditManager.contractToAdapter(targetContract) == address(0) ||
-            upgradeableContracts.contains(targetContract)
-        ) {
-            // F: [FA-51]
-            revert TargetContractNotAllowedException();
-        } // F:[FA-30]
-
-        // Since Credit Manager internal functions only work on Credit Accounts owned by the Credit Facade,
-        // we need to transfer account ownership to the Credit Facade before the operations and back
-        // afterwards
-        _transferAccount(msg.sender, address(this)); // F:[FA-31]
-
-        // Requests Credit Manager to set token allowance from Credit Account to contract
-        creditManager.approveCreditAccount(targetContract, token, amount); // F:[FA-31]
-
-        _transferAccount(address(this), msg.sender); // F:[FA-31]
     }
 
     /// @dev Transfers credit account to another user
@@ -1242,22 +1217,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         emit TransferAccountAllowed(from, msg.sender, state); // F:[FA-38]
     }
 
-    /// @dev Enables token in enabledTokenMask for the Credit Account of msg.sender
-    /// @param token Address of token to enable
-    function enableToken(address token) external override nonReentrant {
-        address creditAccount = _getCreditAccountOrRevert(msg.sender); // F:[FA-2]
-
-        _enableToken(msg.sender, creditAccount, token);
-
-        // Since this action potentially increases the number of enabled tokens,
-        // the Credit Manager is requested to check that the max limit for enabled tokens
-        // is not violated
-        creditManager.checkEnabledTokensLength(creditAccount); // F: [FA-39A]
-    }
-
-    /// @dev IMPLEMENTATION: enableToken
+    /// @dev Enables token in enabledTokenMask for a Credit Account
+    /// @param borrower Owner of the account
     /// @param creditAccount Account for which the token is enabled
-    /// @param token Collateral token to enabled
+    /// @param token Collateral token to enable
     function _enableToken(
         address borrower,
         address creditAccount,
@@ -1271,6 +1234,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         emit TokenEnabled(borrower, token);
     }
 
+    /// @dev Disable a token for a Credit Account
+    /// @param borrower Owner of the account
+    /// @param creditAccount Account for which the token is disabled
+    /// @param token Token to disable
     function _disableToken(
         address borrower,
         address creditAccount,
@@ -1306,8 +1273,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Internal wrapper for `creditManager.fullCollateralCheck()`
     /// @notice The external call is wrapped to optimize contract size
-    function _fullCollateralCheck(address creditAccount) internal {
-        creditManager.fullCollateralCheck(creditAccount);
+    function _fullCollateralCheck(
+        address creditAccount,
+        FullCheckParams memory fullCheckParams
+    ) internal {
+        creditManager.fullCollateralCheck(
+            creditAccount,
+            fullCheckParams.collateralHints,
+            fullCheckParams.minHealthFactor
+        );
     }
 
     //

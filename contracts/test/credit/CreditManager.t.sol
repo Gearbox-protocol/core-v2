@@ -347,6 +347,14 @@ contract CreditManagerTest is
         creditManager.transferAccountOwnership(USER, address(this));
     }
 
+    function _baseFullCollateralCheck(address creditAccount) internal {
+        creditManager.fullCollateralCheck(
+            creditAccount,
+            new uint256[](0),
+            10000
+        );
+    }
+
     ///
     ///
     ///  TESTS
@@ -487,7 +495,11 @@ contract CreditManagerTest is
         creditManager.checkAndEnableToken(DUMB_ADDRESS, DUMB_ADDRESS);
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
-        creditManager.fullCollateralCheck(DUMB_ADDRESS);
+        creditManager.fullCollateralCheck(
+            DUMB_ADDRESS,
+            new uint256[](0),
+            10000
+        );
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
         creditManager.checkEnabledTokensLength(DUMB_ADDRESS);
@@ -1977,7 +1989,7 @@ contract CreditManagerTest is
         tokenTestSuite.mint(Tokens.USDC, creditAccount, USDC_ACCOUNT_AMOUNT);
 
         evm.expectRevert(NotEnoughCollateralException.selector);
-        creditManager.fullCollateralCheck(creditAccount);
+        _baseFullCollateralCheck(creditAccount);
 
         // fullCollateralCheck doesn't revert when token is enabled
         creditManager.checkAndEnableToken(
@@ -1985,7 +1997,7 @@ contract CreditManagerTest is
             tokenTestSuite.addressOf(Tokens.USDC)
         );
 
-        creditManager.fullCollateralCheck(creditAccount);
+        _baseFullCollateralCheck(creditAccount);
     }
 
     /// @dev [CM-39]: fullCollateralCheck diables tokens if they have zero balance
@@ -2019,7 +2031,7 @@ contract CreditManagerTest is
             tokenTestSuite.addressOf(Tokens.WETH)
         );
 
-        creditManager.fullCollateralCheck(creditAccount);
+        _baseFullCollateralCheck(creditAccount);
 
         expectTokenIsEnabled(Tokens.LINK, true);
         expectTokenIsEnabled(Tokens.WETH, false);
@@ -2068,7 +2080,7 @@ contract CreditManagerTest is
 
         tokenTestSuite.mint(Tokens.LINK, creditAccount, amountToRepayInLINK);
 
-        cm.fullCollateralCheck(creditAccount);
+        cm.fullCollateralCheck(creditAccount, new uint256[](0), 10000);
     }
 
     /// @dev [CM-41]: fullCollateralCheck reverts if CA has more than allowed enabled tokens
@@ -2096,7 +2108,7 @@ contract CreditManagerTest is
         enableTokensMoreThanLimit(creditAccount);
         evm.expectRevert(TooManyEnabledTokensException.selector);
 
-        creditManager.fullCollateralCheck(creditAccount);
+        _baseFullCollateralCheck(creditAccount);
     }
 
     /// @dev [CM-41A]: fullCollateralCheck correctly disables the underlying when needed
@@ -2110,7 +2122,7 @@ contract CreditManagerTest is
 
         prepareForEnabledUnderlyingCase(creditAccount);
 
-        creditManager.fullCollateralCheck(creditAccount);
+        _baseFullCollateralCheck(creditAccount);
 
         expectTokenIsEnabled(Tokens.DAI, false);
 
@@ -2130,9 +2142,12 @@ contract CreditManagerTest is
         uint128 wethBalance,
         bool enableUSDC,
         bool enableLINK,
-        bool enableWETH
+        bool enableWETH,
+        uint16 minHealthFactor
     ) public {
         evm.assume(borrowedAmount > WAD);
+
+        minHealthFactor = 10000 + (minHealthFactor % 20000);
 
         tokenTestSuite.mint(Tokens.DAI, address(poolMock), borrowedAmount);
 
@@ -2184,7 +2199,7 @@ contract CreditManagerTest is
             .calcCreditAccountAccruedInterest(creditAccount);
 
         uint256 debtUSD = (borrowedAmountWithInterestAndFees *
-            PERCENTAGE_FACTOR *
+            minHealthFactor *
             tokenTestSuite.prices(Tokens.DAI)) / WAD;
 
         bool shouldRevert = twvUSD < debtUSD;
@@ -2193,7 +2208,11 @@ contract CreditManagerTest is
             evm.expectRevert(NotEnoughCollateralException.selector);
         }
 
-        creditManager.fullCollateralCheck(creditAccount);
+        creditManager.fullCollateralCheck(
+            creditAccount,
+            new uint256[](0),
+            minHealthFactor
+        );
     }
 
     //
@@ -3237,5 +3256,87 @@ contract CreditManagerTest is
             !creditManager.emergencyLiquidation(),
             "Emergency liquidation true when expected false"
         );
+    }
+
+    /// @dev [CM-68]: fullCollateralCheck checks tokens in correct order
+    function test_CM_68_fullCollateralCheck_is_evaluated_in_order_of_hints()
+        public
+    {
+        _connectCreditManagerSuite(Tokens.DAI, true);
+
+        (, , , address creditAccount) = _openCreditAccount();
+
+        CreditManagerTestInternal cmi = CreditManagerTestInternal(
+            address(creditManager)
+        );
+
+        tokenTestSuite.mint(Tokens.USDC, creditAccount, USDC_ACCOUNT_AMOUNT);
+        tokenTestSuite.mint(Tokens.USDT, creditAccount, 10);
+        tokenTestSuite.mint(Tokens.LINK, creditAccount, 10);
+
+        creditManager.checkAndEnableToken(
+            creditAccount,
+            tokenTestSuite.addressOf(Tokens.USDC)
+        );
+        creditManager.checkAndEnableToken(
+            creditAccount,
+            tokenTestSuite.addressOf(Tokens.USDT)
+        );
+        creditManager.checkAndEnableToken(
+            creditAccount,
+            tokenTestSuite.addressOf(Tokens.LINK)
+        );
+
+        uint256[] memory collateralHints = new uint256[](2);
+        collateralHints[0] = cmi.tokenMasksMap(
+            tokenTestSuite.addressOf(Tokens.USDT)
+        );
+        collateralHints[1] = cmi.tokenMasksMap(
+            tokenTestSuite.addressOf(Tokens.LINK)
+        );
+
+        cmi.fullCollateralCheck(
+            creditAccount,
+            collateralHints,
+            PERCENTAGE_FACTOR
+        );
+
+        assertEq(
+            cmi.fullCheckOrder(0),
+            tokenTestSuite.addressOf(Tokens.USDT),
+            "Token order incorrect"
+        );
+
+        assertEq(
+            cmi.fullCheckOrder(1),
+            tokenTestSuite.addressOf(Tokens.LINK),
+            "Token order incorrect"
+        );
+
+        assertEq(
+            cmi.fullCheckOrder(2),
+            tokenTestSuite.addressOf(Tokens.DAI),
+            "Token order incorrect"
+        );
+
+        assertEq(
+            cmi.fullCheckOrder(3),
+            tokenTestSuite.addressOf(Tokens.USDC),
+            "Token order incorrect"
+        );
+    }
+
+    /// @dev [CM-70]: fullCollateralCheck reverts when an illegal mask is passed in collateralHints
+    function test_CM_70_fullCollateralCheck_reverts_for_illegal_mask_in_hints()
+        public
+    {
+        (, , , address creditAccount) = _openCreditAccount();
+
+        evm.expectRevert(TokenNotAllowedException.selector);
+
+        uint256[] memory ch = new uint256[](1);
+        ch[0] = 3;
+
+        creditManager.fullCollateralCheck(creditAccount, ch, PERCENTAGE_FACTOR);
     }
 }
