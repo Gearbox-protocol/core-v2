@@ -400,8 +400,6 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
                 ++i;
             }
         }
-
-        value /= PERCENTAGE_FACTOR;
     }
 
     /// @dev Gets the effective value (i.e., value in underlying included into TWV) for a token on an account
