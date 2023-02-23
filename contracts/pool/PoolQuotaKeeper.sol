@@ -111,6 +111,18 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         underlying = Pool4626(_pool).asset();
     }
 
+    /// @dev Sets a new gauge contract to compute quota rates
+    /// @param newGauge The new contract's address
+    function setGauge(address newGauge) external configuratorOnly {
+        gauge = IGauge(newGauge);
+    }
+
+    /// @dev Adds a new Credit Manager to the set of allowed CM's
+    /// @param creditManager Address of the new Credit Manager
+    function addCreditManager(address creditManager) external configuratorOnly {
+        creditManagerSet.add(creditManager);
+    }
+
     /// CM only
     function updateQuotas(
         address creditAccount,
