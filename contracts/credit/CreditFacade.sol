@@ -1509,42 +1509,4 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     function setBotList(address _botList) external creditConfiguratorOnly {
         botList = _botList;
     }
-
-    //
-    // CONTRACT WATCHLIST CONFIGURATION AND GETTERS
-    //
-
-    /// @dev Change upgradable contract state (add/remove depending on addOrRemove param).
-    /// Direct approvals are forbidden for contracts marked as "upgradeable" for
-    /// security reasions
-    /// @param addr Address to add to / remove from the list
-    /// @param addOrRemove True to be added, false to be removed
-    /// @notice Upgradeable contracts are contracts with an upgradeable proxy
-    /// Or other practices and patterns potentially detrimental to security
-    /// Contracts from the list have certain restrictions applied to them
-    function setUpgradeable(address addr, bool addOrRemove)
-        external
-        creditConfiguratorOnly
-    {
-        if (addOrRemove) {
-            upgradeableContracts.add(addr); // F: [FA-50]
-        } else {
-            upgradeableContracts.remove(addr); // F: [FA-50]
-        }
-    }
-
-    /// @dev Returns whether the address is in the list of upgradeable contracts
-    /// @param addr Address to check
-    function isUpgradeableContract(address addr) external view returns (bool) {
-        return upgradeableContracts.contains(addr); // F: [FA-50]
-    }
-
-    /// @dev Returns the entire upgradeable contract list
-    function upgradeableContractsList()
-        external
-        view
-        returns (address[] memory)
-    {
-        return upgradeableContracts.values(); // F: [FA-50]
-    }
 }

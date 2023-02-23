@@ -2592,38 +2592,6 @@ contract CreditFacadeTest is
         );
     }
 
-    //
-    // UPGRADEABLE LIST
-    //
-
-    /// @dev [FA-50]: upgradeableContracts setters and getters work correctly
-    function test_FA_50_upgradeableContracts_setters_and_getters_work_correctly()
-        public
-    {
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.addContractToUpgradeable(DUMB_ADDRESS);
-
-        assertTrue(
-            creditFacade.isUpgradeableContract(DUMB_ADDRESS),
-            "isUpgradeableContract returns incorrect value"
-        );
-
-        assertEq(
-            creditFacade.upgradeableContractsList()[0],
-            DUMB_ADDRESS,
-            "Upgradeable contracts list is incorrect"
-        );
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.removeContractFromUpgradeable(DUMB_ADDRESS);
-
-        assertEq(
-            creditFacade.upgradeableContractsList().length,
-            0,
-            "Contract was not removed"
-        );
-    }
-
     ///
     /// ENABLE TOKEN
     ///
