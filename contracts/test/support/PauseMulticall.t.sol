@@ -48,7 +48,7 @@ contract PauseMulticallTest is DSTest {
             tokenTestSuite,
             Tokens.DAI
         );
-        cms = new CreditManagerTestSuite(creditConfig, false);
+        cms = new CreditManagerTestSuite(creditConfig, false, false);
 
         addressProvider = cms.addressProvider();
 

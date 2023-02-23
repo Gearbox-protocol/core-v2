@@ -28,6 +28,7 @@ contract PoolServiceMock is IPoolService {
     uint256 public override expectedLiquidityLimit;
 
     address public override underlyingToken;
+    address public asset;
 
     // Credit Managers
     address[] public override creditManagers;
@@ -67,11 +68,23 @@ contract PoolServiceMock is IPoolService {
     // Paused flag
     bool public paused = false;
 
+    bool public supportsQuotas = false;
+    address public poolQuotaKeeper;
+
     constructor(address _addressProvider, address _underlyingToken) {
         addressProvider = AddressProvider(_addressProvider);
         underlyingToken = _underlyingToken;
+        asset = _underlyingToken;
         borrowAPY_RAY = RAY / 10;
         _cumulativeIndex_RAY = RAY;
+    }
+
+    function setPoolQuotaKeeper(address _poolQuotaKeeper) external {
+        poolQuotaKeeper = _poolQuotaKeeper;
+    }
+
+    function setSupportsQuotas(bool val) external {
+        supportsQuotas = val;
     }
 
     function setCumulative_RAY(uint256 cumulativeIndex_RAY) external {
@@ -81,6 +94,10 @@ contract PoolServiceMock is IPoolService {
     function calcLinearCumulative_RAY() public view override returns (uint256) {
         return _cumulativeIndex_RAY;
     }
+
+    function changeQuotaRevenue(int128) external {}
+
+    function updateQuotaRevenue(uint128) external {}
 
     function lendCreditAccount(uint256 borrowedAmount, address creditAccount)
         external

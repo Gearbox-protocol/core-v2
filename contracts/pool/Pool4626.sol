@@ -953,6 +953,8 @@ contract Pool4626 is ERC20, IPool4626, ACLNonReentrantTrait {
     // CONFIGURATION
     //
 
+    // TODO: Add function to set pool quota keeper
+
     /// @dev Forbids a Credit Manager to borrow
     /// @param _creditManager Address of the Credit Manager
     function setCreditManagerLimit(address _creditManager, uint256 _limit)

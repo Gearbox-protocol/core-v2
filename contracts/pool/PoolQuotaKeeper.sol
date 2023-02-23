@@ -83,7 +83,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
     uint256 public constant override version = 2_10;
 
     modifier gaugeOnly() {
-        if (msg.sender == address(gauge)) revert GaugeOnlyException(); // F:[P4-5]
+        if (msg.sender != address(gauge)) revert GaugeOnlyException();
         _;
     }
 
@@ -109,18 +109,6 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         }
         pool = Pool4626(_pool);
         underlying = Pool4626(_pool).asset();
-    }
-
-    /// @dev Sets a new gauge contract to compute quota rates
-    /// @param newGauge The new contract's address
-    function setGauge(address newGauge) external configuratorOnly {
-        gauge = IGauge(newGauge);
-    }
-
-    /// @dev Adds a new Credit Manager to the set of allowed CM's
-    /// @param creditManager Address of the new Credit Manager
-    function addCreditManager(address creditManager) external configuratorOnly {
-        creditManagerSet.add(creditManager);
     }
 
     /// CM only
@@ -494,14 +482,14 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         returns (uint192)
     {
         return
-            tq.cumulativeIndexLU_RAY *
-            uint192(
-                (RAY +
-                    (RAY_DIVIDED_BY_PERCENTAGE *
-                        (block.timestamp - lastQuotaRateUpdate) *
-                        tq.rate) /
-                    SECONDS_PER_YEAR) / RAY
-            );
+            (tq.cumulativeIndexLU_RAY *
+                uint192(
+                    (RAY +
+                        (RAY_DIVIDED_BY_PERCENTAGE *
+                            (block.timestamp - lastQuotaRateUpdate) *
+                            tq.rate) /
+                        SECONDS_PER_YEAR)
+                )) / uint192(RAY);
     }
 
     function getQuotaRate(address token)
@@ -541,5 +529,34 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         returns (bool)
     {
         return quotaTokensSet.contains(token);
+    }
+
+    //
+    // CONFIGURATION
+    //
+
+    /// @dev Sets a new gauge contract to compute quota rates
+    /// @param newGauge The new contract's address
+    function setGauge(address newGauge) external configuratorOnly {
+        // TODO: add events
+        gauge = IGauge(newGauge);
+    }
+
+    /// @dev Adds a new Credit Manager to the set of allowed CM's
+    /// @param creditManager Address of the new Credit Manager
+    function addCreditManager(address creditManager) external configuratorOnly {
+        // TODO: add events
+        creditManagerSet.add(creditManager);
+    }
+
+    /// @dev Sets an upper limit on quotas for a token
+    /// @param token Address of token to set the limit for
+    /// @param limit The limit to set
+    function setTokenLimit(address token, uint96 limit)
+        external
+        configuratorOnly
+    {
+        // TODO: add events
+        totalQuotas[token].limit = limit;
     }
 }

@@ -14,6 +14,7 @@ import { PoolFactory, PoolOpts } from "../../factories/PoolFactory.sol";
 
 import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
 import { PoolServiceMock } from "../mocks/pool/PoolServiceMock.sol";
+import { PoolQuotaKeeper } from "../../pool/PoolQuotaKeeper.sol";
 
 import "../lib/constants.sol";
 
@@ -38,6 +39,7 @@ contract PoolDeployer is DSTest {
     GenesisFactory public gp;
     AccountFactory public af;
     PoolServiceMock public poolMock;
+    PoolQuotaKeeper public poolQuotaKeeper;
     ContractsRegister public cr;
     ACL public acl;
 
@@ -87,5 +89,9 @@ contract PoolDeployer is DSTest {
         tokenTestSuite.mint(_underlying, address(poolMock), initialBalance);
 
         cr.addPool(address(poolMock));
+
+        poolQuotaKeeper = new PoolQuotaKeeper(payable(address(poolMock)));
+
+        poolMock.setPoolQuotaKeeper(address(poolQuotaKeeper));
     }
 }

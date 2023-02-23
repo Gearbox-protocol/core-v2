@@ -80,7 +80,7 @@ contract CreditManagerTest is
 
     function _connectCreditManagerSuite(Tokens t, bool internalSuite) internal {
         creditConfig = new CreditConfig(tokenTestSuite, t);
-        cms = new CreditManagerTestSuite(creditConfig, internalSuite);
+        cms = new CreditManagerTestSuite(creditConfig, internalSuite, false);
 
         gp = cms.gp();
         acl = cms.acl();

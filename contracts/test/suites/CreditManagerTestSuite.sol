@@ -7,6 +7,7 @@ import { CreditManager } from "../../credit/CreditManager.sol";
 import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
 
 import { IWETH } from "../../interfaces/external/IWETH.sol";
+import { QuotaRateUpdate } from "../../interfaces/IPoolQuotaKeeper.sol";
 
 import { PercentageMath, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
 
@@ -30,7 +31,13 @@ contract CreditManagerTestSuite is PoolDeployer {
     address creditFacade;
     uint256 creditAccountAmount;
 
-    constructor(ICreditConfig creditConfig, bool internalSuite)
+    bool supportsQuotas;
+
+    constructor(
+        ICreditConfig creditConfig,
+        bool internalSuite,
+        bool _supportsQuotas
+    )
         PoolDeployer(
             creditConfig.tokenTestSuite(),
             creditConfig.underlying(),
@@ -39,6 +46,12 @@ contract CreditManagerTestSuite is PoolDeployer {
             creditConfig.getPriceFeeds()
         )
     {
+        supportsQuotas = _supportsQuotas;
+
+        if (supportsQuotas) {
+            poolMock.setSupportsQuotas(true);
+        }
+
         creditAccountAmount = creditConfig.getAccountAmount();
 
         tokenTestSuite = creditConfig.tokenTestSuite();
@@ -86,6 +99,11 @@ contract CreditManagerTestSuite is PoolDeployer {
         );
 
         cr.addCreditManager(address(creditManager));
+
+        if (supportsQuotas) {
+            poolQuotaKeeper.addCreditManager(address(creditManager));
+            poolQuotaKeeper.setGauge(CONFIGURATOR);
+        }
 
         // Approve USER & LIQUIDATOR to credit manager
         tokenTestSuite.approve(underlying, USER, address(creditManager));
@@ -153,5 +171,39 @@ contract CreditManagerTestSuite is PoolDeployer {
 
         cumulativeIndexAtClose = (cumulativeIndexAtOpen * 12) / 10;
         poolMock.setCumulative_RAY(cumulativeIndexAtClose);
+    }
+
+    function makeTokenLimited(
+        address token,
+        uint16 rate,
+        uint96 limit
+    ) external {
+        require(supportsQuotas, "Test suite does not support quotas");
+
+        evm.startPrank(CONFIGURATOR);
+        poolQuotaKeeper._addQuotaToken(token, rate);
+        poolQuotaKeeper.setTokenLimit(token, limit);
+
+        address[] memory quotedTokens = poolQuotaKeeper.quotedTokens();
+
+        QuotaRateUpdate[] memory rateUpdates = new QuotaRateUpdate[](
+            quotedTokens.length
+        );
+
+        for (uint256 i = 0; i < quotedTokens.length; ++i) {
+            rateUpdates[i] = QuotaRateUpdate({
+                token: quotedTokens[i],
+                rate: poolQuotaKeeper.getQuotaRate(quotedTokens[i])
+            });
+        }
+
+        poolQuotaKeeper.updateRates(rateUpdates);
+
+        uint256 tokenMask = creditManager.tokenMasksMap(token);
+        uint256 limitedMask = creditManager.limitedTokenMask();
+
+        creditManager.setLimitedMask(limitedMask | tokenMask);
+
+        evm.stopPrank();
     }
 }
