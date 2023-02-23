@@ -1512,7 +1512,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     ltFinal *
                     (block.timestamp - timestampRampStart)) /
                     (timestampRampEnd - timestampRampStart)
-            );
+            ); // F: [CM-72]
     }
 
     /// @dev Returns the address of a borrower's Credit Account, or reverts if there is none.
@@ -1651,32 +1651,6 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     {
         mask = (token == underlying) ? 1 : tokenMasksMapInternal[token];
     }
-
-    // /// @dev Returns the largest token index out of enabled tokens, based on a mask
-    // /// @param mask Bit mask encoding enabled tokens
-    // /// @return index Largest index out of the set of enabled tokens
-    // function _getMaxIndex(uint256 mask) internal pure returns (uint256 index) {
-    //     if (mask == 1) return 0;
-
-    //     // Performs a binary search within the range of all token indices
-    //     // If right-shifting a mask by n turns it into 1, then n is the largest index
-
-    //     uint256 high = 256;
-    //     uint256 low = 1;
-
-    //     while (true) {
-    //         index = (high + low) >> 1;
-    //         uint256 testMask = 1 << index;
-
-    //         if (testMask & mask != 0 && (mask >> index == 1)) break;
-
-    //         if (testMask >= mask) {
-    //             high = index;
-    //         } else {
-    //             low = index;
-    //         }
-    //     }
-    // }
 
     /// @dev Returns the fee parameters of the Credit Manager
     /// @return feeInterest Percentage of interest taken by the protocol as profit
@@ -1859,7 +1833,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             finalLT,
             timestampRampStart,
             rampDuration
-        );
+        ); // F: [CM-71]
     }
 
     /// @dev Internal function that sets the LT params

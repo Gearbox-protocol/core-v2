@@ -8,7 +8,7 @@ import { ACL } from "../../core/ACL.sol";
 
 import { AccountFactory } from "../../core/AccountFactory.sol";
 import { ICreditAccount } from "../../interfaces/ICreditAccount.sol";
-import { ICreditManagerV2, ICreditManagerV2Events, ICreditManagerV2Exceptions, ClosureAction } from "../../interfaces/ICreditManagerV2.sol";
+import { ICreditManagerV2, ICreditManagerV2Events, ICreditManagerV2Exceptions, ClosureAction, CollateralTokenData } from "../../interfaces/ICreditManagerV2.sol";
 
 import { IPriceOracleV2, IPriceOracleV2Ext } from "../../interfaces/IPriceOracle.sol";
 
@@ -3338,5 +3338,116 @@ contract CreditManagerTest is
         ch[0] = 3;
 
         creditManager.fullCollateralCheck(creditAccount, ch, PERCENTAGE_FACTOR);
+    }
+
+    /// @dev [CM-71]: rampLiquidationThreshold correctly updates the internal struct
+    function test_CM_71_rampLiquidationThreshold_correctly_updates_parameters()
+        public
+    {
+        _connectCreditManagerSuite(Tokens.DAI, true);
+
+        address usdc = tokenTestSuite.addressOf(Tokens.USDC);
+
+        CreditManagerTestInternal cmi = CreditManagerTestInternal(
+            address(creditManager)
+        );
+
+        evm.prank(CONFIGURATOR);
+        cmi.rampLiquidationThreshold(
+            usdc,
+            8500,
+            uint40(block.timestamp),
+            3600 * 24 * 7
+        );
+
+        CollateralTokenData memory cd = cmi.collateralTokensDataExt(
+            cmi.tokenMasksMap(usdc)
+        );
+
+        assertEq(
+            uint256(cd.ltInitial),
+            creditConfig.lt(Tokens.USDC),
+            "Incorrect initial LT"
+        );
+
+        assertEq(uint256(cd.ltFinal), 8500, "Incorrect final LT");
+
+        assertEq(
+            uint256(cd.timestampRampStart),
+            block.timestamp,
+            "Incorrect timestamp start"
+        );
+
+        assertEq(
+            uint256(cd.rampDuration),
+            3600 * 24 * 7,
+            "Incorrect ramp duration"
+        );
+    }
+
+    /// @dev [CM-72]: Ramping liquidation threshold fuzzing
+    function test_CM_72_liquidation_ramping_fuzzing(
+        uint16 initialLT,
+        uint16 newLT,
+        uint24 duration,
+        uint256 timestampCheck
+    ) public {
+        initialLT = 1000 + (initialLT % (DEFAULT_UNDERLYING_LT - 999));
+        newLT = 1000 + (newLT % (DEFAULT_UNDERLYING_LT - 999));
+        duration = 3600 + (duration % (3600 * 24 * 90 - 3600));
+
+        timestampCheck = block.timestamp + (timestampCheck % (duration + 1));
+
+        address usdc = tokenTestSuite.addressOf(Tokens.USDC);
+
+        uint256 timestampStart = block.timestamp;
+
+        evm.startPrank(CONFIGURATOR);
+        creditManager.setLiquidationThreshold(usdc, initialLT);
+        creditManager.rampLiquidationThreshold(
+            usdc,
+            newLT,
+            uint40(block.timestamp),
+            duration
+        );
+
+        assertEq(
+            creditManager.liquidationThresholds(usdc),
+            initialLT,
+            "LT at ramping start incorrect"
+        );
+
+        uint16 expectedLT;
+        if (newLT >= initialLT) {
+            expectedLT = uint16(
+                uint256(initialLT) +
+                    (uint256(newLT - initialLT) *
+                        (timestampCheck - timestampStart)) /
+                    uint256(duration)
+            );
+        } else {
+            expectedLT = uint16(
+                uint256(initialLT) -
+                    (uint256(initialLT - newLT) *
+                        (timestampCheck - timestampStart)) /
+                    uint256(duration)
+            );
+        }
+
+        evm.warp(timestampCheck);
+        uint16 actualLT = creditManager.liquidationThresholds(usdc);
+        uint16 diff = actualLT > expectedLT
+            ? actualLT - expectedLT
+            : expectedLT - actualLT;
+
+        assertLe(diff, 1, "LT off by more than 1");
+
+        evm.warp(timestampStart + duration + 1);
+
+        assertEq(
+            creditManager.liquidationThresholds(usdc),
+            newLT,
+            "LT at ramping end incorrect"
+        );
     }
 }

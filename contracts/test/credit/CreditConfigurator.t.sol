@@ -504,6 +504,9 @@ contract CreditConfiguratorTest is
 
         evm.expectRevert(CallerNotControllerException.selector);
         creditConfigurator.setMaxEnabledTokens(1);
+
+        evm.expectRevert(CallerNotControllerException.selector);
+        creditConfigurator.rampLiquidationThreshold(DUMB_ADDRESS, 0, 0, 0);
     }
 
     //
@@ -1647,5 +1650,55 @@ contract CreditConfiguratorTest is
                 ++i;
             }
         }
+    }
+
+    function test_CC_42_rampLiquidationThreshold_works_correctly() public {
+        address dai = tokenTestSuite.addressOf(Tokens.DAI);
+        address usdc = tokenTestSuite.addressOf(Tokens.USDC);
+
+        evm.expectRevert(SetLTForUnderlyingException.selector);
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.rampLiquidationThreshold(
+            dai,
+            9000,
+            uint40(block.timestamp),
+            1
+        );
+
+        evm.expectRevert(IncorrectLiquidationThresholdException.selector);
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.rampLiquidationThreshold(
+            usdc,
+            9999,
+            uint40(block.timestamp),
+            1
+        );
+
+        uint16 initialLT = creditManager.liquidationThresholds(usdc);
+
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeCall(
+                CreditManager.rampLiquidationThreshold,
+                (usdc, 8900, uint40(block.timestamp + 5), 1000)
+            )
+        );
+
+        evm.expectEmit(true, false, false, true);
+        emit TokenLiquidationThresholdRampScheduled(
+            usdc,
+            initialLT,
+            8900,
+            uint40(block.timestamp + 5),
+            uint40(block.timestamp + 1005)
+        );
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.rampLiquidationThreshold(
+            usdc,
+            8900,
+            uint40(block.timestamp + 5),
+            1000
+        );
     }
 }

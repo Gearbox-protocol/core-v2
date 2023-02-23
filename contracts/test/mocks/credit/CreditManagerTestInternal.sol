@@ -9,6 +9,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { CreditManager, ClosureAction } from "../../../credit/CreditManager.sol";
 import { IPriceOracleV2 } from "../../../interfaces/IPriceOracle.sol";
 import { IPoolQuotaKeeper, QuotaUpdate, TokenLT, QuotaStatusChange } from "../../../interfaces/IPoolQuotaKeeper.sol";
+import { CollateralTokenData } from "../../../interfaces/ICreditManagerV2.sol";
 
 /// @title Credit Manager Internal
 /// @notice It encapsulates business logic for managing credit accounts
@@ -115,6 +116,14 @@ contract CreditManagerTestInternal is CreditManager {
         for (uint256 i = 0; i < len; i++) {
             (collateralTokensAddr[i], ) = collateralTokens(i);
         }
+    }
+
+    function collateralTokensDataExt(uint256 tokenMask)
+        external
+        view
+        returns (CollateralTokenData memory)
+    {
+        return collateralTokensData[tokenMask];
     }
 
     // function getMaxIndex(uint256 mask) external pure returns (uint256 index) {
