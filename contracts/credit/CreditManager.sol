@@ -832,6 +832,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     /// @param token Address of the token to be enabled
     function _checkAndEnableToken(address creditAccount, address token)
         internal
+        virtual
     {
         uint256 tokenMask = tokenMasksMap(token); // F:[CM-30,31]
 
