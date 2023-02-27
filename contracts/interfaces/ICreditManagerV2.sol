@@ -24,7 +24,7 @@ struct CollateralTokenData {
 
 interface ICreditManagerV2Events {
     /// @dev Emits when a call to an external contract is made through the Credit Manager
-    event ExecuteOrder(address indexed borrower, address indexed target);
+    event ExecuteOrder(address indexed target);
 
     /// @dev Emits when a configurator is upgraded
     event NewConfigurator(address indexed newConfigurator);

@@ -907,8 +907,8 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.expectEmit(true, true, false, true);
-        emit ExecuteOrder(creditAccount, address(targetMock));
+        evm.expectEmit(true, false, false, true);
+        emit ExecuteOrder(address(targetMock));
 
         evm.expectCall(
             creditAccount,
@@ -1045,8 +1045,8 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.expectEmit(true, true, false, false);
-        emit ExecuteOrder(creditAccount, address(targetMock));
+        evm.expectEmit(true, false, false, false);
+        emit ExecuteOrder(address(targetMock));
 
         evm.expectCall(
             creditAccount,
@@ -1812,8 +1812,8 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.expectEmit(true, true, false, true);
-        emit ExecuteOrder(creditAccount, address(targetMock));
+        evm.expectEmit(true, false, false, true);
+        emit ExecuteOrder(address(targetMock));
 
         evm.expectCall(
             creditAccount,
@@ -2526,8 +2526,8 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.expectEmit(true, true, false, false);
-        emit ExecuteOrder(creditAccount, address(targetMock));
+        evm.expectEmit(true, false, false, false);
+        emit ExecuteOrder(address(targetMock));
 
         evm.expectCall(
             creditAccount,
@@ -2833,8 +2833,8 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.expectEmit(true, true, false, true);
-        emit ExecuteOrder(creditAccount, address(targetMock));
+        evm.expectEmit(true, false, false, true);
+        emit ExecuteOrder(address(targetMock));
 
         evm.expectCall(
             creditAccount,

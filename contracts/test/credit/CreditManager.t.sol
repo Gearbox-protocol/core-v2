@@ -1912,8 +1912,8 @@ contract CreditManagerTest is
         bytes memory callData = bytes("Hello, world!");
 
         // we emit the event we expect to see.
-        evm.expectEmit(true, true, false, false);
-        emit ExecuteOrder(creditAccount, address(targetMock));
+        evm.expectEmit(true, false, false, false);
+        emit ExecuteOrder(address(targetMock));
 
         // stack trace check
         evm.expectCall(
