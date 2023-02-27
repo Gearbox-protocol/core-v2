@@ -777,7 +777,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _transferAccount(borrower, address(this)); // F:[FA-26]
 
         // Emits event for multicall start - used in analytics to track actions within multicalls
-        emit MultiCallStarted(borrower); // F:[FA-26]
+
+        // IDEA: invaraiant that all events should be determined
+        // Uniswap: [Token (?)] -> [ someting in the middle ] -> [AllowedToken]
+        //          [ AllowedToken here] -> [ allowed connectors ] -> [Allowed Token]
+        //
+        emit MultiCallStarted(borrower);
+        // F:[FA-26]
 
         // Declares the expectedBalances array, which can later be used for slippage control
         Balance[] memory expectedBalances;

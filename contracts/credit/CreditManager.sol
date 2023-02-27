@@ -801,6 +801,8 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         address creditAccount = getCreditAccountOrRevert(creditFacade); // F:[CM-6]
 
         // Emits an event
+        // emit ExecuteOrder(targetContract, data);
+        // emit ExecuteOrder(targetContract);
         emit ExecuteOrder(creditAccount, targetContract); // F:[CM-29]
 
         // Returned data is provided as-is to the caller;
