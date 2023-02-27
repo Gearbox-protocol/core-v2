@@ -110,9 +110,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         return cms.openCreditAccount();
     }
 
-    function expectTokenIsEnabled(Tokens t, bool expectedState) internal {
-        address creditAccount = creditManager.getCreditAccountOrRevert(USER);
-
+    function expectTokenIsEnabled(address creditAccount, Tokens t, bool expectedState) internal {
         bool state = creditManager.tokenMasksMap(tokenTestSuite.addressOf(t))
             & creditManager.enabledTokensMap(creditAccount) != 0;
         assertTrue(
@@ -121,7 +119,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
                 abi.encodePacked(
                     "Token ",
                     tokenTestSuite.symbols(t),
-                    state ? " enabled as not expetcted" : " not enabled as expected "
+                    state ? " enabled as not expected" : " not enabled as expected "
                 )
             )
         );
@@ -140,12 +138,10 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         );
     }
 
-    function mintBalance(Tokens t, uint256 amount, bool enable) internal {
-        address creditAccount = creditManager.getCreditAccountOrRevert(USER);
-
+    function mintBalance(address creditAccount, Tokens t, uint256 amount, bool enable) internal {
         tokenTestSuite.mint(t, creditAccount, amount);
         if (enable) {
-            creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(t));
+            creditManager.checkAndEnableToken(tokenTestSuite.addressOf(t));
         }
     }
 
@@ -168,7 +164,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
             t.mint(creditAccount, balance);
 
-            creditManager.checkAndEnableToken(creditAccount, address(t));
+            creditManager.checkAndEnableToken(address(t));
         }
     }
 
@@ -230,7 +226,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
         tokenTestSuite.mint(Tokens.USDC, creditAccount, daiBalance * 10);
 
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.USDC));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.USDC));
 
         uint256 maxAllowedEnabledTokenLength = creditManager.maxAllowedEnabledTokenLength();
         _addAndEnableTokens(creditAccount, maxAllowedEnabledTokenLength - 1, 2);
@@ -399,7 +395,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         creditManager.executeOrder(DUMB_ADDRESS, bytes("0"));
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
-        creditManager.checkAndEnableToken(DUMB_ADDRESS, DUMB_ADDRESS);
+        creditManager.checkAndEnableToken(DUMB_ADDRESS);
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
         creditManager.fullCollateralCheck(DUMB_ADDRESS, new uint256[](0), 10000);
@@ -902,25 +898,27 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
     function test_CM_14_close_credit_account_with_nonzero_skipTokenMask_sends_correct_tokens() public {
         (uint256 borrowedAmount,,, address creditAccount) = _openCreditAccount();
+        creditManager.transferAccountOwnership(USER, address(this));
 
         tokenTestSuite.mint(Tokens.DAI, creditAccount, borrowedAmount);
         tokenTestSuite.mint(Tokens.WETH, creditAccount, WETH_EXCHANGE_AMOUNT);
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.WETH));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.WETH));
 
         tokenTestSuite.mint(Tokens.USDC, creditAccount, USDC_EXCHANGE_AMOUNT);
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.USDC));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.USDC));
 
         tokenTestSuite.mint(Tokens.LINK, creditAccount, LINK_EXCHANGE_AMOUNT);
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.LINK));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.LINK));
 
-        expectTokenIsEnabled(Tokens.WETH, true);
-        expectTokenIsEnabled(Tokens.USDC, true);
-        expectTokenIsEnabled(Tokens.LINK, true);
+        expectTokenIsEnabled(creditAccount, Tokens.WETH, true);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
+        expectTokenIsEnabled(creditAccount, Tokens.LINK, true);
 
         uint256 wethTokenMask = creditManager.tokenMasksMap(tokenTestSuite.addressOf(Tokens.WETH));
 
         uint256 usdcTokenMask = creditManager.tokenMasksMap(tokenTestSuite.addressOf(Tokens.USDC));
 
+        creditManager.transferAccountOwnership(address(this), USER);
         creditManager.closeCreditAccount(
             USER, ClosureAction.CLOSE_ACCOUNT, 0, USER, FRIEND, wethTokenMask | usdcTokenMask, false
         );
@@ -970,14 +968,17 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
     function test_CM_17_close_dai_credit_account_sends_eth_to_borrower() public {
         /// CLOSURE CASE
         (uint256 borrowedAmount,,, address creditAccount) = _openCreditAccount();
+        creditManager.transferAccountOwnership(USER, address(this));
 
         // Transfer additional borrowedAmount. After that underluying token balance = 2 * borrowedAmount
         tokenTestSuite.mint(Tokens.DAI, creditAccount, borrowedAmount);
 
         // Adds WETH to test how it would be converted
         tokenTestSuite.mint(Tokens.WETH, creditAccount, WETH_EXCHANGE_AMOUNT);
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.WETH));
 
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.WETH));
+
+        creditManager.transferAccountOwnership(address(this), USER);
         creditManager.closeCreditAccount(USER, ClosureAction.CLOSE_ACCOUNT, 0, USER, USER, 0, true);
 
         expectBalance(Tokens.WETH, creditAccount, 1);
@@ -1030,14 +1031,17 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
     function test_CM_19_close_dai_credit_account_sends_eth_to_liquidator() public {
         /// CLOSURE CASE
         (uint256 borrowedAmount,,, address creditAccount) = _openCreditAccount();
+        creditManager.transferAccountOwnership(USER, address(this));
 
         // Transfer additional borrowedAmount. After that underluying token balance = 2 * borrowedAmount
         tokenTestSuite.mint(Tokens.DAI, creditAccount, borrowedAmount);
 
         // Adds WETH to test how it would be converted
         tokenTestSuite.mint(Tokens.WETH, creditAccount, WETH_EXCHANGE_AMOUNT);
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.WETH));
 
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.WETH));
+
+        creditManager.transferAccountOwnership(address(this), USER);
         creditManager.closeCreditAccount(
             USER, ClosureAction.LIQUIDATE_ACCOUNT, borrowedAmount, LIQUIDATOR, FRIEND, 0, true
         );
@@ -1160,7 +1164,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
         expectBalance(Tokens.WETH, creditAccount, 0, "Non-zero WETH balance");
 
-        expectTokenIsEnabled(Tokens.WETH, false);
+        expectTokenIsEnabled(creditAccount, Tokens.WETH, false);
 
         creditManager.addCollateral(FRIEND, creditAccount, tokenTestSuite.addressOf(Tokens.WETH), WETH_EXCHANGE_AMOUNT);
 
@@ -1168,7 +1172,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
         expectBalance(Tokens.WETH, FRIEND, 0, "Incorrect FRIEND balance");
 
-        expectTokenIsEnabled(Tokens.WETH, true);
+        expectTokenIsEnabled(creditAccount, Tokens.WETH, true);
     }
 
     //
@@ -1327,11 +1331,11 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
     /// @dev [CM-30]: checkAndEnableToken reverts for token for token not in list and for forbidden token
     function test_CM_30_checkAndEnableToken_reverts_for_token_for_token_not_in_list_and_for_forbidden_token() public {
-        (,,, address creditAccount) = _openCreditAccount();
+        _openAccountAndTransferToCF();
 
         // Case: token is not in list
         evm.expectRevert(TokenNotAllowedException.selector);
-        creditManager.checkAndEnableToken(creditAccount, DUMB_ADDRESS);
+        creditManager.checkAndEnableToken(DUMB_ADDRESS);
 
         // Case: token is frobidden
         address token = tokenTestSuite.addressOf(Tokens.USDC);
@@ -1341,24 +1345,24 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         creditManager.setForbidMask(tokenMask);
 
         evm.expectRevert(TokenNotAllowedException.selector);
-        creditManager.checkAndEnableToken(creditAccount, token);
+        creditManager.checkAndEnableToken(token);
     }
 
     /// @dev [CM-31]: checkAndEnableToken enables token for creditAccount
     function test_CM_31_checkAndEnableToken_enables_token_for_creditAccount() public {
-        (,,, address creditAccount) = _openCreditAccount();
+        address creditAccount = _openAccountAndTransferToCF();
 
         // Case: token is not enbaled before
         address token = tokenTestSuite.addressOf(Tokens.USDC);
 
-        expectTokenIsEnabled(Tokens.USDC, false);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, false);
 
-        creditManager.checkAndEnableToken(creditAccount, token);
-        expectTokenIsEnabled(Tokens.USDC, true);
+        creditManager.checkAndEnableToken(token);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
 
         // Case: token is already enabled
-        creditManager.checkAndEnableToken(creditAccount, token);
-        expectTokenIsEnabled(Tokens.USDC, true);
+        creditManager.checkAndEnableToken(token);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
     }
 
     //
@@ -1367,7 +1371,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
     /// @dev [CM-38]: fullCollateralCheck skips tokens is they are not enabled
     function test_CM_38_fullCollateralCheck_skips_tokens_is_they_are_not_enabled() public {
-        (,,, address creditAccount) = _openCreditAccount();
+        address creditAccount = _openAccountAndTransferToCF();
 
         tokenTestSuite.mint(Tokens.USDC, creditAccount, USDC_ACCOUNT_AMOUNT);
 
@@ -1375,7 +1379,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         _baseFullCollateralCheck(creditAccount);
 
         // fullCollateralCheck doesn't revert when token is enabled
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.USDC));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.USDC));
 
         _baseFullCollateralCheck(creditAccount);
     }
@@ -1384,6 +1388,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
     function test_CM_39_fullCollateralCheck_diables_tokens_if_they_have_zero_balance() public {
         (uint256 borrowedAmount, uint256 cumulativeIndexAtOpen, uint256 cumulativeIndexNow, address creditAccount) =
             _openCreditAccount();
+        creditManager.transferAccountOwnership(USER, address(this));
 
         uint256 amountToRepayInLINK = (
             ((borrowedAmount * cumulativeIndexNow * PERCENTAGE_FACTOR) / cumulativeIndexAtOpen) * (10 ** 8)
@@ -1393,13 +1398,13 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         tokenTestSuite.mint(Tokens.LINK, creditAccount, amountToRepayInLINK);
 
         // Enable WETH and LINK token. WETH should be disabled adter fullCollateralCheck
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.LINK));
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.WETH));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.LINK));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.WETH));
 
         _baseFullCollateralCheck(creditAccount);
 
-        expectTokenIsEnabled(Tokens.LINK, true);
-        expectTokenIsEnabled(Tokens.WETH, false);
+        expectTokenIsEnabled(creditAccount, Tokens.LINK, true);
+        expectTokenIsEnabled(creditAccount, Tokens.WETH, false);
     }
 
     /// @dev [CM-40]: fullCollateralCheck breaks loop if total >= borrowAmountPlusInterestRateUSD and pass the check
@@ -1416,6 +1421,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         evm.stopPrank();
 
         address creditAccount = cm.openCreditAccount(DAI_ACCOUNT_AMOUNT, USER);
+        cm.transferAccountOwnership(USER, address(this));
 
         address revertToken = DUMB_ADDRESS;
         address linkToken = tokenTestSuite.addressOf(Tokens.LINK);
@@ -1432,8 +1438,8 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
         evm.stopPrank();
 
-        cm.checkAndEnableToken(creditAccount, revertToken);
-        cm.checkAndEnableToken(creditAccount, linkToken);
+        cm.checkAndEnableToken(revertToken);
+        cm.checkAndEnableToken(linkToken);
 
         // We add WAD for rounding compensation
         uint256 amountToRepayInLINK = ((DAI_ACCOUNT_AMOUNT + WAD) * PERCENTAGE_FACTOR * (10 ** 8))
@@ -1458,7 +1464,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         creditManager.setLiquidationThreshold(poolMock.underlyingToken(), 9300);
         evm.stopPrank();
 
-        address creditAccount = creditManager.openCreditAccount(DAI_ACCOUNT_AMOUNT, USER);
+        address creditAccount = creditManager.openCreditAccount(DAI_ACCOUNT_AMOUNT, address(this));
         tokenTestSuite.mint(Tokens.DAI, creditAccount, 2 * DAI_ACCOUNT_AMOUNT);
 
         enableTokensMoreThanLimit(creditAccount);
@@ -1469,13 +1475,13 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
     /// @dev [CM-41A]: fullCollateralCheck correctly disables the underlying when needed
     function test_CM_41A_fullCollateralCheck_correctly_disables_the_underlying_when_needed() public {
-        address creditAccount = creditManager.openCreditAccount(DAI_ACCOUNT_AMOUNT, USER);
+        address creditAccount = creditManager.openCreditAccount(DAI_ACCOUNT_AMOUNT, address(this));
 
         prepareForEnabledUnderlyingCase(creditAccount);
 
         _baseFullCollateralCheck(creditAccount);
 
-        expectTokenIsEnabled(Tokens.DAI, false);
+        expectTokenIsEnabled(creditAccount, Tokens.DAI, false);
 
         assertEq(
             calcEnabledTokens(creditAccount),
@@ -1503,6 +1509,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         tokenTestSuite.mint(Tokens.DAI, address(poolMock), borrowedAmount);
 
         (,,, address creditAccount) = cms.openCreditAccount(borrowedAmount);
+        creditManager.transferAccountOwnership(USER, address(this));
 
         if (daiBalance > borrowedAmount) {
             tokenTestSuite.mint(Tokens.DAI, creditAccount, daiBalance - borrowedAmount);
@@ -1512,9 +1519,9 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
         expectBalance(Tokens.DAI, creditAccount, daiBalance);
 
-        mintBalance(Tokens.USDC, usdcBalance, enableUSDC);
-        mintBalance(Tokens.LINK, linkBalance, enableLINK);
-        mintBalance(Tokens.WETH, wethBalance, enableWETH);
+        mintBalance(creditAccount, Tokens.USDC, usdcBalance, enableUSDC);
+        mintBalance(creditAccount, Tokens.LINK, linkBalance, enableLINK);
+        mintBalance(creditAccount, Tokens.WETH, wethBalance, enableWETH);
 
         uint256 twvUSD = (
             tokenTestSuite.balanceOf(Tokens.DAI, creditAccount) * tokenTestSuite.prices(Tokens.DAI)
@@ -1721,6 +1728,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
             address friend = friends[i];
             (uint256 borrowedAmount,,, address creditAccount) = _openCreditAccount();
+            creditManager.transferAccountOwnership(USER, address(this));
 
             CreditManagerTestInternal cmi = CreditManagerTestInternal(address(creditManager));
 
@@ -1729,7 +1737,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
             tokenTestSuite.mint(Tokens.LINK, creditAccount, LINK_EXCHANGE_AMOUNT);
 
             address wethTokenAddr = tokenTestSuite.addressOf(Tokens.WETH);
-            creditManager.checkAndEnableToken(creditAccount, wethTokenAddr);
+            creditManager.checkAndEnableToken(wethTokenAddr);
 
             uint256 enabledTokenMask = creditManager.enabledTokensMap(creditAccount);
 
@@ -1755,6 +1763,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
             expectBalance(Tokens.LINK, friend, 0);
 
+            creditManager.transferAccountOwnership(address(this), USER);
             creditManager.closeCreditAccount(USER, ClosureAction.LIQUIDATE_ACCOUNT, 0, LIQUIDATOR, friend, 0, false);
         }
     }
@@ -1809,20 +1818,20 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         // It enables  CreditManagerTestInternal for some test cases
         _connectCreditManagerSuite(Tokens.DAI, true);
 
-        (,,, address creditAccount) = _openCreditAccount();
+        address creditAccount = _openAccountAndTransferToCF();
 
         address usdcToken = tokenTestSuite.addressOf(Tokens.USDC);
-        creditManager.checkAndEnableToken(creditAccount, usdcToken);
+        creditManager.checkAndEnableToken(usdcToken);
 
-        expectTokenIsEnabled(Tokens.USDC, true);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
 
         CreditManagerTestInternal cmi = CreditManagerTestInternal(address(creditManager));
 
-        cmi.disableToken(creditAccount, usdcToken);
-        expectTokenIsEnabled(Tokens.USDC, false);
+        cmi.disableToken(usdcToken);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, false);
 
-        cmi.disableToken(creditAccount, usdcToken);
-        expectTokenIsEnabled(Tokens.USDC, false);
+        cmi.disableToken(usdcToken);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, false);
     }
 
     /// @dev [CM-47]: collateralTokens works as expected
@@ -2296,7 +2305,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
     function test_CM_68_fullCollateralCheck_is_evaluated_in_order_of_hints() public {
         _connectCreditManagerSuite(Tokens.DAI, true);
 
-        (,,, address creditAccount) = _openCreditAccount();
+        address creditAccount = _openAccountAndTransferToCF();
 
         CreditManagerTestInternal cmi = CreditManagerTestInternal(address(creditManager));
 
@@ -2304,9 +2313,9 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         tokenTestSuite.mint(Tokens.USDT, creditAccount, 10);
         tokenTestSuite.mint(Tokens.LINK, creditAccount, 10);
 
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.USDC));
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.USDT));
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.LINK));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.USDC));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.USDT));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.LINK));
 
         uint256[] memory collateralHints = new uint256[](2);
         collateralHints[0] = cmi.tokenMasksMap(tokenTestSuite.addressOf(Tokens.USDT));

@@ -823,7 +823,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             address token = abi.decode(callData[4:], (address)); // F: [FA-53]
 
             // Executes enableToken for creditAccount
-            _enableToken(borrower, creditAccount, token); // F: [FA-53]
+            _enableToken(borrower, token); // F: [FA-53]
         }
         //
         // DISABLE TOKEN
@@ -835,7 +835,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             address token = abi.decode(callData[4:], (address)); // F: [FA-54]
 
             // Executes disableToken for creditAccount
-            _disableToken(borrower, creditAccount, token); // F: [FA-54]
+            _disableToken(borrower, token); // F: [FA-54]
         }
         //
         // UPDATE QUOTAS
@@ -1030,12 +1030,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Enables token in enabledTokenMask for a Credit Account
     /// @param borrower Owner of the account
-    /// @param creditAccount Account for which the token is enabled
     /// @param token Collateral token to enable
-    function _enableToken(address borrower, address creditAccount, address token) internal {
+    function _enableToken(address borrower, address token) internal {
         // Will revert if the token is not known or forbidden,
         // If the token is disabled, adds the respective bit to the mask, otherwise does nothing
-        creditManager.checkAndEnableToken(creditAccount, token); // F:[FA-39]
+        creditManager.checkAndEnableToken(token); // F:[FA-39]
 
         // Emits event
         emit TokenEnabled(borrower, token);
@@ -1043,12 +1042,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Disable a token for a Credit Account
     /// @param borrower Owner of the account
-    /// @param creditAccount Account for which the token is disabled
     /// @param token Token to disable
-    function _disableToken(address borrower, address creditAccount, address token) internal {
+    function _disableToken(address borrower, address token) internal {
         // If the token is enabled, removes a respective bit from the mask,
         // otherwise does nothing
-        if (creditManager.disableToken(creditAccount, token)) {
+        if (creditManager.disableToken(token)) {
             // Emits event
             emit TokenDisabled(borrower, token);
         } // F: [FA-54]
