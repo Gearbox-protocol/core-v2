@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -13,14 +13,13 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 
 import { IWETH } from "../interfaces/external/IWETH.sol";
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-// import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { AddressProvider } from "../core/AddressProvider.sol";
 import { ContractsRegister } from "../core/ContractsRegister.sol";
 import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 
 import { Pool4626 } from "./Pool4626.sol";
-import { IPoolQuotaKeeper, QuotaUpdate, QuotaRateUpdate, TokenLT, QuotaStatusChange } from "../interfaces/IPoolQuotaKeeper.sol";
+import { IPoolQuotaKeeper, QuotaUpdate, QuotaRateUpdate, TokenLT, QuotaStatusChange, TokenQuotaParams, AccountQuota } from "../interfaces/IPoolQuotaKeeper.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
 import { IGauge } from "../interfaces/IGauge.sol";
 
@@ -32,21 +31,6 @@ import { FixedPointMathLib } from "../libraries/SolmateMath.sol";
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
 import "forge-std/console.sol";
-
-/// Invariant: totalQuoted = sum of AccountQuota.quota for particular asset
-
-struct TokenQuotaParams {
-    uint96 totalQuoted;
-    uint96 limit;
-    uint16 rate; // current rate update
-    uint192 cumulativeIndexLU_RAY; // max 10^57
-}
-
-struct AccountQuota {
-    uint96 quota;
-    uint192 cumulativeIndexLU;
-    uint40 quotaLU;
-}
 
 uint192 constant RAY_DIVIDED_BY_PERCENTAGE = uint192(RAY / PERCENTAGE_FACTOR);
 uint192 constant SECONDS_PER_YEAR_192 = uint192(SECONDS_PER_YEAR);
@@ -74,7 +58,8 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
 
     uint256 lastQuotaRateUpdate;
 
-    mapping(address => mapping(address => mapping(address => AccountQuota))) quotas;
+    mapping(address => mapping(address => mapping(address => AccountQuota)))
+        internal quotas;
 
     /// @dev IGauge
     IGauge public gauge;
@@ -140,14 +125,14 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
                     creditAccount,
                     quotaUpdates[i].token,
                     quotaUpdates[i].quotaChange
-                );
+                ); // F: [CMQ-03]
 
             quotaRevenueChange += qic;
             caQuotaInterestChange += cap;
             statusChanges[i] = statusChange;
             statusWasChanged =
                 statusWasChanged ||
-                (statusChange != QuotaStatusChange.NOT_CHANGED);
+                (statusChange != QuotaStatusChange.NOT_CHANGED); // F: [CMQ-03]
             unchecked {
                 ++i;
             }
@@ -179,7 +164,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
                     q.quota,
                     cumulativeIndexNow,
                     q.cumulativeIndexLU
-                );
+                ); // F: [CMQ-10]
             }
             unchecked {
                 ++i;
@@ -243,14 +228,14 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         ];
         int96 change;
         uint96 totalQuoted = q.totalQuoted;
-        uint192 cumulativeIndexNow = _cumulativeIndexNow(q);
+        uint192 cumulativeIndexNow = _cumulativeIndexNow(q); // F: [CMQ-03]
 
         if (quota.quota > 1) {
             caQuotaInterestChange = _computeOutstandingQuotaInterest(
                 quota.quota,
                 cumulativeIndexNow,
                 quota.cumulativeIndexLU
-            );
+            ); // F: [CMQ-03]
         }
 
         quota.cumulativeIndexLU = cumulativeIndexNow;
@@ -264,12 +249,12 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
                     QuotaStatusChange.NOT_CHANGED
                 );
             change = (totalQuoted + uint96(quotaChange) > limit)
-                ? int96(limit - totalQuoted)
+                ? int96(limit - totalQuoted) // F: [CMQ-08,10]
                 : quotaChange;
             q.totalQuoted = totalQuoted + uint96(change);
 
             if (quota.quota <= 1 && change > 0) {
-                statusChange = QuotaStatusChange.ZERO_TO_POSITIVE;
+                statusChange = QuotaStatusChange.ZERO_TO_POSITIVE; // F: [CMQ-03]
             }
 
             quota.quota += uint96(change);
@@ -278,13 +263,13 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             q.totalQuoted = uint96(int96(totalQuoted) + change);
 
             if (quota.quota <= uint96(-change) + 1) {
-                statusChange = QuotaStatusChange.POSITIVE_TO_ZERO;
+                statusChange = QuotaStatusChange.POSITIVE_TO_ZERO; // F: [CMQ-03]
             }
 
-            quota.quota -= uint96(-change);
+            quota.quota -= uint96(-change); // F: [CMQ-03]
         }
 
-        return (change * int16(q.rate), caQuotaInterestChange, statusChange);
+        return (change * int16(q.rate), caQuotaInterestChange, statusChange); // F: [CMQ-03]
     }
 
     function _removeQuota(
@@ -300,7 +285,6 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         ];
         uint96 quoted = quota.quota;
 
-        /// UPDATE HERE: case "1"
         if (quoted <= 1) return (0, 0);
 
         TokenQuotaParams storage tq = totalQuotas[token];
@@ -310,15 +294,15 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
             quoted,
             cumulativeIndexNow,
             quota.cumulativeIndexLU
-        );
-        quota.cumulativeIndexLU = 0;
+        ); // F: [CMQ-06]
+        quota.cumulativeIndexLU = 0; // F: [CMQ-06]
         tq.totalQuoted -= quoted;
-        quota.quota = 1; // TODO: "0" or "1"(?)
+        quota.quota = 1; // F: [CMQ-06]
 
         return (
             -int128(uint128(quoted)) * int16(tq.rate),
             caQuotaInterestChange
-        );
+        ); // F: [CMQ-06]
     }
 
     function _computeOutstandingQuotaInterest(
@@ -391,10 +375,10 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
                     creditAccount,
                     tokens[i].token,
                     _priceOracle
-                );
+                ); // F: [CMQ-8]
 
-            value += currentUSD * tokens[i].lt;
-            totalQuotaInterest += outstandingInterest;
+            value += currentUSD * tokens[i].lt; // F: [CMQ-8]
+            totalQuotaInterest += outstandingInterest; // F: [CMQ-8]
 
             unchecked {
                 ++i;
@@ -412,26 +396,25 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
     ) internal view returns (uint256 value, uint256 interest) {
         AccountQuota storage q = quotas[creditManager][creditAccount][token];
 
-        /// TODO: check "1" problem
         if (q.quota > 1) {
             uint256 quotaValueUSD = IPriceOracleV2(_priceOracle).convertToUSD(
                 q.quota,
                 underlying
-            );
+            ); // F: [CMQ-8]
             uint256 balance = IERC20(token).balanceOf(creditAccount);
             if (balance > 1) {
                 value = IPriceOracleV2(_priceOracle).convertToUSD(
                     balance,
                     token
-                );
-                if (value > quotaValueUSD) value = quotaValueUSD;
+                ); // F: [CMQ-8]
+                if (value > quotaValueUSD) value = quotaValueUSD; // F: [CMQ-8]
             }
 
             interest = _computeOutstandingQuotaInterest(
                 q.quota,
                 cumulativeIndex(token),
                 q.cumulativeIndexLU
-            );
+            ); // F: [CMQ-8]
         }
     }
 
@@ -451,10 +434,10 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
                 msg.sender,
                 creditAccount,
                 token
-            );
+            ); // F: [CMQ-06]
 
-            quotaRevenueChange += qic;
-            totalInterest += caqi;
+            quotaRevenueChange += qic; // F: [CMQ-06]
+            totalInterest += caqi; // F: [CMQ-06]
             unchecked {
                 ++i;
             }
@@ -529,6 +512,14 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         returns (bool)
     {
         return quotaTokensSet.contains(token);
+    }
+
+    function getQuota(
+        address creditManager,
+        address creditAccount,
+        address token
+    ) external view returns (AccountQuota memory) {
+        return quotas[creditManager][creditAccount][token];
     }
 
     //

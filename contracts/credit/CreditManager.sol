@@ -31,6 +31,8 @@ import { DEFAULT_FEE_INTEREST, DEFAULT_FEE_LIQUIDATION, DEFAULT_LIQUIDATION_PREM
 uint256 constant ADDR_BIT_SIZE = 160;
 uint256 constant INDEX_PRECISION = 10**9;
 
+import "forge-std/console.sol";
+
 struct Slot1 {
     /// @dev Interest fee charged by the protocol: fee = interest accrued * feeInterest
     uint16 feeInterest;
@@ -247,7 +249,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // Initializes the enabled token mask for Credit Account to 1 (only the underlying is enabled)
         enabledTokensMap[creditAccount] = 1; // F:[CM-8]
 
-        if (supportsQuotas) cumulativeQuotaInterest[creditAccount] = 1; // TODO: Add test
+        if (supportsQuotas) cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-01]
 
         // Returns the address of the opened Credit Account
         return creditAccount; // F:[CM-8]
@@ -339,7 +341,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     quotaInterest += poolQuotaKeeper().closeCreditAccount(
                         creditAccount,
                         tokens
-                    );
+                    ); // F: [CMQ-06]
                 }
             }
 
@@ -473,7 +475,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             uint256 amountProfit = 0;
 
             if (supportsQuotas) {
-                (amountRepaid, amountProfit) = _computeQuotasAmountDebtIncrease(
+                (amountRepaid, amountProfit) = _computeQuotasAmountDebtDecrease(
                     creditAccount,
                     amountRepaid,
                     amountProfit
@@ -512,10 +514,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
                     uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
                         (PERCENTAGE_FACTOR + slot1.feeInterest);
-                    uint256 amountToDao = amountRepaid - amountToPool;
 
+                    amountProfit += amountRepaid - amountToPool;
                     amountRepaid = 0;
-                    amountProfit += amountToDao;
 
                     // Since interest and fees are paid out first, the principal
                     // remains unchanged
@@ -569,7 +570,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         }
     }
 
-    function _computeQuotasAmountDebtIncrease(
+    function _computeQuotasAmountDebtDecrease(
         address creditAccount,
         uint256 _amountRepaid,
         uint256 _amountProfit
@@ -585,7 +586,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             quotaInterestAccrued += poolQuotaKeeper().accrueQuotaInterest(
                 creditAccount,
                 tokens
-            );
+            ); // F: [CMQ-04, 05]
         }
 
         if (quotaInterestAccrued > 2) {
@@ -593,20 +594,20 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 PERCENTAGE_FACTOR;
 
             if (amountRepaid >= quotaInterestAccrued + quotaProfit) {
-                amountRepaid -= quotaInterestAccrued + quotaProfit;
-                amountProfit += quotaProfit;
-                cumulativeQuotaInterest[creditAccount] = 1;
+                amountRepaid -= quotaInterestAccrued + quotaProfit; // F: [CMQ-05]
+                amountProfit += quotaProfit; // F: [CMQ-05]
+                cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-05]
             } else {
                 uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) /
                     (PERCENTAGE_FACTOR + fee);
 
-                amountRepaid = 0;
-                amountProfit += amountRepaid - amountToPool;
+                amountProfit += amountRepaid - amountToPool; // F: [CMQ-04]
+                amountRepaid = 0; // F: [CMQ-04]
 
                 cumulativeQuotaInterest[creditAccount] =
                     quotaInterestAccrued -
                     amountToPool +
-                    1;
+                    1; // F: [CMQ-04]
             }
         }
     }
@@ -846,37 +847,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // Also checks that the token is not in limited token mask,
         // as limited tokens are only enabled and disabled by setting quotas
         if (
-            enabledTokensMap[creditAccount] & tokenMask & limitedTokenMask == 0
+            (enabledTokensMap[creditAccount] & tokenMask == 0) &&
+            (tokenMask & limitedTokenMask == 0) // F: [CMQ-07]
         ) {
             enabledTokensMap[creditAccount] |= tokenMask;
         } // F:[CM-31]
     }
-
-    // /// @dev Performs a full health check on an account, summing up
-    // /// value of all enabled collateral tokens
-    // /// @param creditAccount Address of the Credit Account to check
-    // function fullCollateralCheck(address creditAccount)
-    //     external
-    //     override
-    //     adaptersOrCreditFacadeOnly // F:[CM-3]
-    //     nonReentrant
-    // {
-    //     uint256[] memory collateralHints = new uint256[](0);
-    //     _fullCollateralCheck(creditAccount, collateralHints, PERCENTAGE_FACTOR);
-    // }
-
-    // /// @dev Performs a full health check on an account with a custom
-    // ///      order of evaluated tokens
-    // /// @param creditAccount Address of the Credit Account to check
-    // /// @param collateralHints Array of token masks in the desired order of evaluation
-    // /// @notice Full collateral check with hints will first evaluate limited tokens as normal (this is done in PoolQuotaKeeper),
-    // ///         then evaluate the hinted tokens in the order of hints, and then will move on to other tokens if the check is still not satisfied
-    // function fullCollateralCheck(
-    //     address creditAccount,
-    //     uint256[] memory collateralHints
-    // ) external adaptersOrCreditFacadeOnly nonReentrant {
-    //     _fullCollateralCheck(creditAccount, collateralHints, PERCENTAGE_FACTOR);
-    // }
 
     /// @dev Performs a full health check on an account with a custom order of evaluated tokens and
     ///      a custom minimal health factor
@@ -922,12 +898,12 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                             creditAccount,
                             address(_priceOracle),
                             tokens
-                        );
+                        ); // F: [CMQ-8]
 
                     checkedTokenMask = checkedTokenMask & (~limitedTokenMask);
                 }
 
-                quotaInterest += cumulativeQuotaInterest[creditAccount];
+                quotaInterest += cumulativeQuotaInterest[creditAccount]; // F: [CMQ-8]
             }
 
             // The total weighted value of a Credit Account has to be compared
@@ -946,6 +922,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
             // If quoted tokens fully cover the debt, we can stop here
             // after performing some additional cleanup
             if (twvUSD >= borrowAmountPlusInterestRateUSD) {
+                // F: [CMQ-9]
                 _afterFullCheck(creditAccount, enabledTokenMask, false);
 
                 return;
@@ -1139,7 +1116,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         uint256 tokenMask = tokenMasksMap(token);
         if (
             (enabledTokensMap[creditAccount] & tokenMask != 0) &&
-            (tokenMask & limitedTokenMask == 0)
+            (tokenMask & limitedTokenMask == 0) // F: [CMQ-07]
         ) {
             enabledTokensMap[creditAccount] &= ~tokenMask; // F:[CM-46]
             wasChanged = true;
@@ -1156,14 +1133,18 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     function updateQuotas(
         address creditAccount,
         QuotaUpdate[] memory quotaUpdates
-    ) external override creditFacadeOnly {
+    )
+        external
+        override
+        creditFacadeOnly // F: [CMQ-3]
+    {
         (
             uint256 caInterestChange,
             QuotaStatusChange[] memory statusChanges,
             bool statusWasChanged
-        ) = poolQuotaKeeper().updateQuotas(creditAccount, quotaUpdates);
+        ) = poolQuotaKeeper().updateQuotas(creditAccount, quotaUpdates); // F: [CMQ-3]
 
-        cumulativeQuotaInterest[creditAccount] += caInterestChange;
+        cumulativeQuotaInterest[creditAccount] += caInterestChange; // F: [CMQ-3]
 
         if (statusWasChanged) {
             uint256 len = quotaUpdates.length;
@@ -1171,11 +1152,11 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
             for (uint256 i = 0; i < len; ) {
                 if (statusChanges[i] == QuotaStatusChange.ZERO_TO_POSITIVE) {
-                    enabledTokensMask |= tokenMasksMap(quotaUpdates[i].token);
+                    enabledTokensMask |= tokenMasksMap(quotaUpdates[i].token); // F: [CMQ-3]
                 } else if (
                     statusChanges[i] == QuotaStatusChange.POSITIVE_TO_ZERO
                 ) {
-                    enabledTokensMask &= ~tokenMasksMap(quotaUpdates[i].token);
+                    enabledTokensMask &= ~tokenMasksMap(quotaUpdates[i].token); // F: [CMQ-3]
                 }
 
                 unchecked {
@@ -1188,7 +1169,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 revert TooManyEnabledTokensException();
             }
 
-            enabledTokensMap[creditAccount] = enabledTokensMask;
+            enabledTokensMap[creditAccount] = enabledTokensMask; // F: [CMQ-3]
         }
     }
 
@@ -1554,7 +1535,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                     address(this),
                     creditAccount,
                     tokens
-                );
+                ); // F: [CMQ-10]
             }
         }
 
@@ -1873,9 +1854,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     ///         Tokens in the mask also incur additional interest based on their quotas
     function setLimitedMask(uint256 _limitedTokenMask)
         external
-        creditConfiguratorOnly
+        creditConfiguratorOnly // F: [CMQ-02]
     {
-        limitedTokenMask = _limitedTokenMask;
+        limitedTokenMask = _limitedTokenMask; // F: [CMQ-02]
     }
 
     /// @dev Sets the maximal number of enabled tokens on a single Credit Account.
