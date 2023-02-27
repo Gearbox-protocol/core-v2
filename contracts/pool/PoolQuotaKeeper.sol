@@ -242,12 +242,13 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
 
         if (quotaChange > 0) {
             uint96 limit = q.limit;
-            if (totalQuoted > limit)
+            if (totalQuoted > limit) {
                 return (
                     0,
                     caQuotaInterestChange,
                     QuotaStatusChange.NOT_CHANGED
                 );
+            }
             change = (totalQuoted + uint96(quotaChange) > limit)
                 ? int96(limit - totalQuoted) // F: [CMQ-08,10]
                 : quotaChange;

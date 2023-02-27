@@ -17,8 +17,8 @@
   "license": "BUSL-1.1",
   "scripts": {
     "prepare": "husky install",
-    "prettier": "prettier --write .",
-    "prettier:ci": "npx prettier --check .",
+    "prettier": "forge fmt",
+    "prettier:ci": "forge fmt",
     "forge-install": "forge install --no-commit foundry-rs/forge-std"
   },
   "devDependencies": {
@@ -34,6 +34,7 @@
   },
   "prettier": "@gearbox-protocol/prettier-config",
   "lint-staged": {
+    "*.{sol}": "forge fmt",
     "*.{sol,json,md}": "prettier --write"
   }
 }
