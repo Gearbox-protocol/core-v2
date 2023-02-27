@@ -35,6 +35,6 @@
   "prettier": "@gearbox-protocol/prettier-config",
   "lint-staged": {
     "*.{sol}": "forge fmt",
-    "*.{sol,json,md}": "prettier --write"
+    "*.{json,md}": "prettier --write"
   }
 }
