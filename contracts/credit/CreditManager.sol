@@ -1167,7 +1167,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
             uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokensMask);
             if (totalTokensEnabled > maxAllowedEnabledTokenLength) {
-                revert TooManyEnabledTokensException();
+                revert TooManyEnabledTokensException(); // F: [CMQ-11]
             }
 
             enabledTokensMap[creditAccount] = enabledTokensMask; // F: [CMQ-3]

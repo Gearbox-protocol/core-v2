@@ -159,6 +159,34 @@ contract CreditManagerQuotasTest is
         cms.makeTokenLimited(token, rate, limit);
     }
 
+    function _addManyLimitedTokens(uint256 numTokens, uint96 quota)
+        internal
+        returns (QuotaUpdate[] memory quotaChanges)
+    {
+        quotaChanges = new QuotaUpdate[](numTokens);
+
+        for (uint256 i = 0; i < numTokens; i++) {
+            ERC20Mock t = new ERC20Mock("new token", "nt", 18);
+            PriceFeedMock pf = new PriceFeedMock(10**8, 8);
+
+            evm.startPrank(CONFIGURATOR);
+            creditManager.addToken(address(t));
+            IPriceOracleV2Ext(address(priceOracle)).addPriceFeed(
+                address(t),
+                address(pf)
+            );
+            creditManager.setLiquidationThreshold(address(t), 8000);
+            evm.stopPrank();
+
+            _makeTokenLimited(address(t), 100, type(uint96).max);
+
+            quotaChanges[i] = QuotaUpdate({
+                token: address(t),
+                quotaChange: int96(quota)
+            });
+        }
+    }
+
     ///
     ///
     ///  TESTS
@@ -630,6 +658,7 @@ contract CreditManagerQuotasTest is
         );
     }
 
+    /// @dev [CMQ-09]: fullCollateralCheck does not check non-limited tokens if limited are enough to cover debt
     function test_CMQ_09_fullCollateralCheck_skips_normal_tokens_if_limited_tokens_cover_debt()
         public
     {
@@ -677,7 +706,8 @@ contract CreditManagerQuotasTest is
         );
     }
 
-    function test_CMQ_10_calcCreditAccountInterest_correctly_includes_quota_interest(
+    /// @dev [CMQ-10]: calcCreditAccountAccruedInterest correctly counts quota interest
+    function test_CMQ_10_calcCreditAccountAccruedInterest_correctly_includes_quota_interest(
         uint96 quotaLink,
         uint96 quotaUsdt
     ) public {
@@ -746,5 +776,21 @@ contract CreditManagerQuotasTest is
             : totalDebt - expectedTotalDebt;
 
         assertLe(diff, 2, "Total debt not equal");
+    }
+
+    function test_CMQ_11_updateQuotas_reverts_on_too_many_tokens_enabled()
+        public
+    {
+        (, , , address creditAccount) = _openCreditAccount();
+
+        uint256 maxTokens = creditManager.maxAllowedEnabledTokenLength();
+
+        QuotaUpdate[] memory quotaUpdates = _addManyLimitedTokens(
+            maxTokens + 1,
+            100
+        );
+
+        evm.expectRevert(TooManyEnabledTokensException.selector);
+        creditManager.updateQuotas(creditAccount, quotaUpdates);
     }
 }
