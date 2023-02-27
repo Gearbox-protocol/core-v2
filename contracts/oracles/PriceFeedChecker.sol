@@ -3,16 +3,11 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IPriceOracleV2Exceptions } from "../interfaces/IPriceOracle.sol";
+import {IPriceOracleV2Exceptions} from "../interfaces/IPriceOracle.sol";
 
 /// @title Sanity checker for Chainlink price feed results
 contract PriceFeedChecker is IPriceOracleV2Exceptions {
-    function _checkAnswer(
-        uint80 roundID,
-        int256 price,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ) internal pure {
+    function _checkAnswer(uint80 roundID, int256 price, uint256 updatedAt, uint80 answeredInRound) internal pure {
         if (price <= 0) revert ZeroPriceException(); // F:[PO-5]
         if (answeredInRound < roundID || updatedAt == 0) {
             revert ChainPriceStaleException();

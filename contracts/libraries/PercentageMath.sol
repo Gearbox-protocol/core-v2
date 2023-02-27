@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.10;
 
-import { PERCENTAGE_FACTOR } from "./Constants.sol";
-import { Errors } from "./Errors.sol";
+import {PERCENTAGE_FACTOR} from "./Constants.sol";
+import {Errors} from "./Errors.sol";
 
 uint256 constant HALF_PERCENT = PERCENTAGE_FACTOR / 2;
 
@@ -23,11 +23,7 @@ library PercentageMath {
      * @return The percentage of value
      *
      */
-    function percentMul(uint256 value, uint256 percentage)
-        internal
-        pure
-        returns (uint256)
-    {
+    function percentMul(uint256 value, uint256 percentage) internal pure returns (uint256) {
         if (value == 0 || percentage == 0) {
             return 0; // T:[PM-1]
         }
@@ -47,11 +43,7 @@ library PercentageMath {
      * @return The value divided the percentage
      *
      */
-    function percentDiv(uint256 value, uint256 percentage)
-        internal
-        pure
-        returns (uint256)
-    {
+    function percentDiv(uint256 value, uint256 percentage) internal pure returns (uint256) {
         require(percentage != 0, Errors.MATH_DIVISION_BY_ZERO); // T:[PM-2]
         uint256 halfPercentage = percentage / 2; // T:[PM-2]
 

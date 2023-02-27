@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IContractsRegister } from "../interfaces/IContractsRegister.sol";
-import { Errors } from "../libraries/Errors.sol";
-import { ACLNonReentrantTrait } from "./ACLNonReentrantTrait.sol";
+import {IContractsRegister} from "../interfaces/IContractsRegister.sol";
+import {Errors} from "../libraries/Errors.sol";
+import {ACLNonReentrantTrait} from "./ACLNonReentrantTrait.sol";
 
 /// @title Pool & Credit Manager registry
 /// @notice Stores addresses of Pools and Credit Managers
@@ -25,9 +25,7 @@ contract ContractsRegister is IContractsRegister, ACLNonReentrantTrait {
     /// @dev Contract version
     uint256 public constant version = 1;
 
-    constructor(address addressProvider)
-        ACLNonReentrantTrait(addressProvider)
-    {}
+    constructor(address addressProvider) ACLNonReentrantTrait(addressProvider) {}
 
     /// @dev Adds a pool to the list
     /// @param newPoolAddress Address of the new pool
@@ -35,10 +33,7 @@ contract ContractsRegister is IContractsRegister, ACLNonReentrantTrait {
         external
         configuratorOnly // T:[CR-1]
     {
-        require(
-            newPoolAddress != address(0),
-            Errors.ZERO_ADDRESS_IS_NOT_ALLOWED
-        );
+        require(newPoolAddress != address(0), Errors.ZERO_ADDRESS_IS_NOT_ALLOWED);
         require(!isPool[newPoolAddress], Errors.CR_POOL_ALREADY_ADDED); // T:[CR-2]
         pools.push(newPoolAddress); // T:[CR-3]
         isPool[newPoolAddress] = true; // T:[CR-3]
@@ -62,15 +57,9 @@ contract ContractsRegister is IContractsRegister, ACLNonReentrantTrait {
         external
         configuratorOnly // T:[CR-1]
     {
-        require(
-            newCreditManager != address(0),
-            Errors.ZERO_ADDRESS_IS_NOT_ALLOWED
-        );
+        require(newCreditManager != address(0), Errors.ZERO_ADDRESS_IS_NOT_ALLOWED);
 
-        require(
-            !isCreditManager[newCreditManager],
-            Errors.CR_CREDIT_MANAGER_ALREADY_ADDED
-        ); // T:[CR-5]
+        require(!isCreditManager[newCreditManager], Errors.CR_CREDIT_MANAGER_ALREADY_ADDED); // T:[CR-5]
         creditManagers.push(newCreditManager); // T:[CR-6]
         isCreditManager[newCreditManager] = true; // T:[CR-6]
 
@@ -78,12 +67,7 @@ contract ContractsRegister is IContractsRegister, ACLNonReentrantTrait {
     }
 
     /// @dev Returns the array of registered credit manager addresses
-    function getCreditManagers()
-        external
-        view
-        override
-        returns (address[] memory)
-    {
+    function getCreditManagers() external view override returns (address[] memory) {
         return creditManagers;
     }
 

@@ -3,22 +3,18 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ILPPriceFeed } from "../interfaces/ILPPriceFeed.sol";
-import { PriceFeedChecker } from "./PriceFeedChecker.sol";
-import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
-import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
+import {ILPPriceFeed} from "../interfaces/ILPPriceFeed.sol";
+import {PriceFeedChecker} from "./PriceFeedChecker.sol";
+import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
+import {PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
 
 // EXCEPTIONS
-import { NotImplementedException } from "../interfaces/IErrors.sol";
+import {NotImplementedException} from "../interfaces/IErrors.sol";
 
 /// @title Abstract PriceFeed for an LP token
 /// @notice For most pools/vaults, the LP token price depends on Chainlink prices of pool assets and the pool's
 /// internal exchange rate.
-abstract contract LPPriceFeed is
-    ILPPriceFeed,
-    PriceFeedChecker,
-    ACLNonReentrantTrait
-{
+abstract contract LPPriceFeed is ILPPriceFeed, PriceFeedChecker, ACLNonReentrantTrait {
     /// @dev The lower bound for the contract's token-to-underlying exchange rate.
     /// @notice Used to protect against LP token / share price manipulation.
     uint256 public lowerBound;
@@ -36,11 +32,9 @@ abstract contract LPPriceFeed is
     /// @param addressProvider Address of address provier which is use for getting ACL
     /// @param _delta Pre-defined window in PERCENTAGE FORMAT which is allowed for SC value
     /// @param _description Price feed description
-    constructor(
-        address addressProvider,
-        uint256 _delta,
-        string memory _description
-    ) ACLNonReentrantTrait(addressProvider) {
+    constructor(address addressProvider, uint256 _delta, string memory _description)
+        ACLNonReentrantTrait(addressProvider)
+    {
         description = _description; // F:[LPF-1]
         delta = _delta; // F:[LPF-1]
     }
@@ -66,11 +60,7 @@ abstract contract LPPriceFeed is
     /// @dev Checks that value is in range [lowerBound; upperBound],
     /// Reverts if below lowerBound and returns min(value, upperBound)
     /// @param value Value to be checked and bounded
-    function _checkAndUpperBoundValue(uint256 value)
-        internal
-        view
-        returns (uint256)
-    {
+    function _checkAndUpperBoundValue(uint256 value) internal view returns (uint256) {
         uint256 lb = lowerBound;
         if (value < lb) revert ValueOutOfRangeException(); // F:[LPF-3]
 
@@ -92,10 +82,7 @@ abstract contract LPPriceFeed is
 
     /// @dev IMPLEMENTATION: setLimiter
     function _setLimiter(uint256 _lowerBound) internal {
-        if (
-            _lowerBound == 0 ||
-            !_checkCurrentValueInBounds(_lowerBound, _upperBound(_lowerBound))
-        ) {
+        if (_lowerBound == 0 || !_checkCurrentValueInBounds(_lowerBound, _upperBound(_lowerBound))) {
             revert IncorrectLimitsException();
         } // F:[LPF-4]
 
@@ -112,8 +99,9 @@ abstract contract LPPriceFeed is
         return _upperBound(lowerBound); // F:[LPF-5]
     }
 
-    function _checkCurrentValueInBounds(
-        uint256 _lowerBound,
-        uint256 _upperBound
-    ) internal view virtual returns (bool);
+    function _checkCurrentValueInBounds(uint256 _lowerBound, uint256 _upperBound)
+        internal
+        view
+        virtual
+        returns (bool);
 }

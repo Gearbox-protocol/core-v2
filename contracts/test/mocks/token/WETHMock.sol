@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract WETHMock is IERC20 {
     string public name = "Wrapped Ether";
@@ -50,16 +50,10 @@ contract WETHMock is IERC20 {
         return transferFrom(msg.sender, dst, wad); // T:[WM-4,5,6]
     }
 
-    function transferFrom(
-        address src,
-        address dst,
-        uint256 wad
-    ) public returns (bool) {
+    function transferFrom(address src, address dst, uint256 wad) public returns (bool) {
         require(balanceOf[src] >= wad); // T:[WM-4]
 
-        if (
-            src != msg.sender && allowance[src][msg.sender] != type(uint256).max
-        ) {
+        if (src != msg.sender && allowance[src][msg.sender] != type(uint256).max) {
             require(allowance[src][msg.sender] >= wad); // T:[WM-4]
             allowance[src][msg.sender] -= wad; // T:[WM-7]
         }

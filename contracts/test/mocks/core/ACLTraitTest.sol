@@ -3,16 +3,14 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ACLNonReentrantTrait } from "../../../core/ACLNonReentrantTrait.sol";
+import {ACLNonReentrantTrait} from "../../../core/ACLNonReentrantTrait.sol";
 
 /**
  * @title Pausable Trait Test
  * @notice this contract is used to test how poolOnly modifier works
  */
 contract ACLNonReentrantTraitTest is ACLNonReentrantTrait {
-    constructor(address addressProvider)
-        ACLNonReentrantTrait(addressProvider)
-    {}
+    constructor(address addressProvider) ACLNonReentrantTrait(addressProvider) {}
 
     function accessWhenNotPaused() external view whenNotPaused {}
 

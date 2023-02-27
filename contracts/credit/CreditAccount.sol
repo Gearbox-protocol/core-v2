@@ -3,13 +3,13 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ICreditAccount } from "../interfaces/ICreditAccount.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ICreditAccount} from "../interfaces/ICreditAccount.sol";
 
 /// @title Credit Account
 /// @notice Implements generic credit account logic:
@@ -65,11 +65,11 @@ contract CreditAccount is ICreditAccount, Initializable {
     /// @param _creditManager Credit manager address
     /// @param _borrowedAmount The amount borrowed at Credit Account opening
     /// @param _cumulativeIndexAtOpen The interest index at Credit Account opening
-    function connectTo(
-        address _creditManager,
-        uint256 _borrowedAmount,
-        uint256 _cumulativeIndexAtOpen
-    ) external override factoryOnly {
+    function connectTo(address _creditManager, uint256 _borrowedAmount, uint256 _cumulativeIndexAtOpen)
+        external
+        override
+        factoryOnly
+    {
         creditManager = _creditManager; // T:[CA-7]
         borrowedAmount = _borrowedAmount; // T:[CA-3,7]
         cumulativeIndexAtOpen = _cumulativeIndexAtOpen; //  T:[CA-3,7]
@@ -79,10 +79,7 @@ contract CreditAccount is ICreditAccount, Initializable {
     /// @dev Updates borrowed amount and cumulative index. Restricted to the currently connected Credit Manager.
     /// @param _borrowedAmount The amount currently lent to the Credit Account
     /// @param _cumulativeIndexAtOpen New cumulative index to calculate interest from
-    function updateParameters(
-        uint256 _borrowedAmount,
-        uint256 _cumulativeIndexAtOpen
-    )
+    function updateParameters(uint256 _borrowedAmount, uint256 _cumulativeIndexAtOpen)
         external
         override
         creditManagerOnly // T:[CA-2]
@@ -94,11 +91,7 @@ contract CreditAccount is ICreditAccount, Initializable {
     /// @dev Removes allowance for a token to a 3rd-party contract. Restricted to factory only.
     /// @param token ERC20 token to remove allowance for.
     /// @param targetContract Target contract to revoke allowance to.
-    function cancelAllowance(address token, address targetContract)
-        external
-        override
-        factoryOnly
-    {
+    function cancelAllowance(address token, address targetContract) external override factoryOnly {
         IERC20(token).safeApprove(targetContract, 0);
     }
 
@@ -106,11 +99,7 @@ contract CreditAccount is ICreditAccount, Initializable {
     /// @param token Token to be transferred from the Credit Account.
     /// @param to Address of the recipient.
     /// @param amount Amount to be transferred.
-    function safeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    )
+    function safeTransfer(address token, address to, uint256 amount)
         external
         override
         creditManagerOnly // T:[CA-2]

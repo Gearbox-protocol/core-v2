@@ -3,11 +3,11 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.17;
 
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
-import { IAdapter } from "../interfaces/adapters/IAdapter.sol";
-import { ZeroAddressException } from "../interfaces/IErrors.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
+import {IAdapter} from "../interfaces/adapters/IAdapter.sol";
+import {ZeroAddressException} from "../interfaces/IErrors.sol";
 
 /// @title Abstract adapter
 /// @dev Must be inherited by other adapters
@@ -56,10 +56,7 @@ abstract contract AbstractAdapter is IAdapter {
     /// @dev Executes an arbitrary call from the Credit Account to the target contract
     /// @param callData Data to call the target contract with
     /// @return result Call output
-    function _execute(bytes memory callData)
-        internal
-        returns (bytes memory result)
-    {
+    function _execute(bytes memory callData) internal returns (bytes memory result) {
         return creditManager.executeOrder(targetContract, callData); // F: [AA-5,6,10]
     }
 
@@ -78,22 +75,11 @@ abstract contract AbstractAdapter is IAdapter {
     /// @param disableTokenIn Whether the input token should be disabled afterwards
     ///        (for operations that spend the entire balance)
     /// @return result Call output
-    function _executeSwapNoApprove(
-        address tokenIn,
-        address tokenOut,
-        bytes memory callData,
-        bool disableTokenIn
-    ) internal returns (bytes memory result) {
-        return
-            _executeSwap(
-                _creditAccount(),
-                tokenIn,
-                tokenOut,
-                callData,
-                false,
-                disableTokenIn,
-                0
-            ); // F: [AA-7]
+    function _executeSwapNoApprove(address tokenIn, address tokenOut, bytes memory callData, bool disableTokenIn)
+        internal
+        returns (bytes memory result)
+    {
+        return _executeSwap(_creditAccount(), tokenIn, tokenOut, callData, false, disableTokenIn, 0); // F: [AA-7]
     }
 
     /// @dev Same as the previous one, but allows to specify pre-computed credit account to save gas
@@ -105,16 +91,7 @@ abstract contract AbstractAdapter is IAdapter {
         bytes memory callData,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        return
-            _executeSwap(
-                creditAccount,
-                tokenIn,
-                tokenOut,
-                callData,
-                false,
-                disableTokenIn,
-                0
-            ); // F: [AA-7]
+        return _executeSwap(creditAccount, tokenIn, tokenOut, callData, false, disableTokenIn, 0); // F: [AA-7]
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
@@ -126,22 +103,11 @@ abstract contract AbstractAdapter is IAdapter {
     ///        (for operations that spend the entire balance)
     /// @return result Call output
     /// @notice Must only be used for highly secure and immutable protocols, such as Uniswap & Curve
-    function _executeSwapMaxApprove(
-        address tokenIn,
-        address tokenOut,
-        bytes memory callData,
-        bool disableTokenIn
-    ) internal returns (bytes memory result) {
-        return
-            _executeSwap(
-                _creditAccount(),
-                tokenIn,
-                tokenOut,
-                callData,
-                true,
-                disableTokenIn,
-                type(uint256).max
-            ); // F: [AA-8]
+    function _executeSwapMaxApprove(address tokenIn, address tokenOut, bytes memory callData, bool disableTokenIn)
+        internal
+        returns (bytes memory result)
+    {
+        return _executeSwap(_creditAccount(), tokenIn, tokenOut, callData, true, disableTokenIn, type(uint256).max); // F: [AA-8]
     }
 
     /// @dev Same as the previous one, but allows to specify pre-computed credit account to save gas
@@ -153,16 +119,7 @@ abstract contract AbstractAdapter is IAdapter {
         bytes memory callData,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        return
-            _executeSwap(
-                creditAccount,
-                tokenIn,
-                tokenOut,
-                callData,
-                true,
-                disableTokenIn,
-                type(uint256).max
-            ); // F: [AA-8]
+        return _executeSwap(creditAccount, tokenIn, tokenOut, callData, true, disableTokenIn, type(uint256).max); // F: [AA-8]
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
@@ -173,22 +130,11 @@ abstract contract AbstractAdapter is IAdapter {
     /// @param disableTokenIn Whether the input token should be disabled afterwards
     ///        (for operations that spend the entire balance)
     /// @return result Call output
-    function _executeSwapSafeApprove(
-        address tokenIn,
-        address tokenOut,
-        bytes memory callData,
-        bool disableTokenIn
-    ) internal returns (bytes memory result) {
-        return
-            _executeSwap(
-                _creditAccount(),
-                tokenIn,
-                tokenOut,
-                callData,
-                true,
-                disableTokenIn,
-                1
-            ); // F: [AA-9]
+    function _executeSwapSafeApprove(address tokenIn, address tokenOut, bytes memory callData, bool disableTokenIn)
+        internal
+        returns (bytes memory result)
+    {
+        return _executeSwap(_creditAccount(), tokenIn, tokenOut, callData, true, disableTokenIn, 1); // F: [AA-9]
     }
 
     /// @dev Same as the previous one, but allows to specify pre-computed credit account to save gas
@@ -200,16 +146,7 @@ abstract contract AbstractAdapter is IAdapter {
         bytes memory callData,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        return
-            _executeSwap(
-                creditAccount,
-                tokenIn,
-                tokenOut,
-                callData,
-                true,
-                disableTokenIn,
-                1
-            ); // F: [AA-9]
+        return _executeSwap(creditAccount, tokenIn, tokenOut, callData, true, disableTokenIn, 1); // F: [AA-9]
     }
 
     /// @dev Implementation of `_executeSwap...` operations

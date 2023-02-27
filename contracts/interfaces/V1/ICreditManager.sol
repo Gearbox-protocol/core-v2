@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ICreditFilter } from "./ICreditFilter.sol";
+import {ICreditFilter} from "./ICreditFilter.sol";
 
 struct Exchange {
     address[] path;
@@ -26,28 +26,16 @@ interface ICreditManager {
     );
 
     // Emits each time when the credit account is closed
-    event CloseCreditAccount(
-        address indexed owner,
-        address indexed to,
-        uint256 remainingFunds
-    );
+    event CloseCreditAccount(address indexed owner, address indexed to, uint256 remainingFunds);
 
     // Emits each time when the credit account is liquidated
-    event LiquidateCreditAccount(
-        address indexed owner,
-        address indexed liquidator,
-        uint256 remainingFunds
-    );
+    event LiquidateCreditAccount(address indexed owner, address indexed liquidator, uint256 remainingFunds);
 
     // Emits each time when borrower increases borrowed amount
     event IncreaseBorrowedAmount(address indexed borrower, uint256 amount);
 
     // Emits each time when borrower adds collateral
-    event AddCollateral(
-        address indexed onBehalfOf,
-        address indexed token,
-        uint256 value
-    );
+    event AddCollateral(address indexed onBehalfOf, address indexed token, uint256 value);
 
     // Emits each time when the credit account is repaid
     event RepayCreditAccount(address indexed owner, address indexed to);
@@ -89,12 +77,8 @@ interface ICreditManager {
      * @param referralCode Code used to register the integrator originating the operation, for potential rewards.
      *   0 if the action is executed directly by the user, without any middle-man
      */
-    function openCreditAccount(
-        uint256 amount,
-        address onBehalfOf,
-        uint256 leverageFactor,
-        uint256 referralCode
-    ) external;
+    function openCreditAccount(uint256 amount, address onBehalfOf, uint256 leverageFactor, uint256 referralCode)
+        external;
 
     /**
      * @dev Closes credit account
@@ -125,11 +109,7 @@ interface ICreditManager {
      * @param to Address to transfer all assets from credit account
      * @param force If true, use transfer function for transferring tokens instead of safeTransfer
      */
-    function liquidateCreditAccount(
-        address borrower,
-        address to,
-        bool force
-    ) external;
+    function liquidateCreditAccount(address borrower, address to, bool force) external;
 
     /// @dev Repays credit account
     /// More info: https://dev.gearbox.fi/developers/credit/credit_manager#repay-credit-account
@@ -141,9 +121,7 @@ interface ICreditManager {
     ///
     /// @param borrower Address of borrower
     /// @param to Address to send credit account assets
-    function repayCreditAccountETH(address borrower, address to)
-        external
-        returns (uint256);
+    function repayCreditAccountETH(address borrower, address to) external returns (uint256);
 
     /// @dev Increases borrowed amount by transferring additional funds from
     /// the pool if after that HealthFactor > minHealth
@@ -156,18 +134,11 @@ interface ICreditManager {
     /// @param onBehalfOf Address of borrower to add funds
     /// @param token Token address
     /// @param amount Amount to add
-    function addCollateral(
-        address onBehalfOf,
-        address token,
-        uint256 amount
-    ) external;
+    function addCollateral(address onBehalfOf, address token, uint256 amount) external;
 
     /// @dev Returns true if the borrower has opened a credit account
     /// @param borrower Borrower account
-    function hasOpenedCreditAccount(address borrower)
-        external
-        view
-        returns (bool);
+    function hasOpenedCreditAccount(address borrower) external view returns (bool);
 
     /// @dev Calculates Repay amount = borrow amount + interest accrued + fee
     ///
@@ -176,10 +147,7 @@ interface ICreditManager {
     ///
     /// @param borrower Borrower address
     /// @param isLiquidated True if calculated repay amount for liquidator
-    function calcRepayAmount(address borrower, bool isLiquidated)
-        external
-        view
-        returns (uint256);
+    function calcRepayAmount(address borrower, bool isLiquidated) external view returns (uint256);
 
     /// @dev Returns minimal amount for open credit account
     function minAmount() external view returns (uint256);
@@ -206,30 +174,19 @@ interface ICreditManager {
     /// @param borrower Borrower address
     /// @param target Target smart-contract
     /// @param data Call data for call
-    function executeOrder(
-        address borrower,
-        address target,
-        bytes memory data
-    ) external returns (bytes memory);
+    function executeOrder(address borrower, address target, bytes memory data) external returns (bytes memory);
 
     /// @dev Approves token for msg.sender's credit account
     function approve(address targetContract, address token) external;
 
     /// @dev Approve tokens for credit accounts. Restricted for adapters only
-    function provideCreditAccountAllowance(
-        address creditAccount,
-        address toContract,
-        address token
-    ) external;
+    function provideCreditAccountAllowance(address creditAccount, address toContract, address token) external;
 
     function transferAccountOwnership(address newOwner) external;
 
     /// @dev Returns address of borrower's credit account and reverts of borrower has no one.
     /// @param borrower Borrower address
-    function getCreditAccountOrRevert(address borrower)
-        external
-        view
-        returns (address);
+    function getCreditAccountOrRevert(address borrower) external view returns (address);
 
     //    function feeSuccess() external view returns (uint256);
 
@@ -243,18 +200,8 @@ interface ICreditManager {
 
     function defaultSwapContract() external view returns (address);
 
-    function _calcClosePayments(
-        address creditAccount,
-        uint256 totalValue,
-        bool isLiquidated
-    )
+    function _calcClosePayments(address creditAccount, uint256 totalValue, bool isLiquidated)
         external
         view
-        returns (
-            uint256 _borrowedAmount,
-            uint256 amountToPool,
-            uint256 remainingFunds,
-            uint256 profit,
-            uint256 loss
-        );
+        returns (uint256 _borrowedAmount, uint256 amountToPool, uint256 remainingFunds, uint256 profit, uint256 loss);
 }

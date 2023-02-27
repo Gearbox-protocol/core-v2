@@ -3,27 +3,27 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { AddressProvider } from "../../core/AddressProvider.sol";
-import { ContractsRegister } from "../../core/ContractsRegister.sol";
-import { ACL } from "../../core/ACL.sol";
-import { DieselToken } from "../../tokens/DieselToken.sol";
+import {AddressProvider} from "../../core/AddressProvider.sol";
+import {ContractsRegister} from "../../core/ContractsRegister.sol";
+import {ACL} from "../../core/ACL.sol";
+import {DieselToken} from "../../tokens/DieselToken.sol";
 
-import { IPool4626, Pool4626Opts } from "../../interfaces/IPool4626.sol";
-import { TestPoolService } from "../mocks/pool/TestPoolService.sol";
-import { Tokens } from "../config/Tokens.sol";
+import {IPool4626, Pool4626Opts} from "../../interfaces/IPool4626.sol";
+import {TestPoolService} from "../mocks/pool/TestPoolService.sol";
+import {Tokens} from "../config/Tokens.sol";
 
-import { LinearInterestRateModel } from "../../pool/LinearInterestRateModel.sol";
+import {LinearInterestRateModel} from "../../pool/LinearInterestRateModel.sol";
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { CreditManagerMockForPoolTest } from "../mocks/pool/CreditManagerMockForPoolTest.sol";
-import { WETHMock } from "../mocks/token/WETHMock.sol";
-import { ERC20FeeMock } from "../mocks/token/ERC20FeeMock.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {CreditManagerMockForPoolTest} from "../mocks/pool/CreditManagerMockForPoolTest.sol";
+import {WETHMock} from "../mocks/token/WETHMock.sol";
+import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 
 import "../lib/constants.sol";
-import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
-import { Pool4626 } from "../../pool/Pool4626.sol";
+import {ITokenTestSuite} from "../interfaces/ITokenTestSuite.sol";
+import {Pool4626} from "../../pool/Pool4626.sol";
 
-import { Pool4626_USDT } from "../../pool/Pool4626_USDT.sol";
+import {Pool4626_USDT} from "../../pool/Pool4626_USDT.sol";
 
 uint256 constant liquidityProviderInitBalance = 100 ether;
 uint256 constant addLiquidity = 10 ether;
@@ -48,11 +48,7 @@ contract PoolServiceTestSuite {
 
     address public treasury;
 
-    constructor(
-        ITokenTestSuite _tokenTestSuite,
-        address _underlying,
-        bool is4626
-    ) {
+    constructor(ITokenTestSuite _tokenTestSuite, address _underlying, bool is4626) {
         linearIRModel = new LinearInterestRateModel(
             8000,
             9000,
@@ -78,11 +74,7 @@ contract PoolServiceTestSuite {
         underlying = IERC20(_underlying);
 
         _tokenTestSuite.mint(_underlying, USER, liquidityProviderInitBalance);
-        _tokenTestSuite.mint(
-            _underlying,
-            INITIAL_LP,
-            liquidityProviderInitBalance
-        );
+        _tokenTestSuite.mint(_underlying, INITIAL_LP, liquidityProviderInitBalance);
 
         address newPool;
 
@@ -100,9 +92,7 @@ contract PoolServiceTestSuite {
                 expectedLiquidityLimit: type(uint256).max,
                 supportsQuotas: false
             });
-            pool4626 = isFeeToken
-                ? new Pool4626_USDT(opts)
-                : new Pool4626(opts);
+            pool4626 = isFeeToken ? new Pool4626_USDT(opts) : new Pool4626(opts);
             newPool = address(pool4626);
         } else {
             poolService = new TestPoolService(

@@ -3,28 +3,28 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { CreditManager } from "../../credit/CreditManager.sol";
-import { CreditFacade } from "../../credit/CreditFacade.sol";
+import {CreditManager} from "../../credit/CreditManager.sol";
+import {CreditFacade} from "../../credit/CreditFacade.sol";
 
-import { AccountFactory } from "../../core/AccountFactory.sol";
+import {AccountFactory} from "../../core/AccountFactory.sol";
 
-import { ICreditManagerV2, ICreditManagerV2Events } from "../../interfaces/ICreditManagerV2.sol";
+import {ICreditManagerV2, ICreditManagerV2Events} from "../../interfaces/ICreditManagerV2.sol";
 
-import { AddressProvider } from "../../core/AddressProvider.sol";
-import { IDegenNFT, IDegenNFTExceptions } from "../../interfaces/IDegenNFT.sol";
-import { DegenNFT } from "../../tokens/DegenNFT.sol";
+import {AddressProvider} from "../../core/AddressProvider.sol";
+import {IDegenNFT, IDegenNFTExceptions} from "../../interfaces/IDegenNFT.sol";
+import {DegenNFT} from "../../tokens/DegenNFT.sol";
 
 import "../lib/constants.sol";
-import { CreditFacadeTestHelper } from "../helpers/CreditFacadeTestHelper.sol";
+import {CreditFacadeTestHelper} from "../helpers/CreditFacadeTestHelper.sol";
 
 // EXCEPTIONS
-import { NotImplementedException, CallerNotConfiguratorException } from "../../interfaces/IErrors.sol";
+import {NotImplementedException, CallerNotConfiguratorException} from "../../interfaces/IErrors.sol";
 
 // SUITES
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { CreditFacadeTestSuite } from "../suites/CreditFacadeTestSuite.sol";
-import { CreditConfig } from "../config/CreditConfig.sol";
-import { Tokens } from "../config/Tokens.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
+import {CreditFacadeTestSuite} from "../suites/CreditFacadeTestSuite.sol";
+import {CreditConfig} from "../config/CreditConfig.sol";
+import {Tokens} from "../config/Tokens.sol";
 
 uint256 constant WETH_TEST_AMOUNT = 5 * WAD;
 uint16 constant REFERRAL_CODE = 23;
@@ -40,7 +40,7 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
         new Roles();
 
         TokensTestSuite tokenTestSuite = new TokensTestSuite();
-        tokenTestSuite.topUpWETH{ value: 100 * WAD }();
+        tokenTestSuite.topUpWETH{value: 100 * WAD}();
 
         CreditConfig creditConfig = new CreditConfig(
             tokenTestSuite,
@@ -89,17 +89,13 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
     }
 
     // @dev [DNFT-2C]: addCreditFacade reverts on non-Configurator
-    function test_DNFT_02C_addCreditFacade_reverts_on_non_Configurator()
-        public
-    {
+    function test_DNFT_02C_addCreditFacade_reverts_on_non_Configurator() public {
         evm.expectRevert(CallerNotConfiguratorException.selector);
         degenNFT.addCreditFacade(DUMB_ADDRESS);
     }
 
     // @dev [DNFT-2D]: removeCreditFacade reverts on non-Configurator
-    function test_DNFT_02D_addCreditFacade_reverts_on_non_Configurator()
-        public
-    {
+    function test_DNFT_02D_addCreditFacade_reverts_on_non_Configurator() public {
         evm.expectRevert(CallerNotConfiguratorException.selector);
         degenNFT.removeCreditFacade(DUMB_ADDRESS);
     }
@@ -113,11 +109,7 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
 
     // @dev [DNFT-4]: burn reverts on non-CreditFacade or configurator
     function test_DNFT_04_burn_reverts_on_non_CreditFacade() public {
-        evm.expectRevert(
-            abi.encodeWithSelector(
-                CreditFacadeOrConfiguratorOnlyException.selector
-            )
-        );
+        evm.expectRevert(abi.encodeWithSelector(CreditFacadeOrConfiguratorOnlyException.selector));
         evm.prank(FRIEND);
         degenNFT.burn(USER, 1);
     }
@@ -127,11 +119,7 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
         evm.prank(CONFIGURATOR);
         degenNFT.setBaseUri("Degeneracy");
 
-        assertEq(
-            degenNFT.baseURI(),
-            "Degeneracy",
-            "Base URI was set incorrectly"
-        );
+        assertEq(degenNFT.baseURI(), "Degeneracy", "Base URI was set incorrectly");
     }
 
     // @dev [DNFT-5A]: setMinter correctly sets minter
@@ -196,11 +184,7 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
 
         for (uint256 i = 0; i < 3; i++) {
             uint256 tokenId = (uint256(uint160(USER)) << 40) + i;
-            assertEq(
-                degenNFT.ownerOf(tokenId),
-                USER,
-                "Owner of newly minted token is incorrect"
-            );
+            assertEq(degenNFT.ownerOf(tokenId), USER, "Owner of newly minted token is incorrect");
         }
 
         assertEq(degenNFT.totalSupply(), 3, "Total supply is incorrect");
@@ -241,42 +225,27 @@ contract DegenNFTTest is DSTest, CreditFacadeTestHelper, IDegenNFTExceptions {
 
     // @dev [DNFT-9]: removeCreditFacade correctly sets value
     function test_DNFT_09_removeCreditFacade_sets_value() public {
-        assertTrue(
-            degenNFT.isSupportedCreditFacade(address(creditFacade)),
-            "Expected Credit Facade is not added"
-        );
+        assertTrue(degenNFT.isSupportedCreditFacade(address(creditFacade)), "Expected Credit Facade is not added");
 
         evm.prank(CONFIGURATOR);
         degenNFT.removeCreditFacade(address(creditFacade));
 
-        assertTrue(
-            !degenNFT.isSupportedCreditFacade(address(creditFacade)),
-            "Credit Facade was not removed"
-        );
+        assertTrue(!degenNFT.isSupportedCreditFacade(address(creditFacade)), "Credit Facade was not removed");
     }
 
     // @dev [DNFT-10]: addCreditFacade correctly sets value
     function test_DNFT_10_addCreditFacade_sets_value() public {
-        assertTrue(
-            degenNFT.isSupportedCreditFacade(address(creditFacade)),
-            "Expected Credit Facade is not added"
-        );
+        assertTrue(degenNFT.isSupportedCreditFacade(address(creditFacade)), "Expected Credit Facade is not added");
 
         evm.prank(CONFIGURATOR);
         degenNFT.removeCreditFacade(address(creditFacade));
 
-        assertTrue(
-            !degenNFT.isSupportedCreditFacade(address(creditFacade)),
-            "Credit Facade was not removed"
-        );
+        assertTrue(!degenNFT.isSupportedCreditFacade(address(creditFacade)), "Credit Facade was not removed");
 
         evm.prank(CONFIGURATOR);
         degenNFT.addCreditFacade(address(creditFacade));
 
-        assertTrue(
-            degenNFT.isSupportedCreditFacade(address(creditFacade)),
-            "Credit Facade was not added"
-        );
+        assertTrue(degenNFT.isSupportedCreditFacade(address(creditFacade)), "Credit Facade was not added");
     }
 
     ///

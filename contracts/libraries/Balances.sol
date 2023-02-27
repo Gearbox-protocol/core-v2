@@ -11,52 +11,28 @@ struct Balance {
 library BalanceOps {
     error UnknownToken(address);
 
-    function copyBalance(Balance memory b)
-        internal
-        pure
-        returns (Balance memory)
-    {
-        return Balance({ token: b.token, balance: b.balance });
+    function copyBalance(Balance memory b) internal pure returns (Balance memory) {
+        return Balance({token: b.token, balance: b.balance});
     }
 
-    function addBalance(
-        Balance[] memory b,
-        address token,
-        uint256 amount
-    ) internal pure {
+    function addBalance(Balance[] memory b, address token, uint256 amount) internal pure {
         b[getIndex(b, token)].balance += amount;
     }
 
-    function subBalance(
-        Balance[] memory b,
-        address token,
-        uint256 amount
-    ) internal pure {
+    function subBalance(Balance[] memory b, address token, uint256 amount) internal pure {
         b[getIndex(b, token)].balance -= amount;
     }
 
-    function getBalance(Balance[] memory b, address token)
-        internal
-        pure
-        returns (uint256 amount)
-    {
+    function getBalance(Balance[] memory b, address token) internal pure returns (uint256 amount) {
         return b[getIndex(b, token)].balance;
     }
 
-    function setBalance(
-        Balance[] memory b,
-        address token,
-        uint256 amount
-    ) internal pure {
+    function setBalance(Balance[] memory b, address token, uint256 amount) internal pure {
         b[getIndex(b, token)].balance = amount;
     }
 
-    function getIndex(Balance[] memory b, address token)
-        internal
-        pure
-        returns (uint256 index)
-    {
-        for (uint256 i; i < b.length; ) {
+    function getIndex(Balance[] memory b, address token) internal pure returns (uint256 index) {
+        for (uint256 i; i < b.length;) {
             if (b[i].token == token) {
                 return i;
             }
@@ -68,13 +44,9 @@ library BalanceOps {
         revert UnknownToken(token);
     }
 
-    function copy(Balance[] memory b, uint256 len)
-        internal
-        pure
-        returns (Balance[] memory res)
-    {
+    function copy(Balance[] memory b, uint256 len) internal pure returns (Balance[] memory res) {
         res = new Balance[](len);
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             res[i] = copyBalance(b[i]);
             unchecked {
                 ++i;
@@ -82,11 +54,7 @@ library BalanceOps {
         }
     }
 
-    function clone(Balance[] memory b)
-        internal
-        pure
-        returns (Balance[] memory)
-    {
+    function clone(Balance[] memory b) internal pure returns (Balance[] memory) {
         return copy(b, b.length);
     }
 

@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
-import { Claimable } from "./access/Claimable.sol";
-import { Errors } from "../libraries/Errors.sol";
+import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
+import {Claimable} from "./access/Claimable.sol";
+import {Errors} from "../libraries/Errors.sol";
 
 // Repositories & services
 bytes32 constant CONTRACTS_REGISTER = "CONTRACTS_REGISTER";

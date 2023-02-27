@@ -4,38 +4,20 @@
 pragma solidity ^0.8.10;
 
 import "../core/AddressProvider.sol";
-import { IVersion } from "./IVersion.sol";
+import {IVersion} from "./IVersion.sol";
 
 interface IPoolServiceEvents {
     /// @dev Emits on new liquidity being added to the pool
-    event AddLiquidity(
-        address indexed sender,
-        address indexed onBehalfOf,
-        uint256 amount,
-        uint256 referralCode
-    );
+    event AddLiquidity(address indexed sender, address indexed onBehalfOf, uint256 amount, uint256 referralCode);
 
     /// @dev Emits on liquidity being removed to the pool
-    event RemoveLiquidity(
-        address indexed sender,
-        address indexed to,
-        uint256 amount
-    );
+    event RemoveLiquidity(address indexed sender, address indexed to, uint256 amount);
 
     /// @dev Emits on a Credit Manager borrowing funds for a Credit Account
-    event Borrow(
-        address indexed creditManager,
-        address indexed creditAccount,
-        uint256 amount
-    );
+    event Borrow(address indexed creditManager, address indexed creditAccount, uint256 amount);
 
     /// @dev Emits on repayment of a Credit Account's debt
-    event Repay(
-        address indexed creditManager,
-        uint256 borrowedAmount,
-        uint256 profit,
-        uint256 loss
-    );
+    event Repay(address indexed creditManager, uint256 borrowedAmount, uint256 profit, uint256 loss);
 
     /// @dev Emits on updating the interest rate model
     event NewInterestRateModel(address indexed newInterestRateModel);
@@ -76,11 +58,7 @@ interface IPoolService is IPoolServiceEvents, IVersion {
      * @param referralCode Code used to register the integrator originating the operation, for potential rewards.
      *   0 if the action is executed directly by the user, without a facilitator.
      */
-    function addLiquidity(
-        uint256 amount,
-        address onBehalfOf,
-        uint256 referralCode
-    ) external;
+    function addLiquidity(uint256 amount, address onBehalfOf, uint256 referralCode) external;
 
     /**
      * @dev Removes liquidity from pool
@@ -90,17 +68,14 @@ interface IPoolService is IPoolServiceEvents, IVersion {
      * @param to Address to transfer the underlying to
      */
 
-    function removeLiquidity(uint256 amount, address to)
-        external
-        returns (uint256);
+    function removeLiquidity(uint256 amount, address to) external returns (uint256);
 
     /**
      * @dev Lends pool funds to a Credit Account
      * @param borrowedAmount Credit Account's debt principal
      * @param creditAccount Credit Account's address
      */
-    function lendCreditAccount(uint256 borrowedAmount, address creditAccount)
-        external;
+    function lendCreditAccount(uint256 borrowedAmount, address creditAccount) external;
 
     /**
      * @dev Repays the Credit Account's debt
@@ -110,11 +85,7 @@ interface IPoolService is IPoolServiceEvents, IVersion {
      * @notice Assumes that the underlying (including principal + interest + fees)
      *         was already transferred
      */
-    function repayCreditAccount(
-        uint256 borrowedAmount,
-        uint256 profit,
-        uint256 loss
-    ) external;
+    function repayCreditAccount(uint256 borrowedAmount, uint256 profit, uint256 loss) external;
 
     //
     // GETTERS

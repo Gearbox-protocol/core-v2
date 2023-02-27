@@ -20,11 +20,7 @@ interface ICreditFilter {
     event NewFastCheckParameters(uint256 chiThreshold, uint256 fastCheckDelay);
 
     /// @dev Emits when account transfer allowance status is changed between two addresses
-    event TransferAccountAllowed(
-        address indexed from,
-        address indexed to,
-        bool state
-    );
+    event TransferAccountAllowed(address indexed from, address indexed to, bool state);
 
     /// @dev Emits when a priviledged address that can transfer accounts to anyone, is allowed
     event TransferPluginAllowed(address indexed plugin, bool state);
@@ -106,24 +102,15 @@ interface ICreditFilter {
     /// More: https://dev.gearbox.fi/developers/credit/economy#total-value
     ///
     /// @param creditAccount Token creditAccount address
-    function calcTotalValue(address creditAccount)
-        external
-        view
-        returns (uint256 total);
+    function calcTotalValue(address creditAccount) external view returns (uint256 total);
 
     /// @dev Calculates Threshold Weighted Total Value
     /// More: https://dev.gearbox.fi/developers/credit/economy#threshold-weighted-value
     ///
     ///@param creditAccount Credit account address
-    function calcThresholdWeightedValue(address creditAccount)
-        external
-        view
-        returns (uint256 total);
+    function calcThresholdWeightedValue(address creditAccount) external view returns (uint256 total);
 
-    function contractToAdapter(address allowedContract)
-        external
-        view
-        returns (address);
+    function contractToAdapter(address allowedContract) external view returns (address);
 
     /// @dev Returns address of underlying token
     function underlyingToken() external view returns (address);
@@ -136,12 +123,7 @@ interface ICreditFilter {
     function getCreditAccountTokenById(address creditAccount, uint256 id)
         external
         view
-        returns (
-            address token,
-            uint256 balance,
-            uint256 tv,
-            uint256 twv
-        );
+        returns (address token, uint256 balance, uint256 tv, uint256 twv);
 
     /**
      * @dev Calculates health factor for the credit account
@@ -156,49 +138,28 @@ interface ICreditFilter {
      * @param creditAccount Credit account address
      * @return Health factor in percents (see PERCENTAGE FACTOR in PercentageMath.sol)
      */
-    function calcCreditAccountHealthFactor(address creditAccount)
-        external
-        view
-        returns (uint256);
+    function calcCreditAccountHealthFactor(address creditAccount) external view returns (uint256);
 
     /// @dev Calculates credit account interest accrued
     /// More: https://dev.gearbox.fi/developers/credit/economy#interest-rate-accrued
     ///
     /// @param creditAccount Credit account address
-    function calcCreditAccountAccruedInterest(address creditAccount)
-        external
-        view
-        returns (uint256);
+    function calcCreditAccountAccruedInterest(address creditAccount) external view returns (uint256);
 
     /// @dev Return enabled tokens - token masks where each bit is "1" is token is enabled
-    function enabledTokens(address creditAccount)
-        external
-        view
-        returns (uint256);
+    function enabledTokens(address creditAccount) external view returns (uint256);
 
-    function liquidationThresholds(address token)
-        external
-        view
-        returns (uint256);
+    function liquidationThresholds(address token) external view returns (uint256);
 
     function priceOracle() external view returns (address);
 
     function updateUnderlyingTokenLiquidationThreshold() external;
 
-    function revertIfCantIncreaseBorrowing(
-        address creditAccount,
-        uint256 minHealthFactor
-    ) external view;
+    function revertIfCantIncreaseBorrowing(address creditAccount, uint256 minHealthFactor) external view;
 
-    function revertIfAccountTransferIsNotAllowed(
-        address onwer,
-        address creditAccount
-    ) external view;
+    function revertIfAccountTransferIsNotAllowed(address onwer, address creditAccount) external view;
 
     function approveAccountTransfer(address from, bool state) external;
 
-    function allowanceForAccountTransfers(address from, address to)
-        external
-        view
-        returns (bool);
+    function allowanceForAccountTransfers(address from, address to) external view returns (bool);
 }

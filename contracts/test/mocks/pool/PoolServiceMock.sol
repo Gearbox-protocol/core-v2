@@ -3,14 +3,14 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { RAY } from "../../../libraries/Constants.sol";
+import {RAY} from "../../../libraries/Constants.sol";
 
-import { IPoolService } from "../../../interfaces/IPoolService.sol";
+import {IPoolService} from "../../../interfaces/IPoolService.sol";
 
-import { AddressProvider } from "../../../core/AddressProvider.sol";
+import {AddressProvider} from "../../../core/AddressProvider.sol";
 
 /**
  * @title Mock of pool service for CreditManager constracts testing
@@ -99,10 +99,7 @@ contract PoolServiceMock is IPoolService {
 
     function updateQuotaRevenue(uint128) external {}
 
-    function lendCreditAccount(uint256 borrowedAmount, address creditAccount)
-        external
-        override
-    {
+    function lendCreditAccount(uint256 borrowedAmount, address creditAccount) external override {
         lendAmount = borrowedAmount;
         lendAccount = creditAccount;
 
@@ -110,21 +107,13 @@ contract PoolServiceMock is IPoolService {
         IERC20(underlyingToken).safeTransfer(creditAccount, borrowedAmount); // T:[PS-14]
     }
 
-    function repayCreditAccount(
-        uint256 borrowedAmount,
-        uint256 profit,
-        uint256 loss
-    ) external override {
+    function repayCreditAccount(uint256 borrowedAmount, uint256 profit, uint256 loss) external override {
         repayAmount = borrowedAmount;
         repayProfit = profit;
         repayLoss = loss;
     }
 
-    function addLiquidity(
-        uint256 amount,
-        address onBehalfOf,
-        uint256 referralCode
-    ) external override {}
+    function addLiquidity(uint256 amount, address onBehalfOf, uint256 referralCode) external override {}
 
     /**
      * @dev Removes liquidity from pool
@@ -138,11 +127,7 @@ contract PoolServiceMock is IPoolService {
      * @param amount Amount of tokens to be transfer
      * @param to Address to transfer liquidity
      */
-    function removeLiquidity(uint256 amount, address to)
-        external
-        override
-        returns (uint256)
-    {}
+    function removeLiquidity(uint256 amount, address to) external override returns (uint256) {}
 
     function expectedLiquidity() public pure override returns (uint256) {
         return 0; // T:[MPS-1]

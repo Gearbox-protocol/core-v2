@@ -3,19 +3,24 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-import { IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
-import { PriceFeedChecker } from "./PriceFeedChecker.sol";
-import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
-import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
+import {IPriceFeedType} from "../interfaces/IPriceFeedType.sol";
+import {PriceFeedChecker} from "./PriceFeedChecker.sol";
+import {IPriceOracleV2} from "../interfaces/IPriceOracle.sol";
+import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 
 // CONSTANTS
 
 // EXCEPTIONS
-import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException } from "../interfaces/IErrors.sol";
+import {
+    ZeroAddressException,
+    AddressIsNotContractException,
+    IncorrectPriceFeedException,
+    IncorrectTokenContractException
+} from "../interfaces/IErrors.sol";
 
 struct PriceFeedConfig {
     address token;
@@ -37,11 +42,9 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     // Contract version
     uint256 public constant version = 2;
 
-    constructor(address addressProvider, PriceFeedConfig[] memory defaults)
-        ACLNonReentrantTrait(addressProvider)
-    {
+    constructor(address addressProvider, PriceFeedConfig[] memory defaults) ACLNonReentrantTrait(addressProvider) {
         uint256 len = defaults.length;
-        for (uint256 i = 0; i < len; ) {
+        for (uint256 i = 0; i < len;) {
             _addPriceFeed(defaults[i].token, defaults[i].priceFeed); // F:[PO-1]
 
             unchecked {
@@ -53,10 +56,7 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     /// @dev Sets a price feed if it doesn't exist, or updates an existing one
     /// @param token Address of the token to set the price feed for
     /// @param priceFeed Address of a USD price feed adhering to Chainlink's interface
-    function addPriceFeed(address token, address priceFeed)
-        external
-        configuratorOnly
-    {
+    function addPriceFeed(address token, address priceFeed) external configuratorOnly {
         _addPriceFeed(token, priceFeed);
     }
 
@@ -74,9 +74,7 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
             revert AddressIsNotContractException(priceFeed);
         } // F:[PO-2]
 
-        try AggregatorV3Interface(priceFeed).decimals() returns (
-            uint8 _decimals
-        ) {
+        try AggregatorV3Interface(priceFeed).decimals() returns (uint8 _decimals) {
             if (_decimals != 8) revert IncorrectPriceFeedException(); // F:[PO-2]
         } catch {
             revert IncorrectPriceFeedException(); // F:[PO-2]
@@ -98,11 +96,7 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
         }
 
         try AggregatorV3Interface(priceFeed).latestRoundData() returns (
-            uint80 roundID,
-            int256 price,
-            uint256,
-            uint256 updatedAt,
-            uint80 answeredInRound
+            uint80 roundID, int256 price, uint256, uint256 updatedAt, uint80 answeredInRound
         ) {
             // Checks result if skipCheck is not set
             if (!skipCheck) {
@@ -119,31 +113,17 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
 
     /// @dev Returns token's price in USD (8 decimals)
     /// @param token The token to compute the price for
-    function getPrice(address token)
-        public
-        view
-        override
-        returns (uint256 price)
-    {
-        (price, ) = _getPrice(token);
+    function getPrice(address token) public view override returns (uint256 price) {
+        (price,) = _getPrice(token);
     }
 
     /// @dev IMPLEMENTATION: getPrice
-    function _getPrice(address token)
-        internal
-        view
-        returns (uint256 price, uint256 decimals)
-    {
+    function _getPrice(address token) internal view returns (uint256 price, uint256 decimals) {
         address priceFeed;
         bool skipCheck;
         (priceFeed, skipCheck, decimals) = priceFeedsWithFlags(token); //
-        (
-            uint80 roundID,
-            int256 _price,
-            ,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = AggregatorV3Interface(priceFeed).latestRoundData(); // F:[PO-6]
+        (uint80 roundID, int256 _price,, uint256 updatedAt, uint80 answeredInRound) =
+            AggregatorV3Interface(priceFeed).latestRoundData(); // F:[PO-6]
 
         // Checks if SKIP_PRICE_CHECK_FLAG is not set
         if (!skipCheck) {
@@ -156,27 +136,17 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     /// @dev Converts a quantity of an asset to USD (decimals = 8).
     /// @param amount Amount to convert
     /// @param token Address of the token to be converted
-    function convertToUSD(uint256 amount, address token)
-        public
-        view
-        override
-        returns (uint256)
-    {
+    function convertToUSD(uint256 amount, address token) public view override returns (uint256) {
         (uint256 price, uint256 decimals) = _getPrice(token);
-        return (amount * price) / (10**decimals); // F:[PO-7]
+        return (amount * price) / (10 ** decimals); // F:[PO-7]
     }
 
     /// @dev Converts a quantity of USD (decimals = 8) to an equivalent amount of an asset
     /// @param amount Amount to convert
     /// @param token Address of the token converted to
-    function convertFromUSD(uint256 amount, address token)
-        public
-        view
-        override
-        returns (uint256)
-    {
+    function convertFromUSD(uint256 amount, address token) public view override returns (uint256) {
         (uint256 price, uint256 decimals) = _getPrice(token);
-        return (amount * (10**decimals)) / price; // F:[PO-7]
+        return (amount * (10 ** decimals)) / price; // F:[PO-7]
     }
 
     /// @dev Converts one asset into another
@@ -184,11 +154,7 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     /// @param amount Amount to convert
     /// @param tokenFrom Address of the token to convert from
     /// @param tokenTo Address of the token to convert to
-    function convert(
-        uint256 amount,
-        address tokenFrom,
-        address tokenTo
-    ) public view override returns (uint256) {
+    function convert(uint256 amount, address tokenFrom, address tokenTo) public view override returns (uint256) {
         return convertFromUSD(convertToUSD(amount, tokenFrom), tokenTo); // F:[PO-8]
     }
 
@@ -199,12 +165,7 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     /// @param tokenTo Address of the inbound token
     /// @return collateralFrom Value of the outbound token amount in USD
     /// @return collateralTo Value of the inbound token amount in USD
-    function fastCheck(
-        uint256 amountFrom,
-        address tokenFrom,
-        uint256 amountTo,
-        address tokenTo
-    )
+    function fastCheck(uint256 amountFrom, address tokenFrom, uint256 amountTo, address tokenTo)
         external
         view
         override
@@ -216,13 +177,8 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
 
     /// @dev Returns the price feed address for the passed token
     /// @param token Token to get the price feed for
-    function priceFeeds(address token)
-        external
-        view
-        override
-        returns (address priceFeed)
-    {
-        (priceFeed, , ) = priceFeedsWithFlags(token); // F:[PO-3]
+    function priceFeeds(address token) external view override returns (address priceFeed) {
+        (priceFeed,,) = priceFeedsWithFlags(token); // F:[PO-3]
     }
 
     /// @dev Returns the price feed for the passed token,
@@ -232,11 +188,7 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
         public
         view
         override
-        returns (
-            address priceFeed,
-            bool skipCheck,
-            uint256 decimals
-        )
+        returns (address priceFeed, bool skipCheck, uint256 decimals)
     {
         uint256 pf = _priceFeeds[token]; // F:[PO-3]
         if (pf == 0) revert PriceOracleNotExistsException();
@@ -253,12 +205,7 @@ contract PriceOracle is ACLNonReentrantTrait, IPriceOracleV2, PriceFeedChecker {
     /// @param priceFeed Address of the price feed
     /// @param skipCheck Whether price feed result sanity checks should be skipped
     /// @param decimals Decimals for the price feed's result
-    function _setPriceFeedWithFlags(
-        address token,
-        address priceFeed,
-        bool skipCheck,
-        uint8 decimals
-    ) internal {
+    function _setPriceFeedWithFlags(address token, address priceFeed, bool skipCheck, uint8 decimals) internal {
         uint256 value = uint160(priceFeed); // F:[PO-3]
         if (skipCheck) value |= SKIP_PRICE_CHECK_FLAG; // F:[PO-3]
 

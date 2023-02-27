@@ -3,45 +3,50 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-import { Pool4626 } from "../../pool/Pool4626.sol";
-import { IERC4626Events } from "../../interfaces/IERC4626.sol";
-import { IPool4626Events, Pool4626Opts, IPool4626Exceptions } from "../../interfaces/IPool4626.sol";
-import { LinearInterestRateModel } from "../../pool/LinearInterestRateModel.sol";
+import {Pool4626} from "../../pool/Pool4626.sol";
+import {IERC4626Events} from "../../interfaces/IERC4626.sol";
+import {IPool4626Events, Pool4626Opts, IPool4626Exceptions} from "../../interfaces/IPool4626.sol";
+import {LinearInterestRateModel} from "../../pool/LinearInterestRateModel.sol";
 
-import { ACL } from "../../core/ACL.sol";
-import { CreditManagerMockForPoolTest } from "../mocks/pool/CreditManagerMockForPoolTest.sol";
-import { liquidityProviderInitBalance, addLiquidity, removeLiquidity, referral, PoolServiceTestSuite } from "../suites/PoolServiceTestSuite.sol";
+import {ACL} from "../../core/ACL.sol";
+import {CreditManagerMockForPoolTest} from "../mocks/pool/CreditManagerMockForPoolTest.sol";
+import {
+    liquidityProviderInitBalance,
+    addLiquidity,
+    removeLiquidity,
+    referral,
+    PoolServiceTestSuite
+} from "../suites/PoolServiceTestSuite.sol";
 
 import "../../libraries/Errors.sol";
 
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { Tokens } from "../config/Tokens.sol";
-import { BalanceHelper } from "../helpers/BalanceHelper.sol";
-import { ERC20FeeMock } from "../mocks/token/ERC20FeeMock.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
+import {Tokens} from "../config/Tokens.sol";
+import {BalanceHelper} from "../helpers/BalanceHelper.sol";
+import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 
 // TEST
 import "../lib/constants.sol";
-import { PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
 
 import "forge-std/console.sol";
 
 // EXCEPTIONS
-import { CallerNotConfiguratorException, CallerNotControllerException, ZeroAddressException } from "../../interfaces/IErrors.sol";
+import {
+    CallerNotConfiguratorException,
+    CallerNotControllerException,
+    ZeroAddressException
+} from "../../interfaces/IErrors.sol";
 
 uint256 constant fee = 6000;
 
 /// @title pool
 /// @notice Business logic for borrowing liquidity pools
-contract Pool4626Test is
-    DSTest,
-    BalanceHelper,
-    IPool4626Events,
-    IERC4626Events
-{
+contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     PoolServiceTestSuite psts;
@@ -105,11 +110,7 @@ contract Pool4626Test is
         evm.prank(INITIAL_LP);
         pool.burn(addLiquidity);
 
-        assertEq(
-            pool.expectedLiquidityLU(),
-            addLiquidity * 2,
-            "ExpectedLU is not correct!"
-        );
+        assertEq(pool.expectedLiquidityLU(), addLiquidity * 2, "ExpectedLU is not correct!");
         assertEq(pool.getDieselRate_RAY(), 2 * RAY, "Incorrect diesel rate!");
     }
 
@@ -121,38 +122,18 @@ contract Pool4626Test is
     function test_P4_01_start_parameters_correct() public {
         assertEq(pool.name(), "diesel DAI", "Symbol incorrectly set up");
         assertEq(pool.symbol(), "dDAI", "Symbol incorrectly set up");
-        assertEq(
-            pool.addressProvider(),
-            address(psts.addressProvider()),
-            "Incorrect address provider"
-        );
+        assertEq(pool.addressProvider(), address(psts.addressProvider()), "Incorrect address provider");
 
         assertEq(pool.asset(), underlying, "Incorrect underlying provider");
-        assertEq(
-            pool.underlyingToken(),
-            underlying,
-            "Incorrect underlying provider"
-        );
+        assertEq(pool.underlyingToken(), underlying, "Incorrect underlying provider");
 
-        assertEq(
-            pool.decimals(),
-            IERC20Metadata(address(psts.underlying())).decimals(),
-            "Incorrect decimals"
-        );
+        assertEq(pool.decimals(), IERC20Metadata(address(psts.underlying())).decimals(), "Incorrect decimals");
 
-        assertEq(
-            pool.treasuryAddress(),
-            psts.addressProvider().getTreasuryContract(),
-            "Incorrect treasury"
-        );
+        assertEq(pool.treasuryAddress(), psts.addressProvider().getTreasuryContract(), "Incorrect treasury");
 
         assertEq(pool.getDieselRate_RAY(), RAY);
 
-        assertEq(
-            address(pool.interestRateModel()),
-            address(psts.linearIRModel()),
-            "Incorrect interest rate model"
-        );
+        assertEq(address(pool.interestRateModel()), address(psts.linearIRModel()), "Incorrect interest rate model");
 
         assertEq(pool.expectedLiquidityLimit(), type(uint256).max);
 
@@ -160,11 +141,7 @@ contract Pool4626Test is
 
         // assertTrue(!pool.isFeeToken(), "Incorrect isFeeToken");
 
-        assertEq(
-            pool.wethAddress(),
-            psts.addressProvider().getWethToken(),
-            "Incorrect weth token"
-        );
+        assertEq(pool.wethAddress(), psts.addressProvider().getWethToken(), "Incorrect weth token");
     }
 
     // [P4-2]: constructor reverts for zero addresses
@@ -235,7 +212,7 @@ contract Pool4626Test is
         pool.depositETHReferral(FRIEND, referral);
 
         evm.expectRevert(bytes(PAUSABLE_ERROR));
-        payable(address(pool)).call{ value: addLiquidity }("");
+        payable(address(pool)).call{value: addLiquidity}("");
 
         evm.expectRevert(bytes(PAUSABLE_ERROR));
         pool.mint(addLiquidity, FRIEND);
@@ -270,10 +247,10 @@ contract Pool4626Test is
         evm.startPrank(USER);
 
         evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
-        pool.depositETHReferral{ value: addLiquidity }(FRIEND, referral);
+        pool.depositETHReferral{value: addLiquidity}(FRIEND, referral);
 
         evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
-        payable(address(pool)).call{ value: addLiquidity }("");
+        payable(address(pool)).call{value: addLiquidity}("");
 
         evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
         pool.withdrawETH(1, FRIEND, USER);
@@ -362,13 +339,10 @@ contract Pool4626Test is
             uint256 shares;
             if (depositReferral) {
                 evm.prank(USER);
-                shares = pool.depositETHReferral{ value: addLiquidity }(
-                    FRIEND,
-                    referral
-                );
+                shares = pool.depositETHReferral{value: addLiquidity}(FRIEND, referral);
             } else {
                 evm.prank(USER);
-                payable(address(pool)).call{ value: addLiquidity }("");
+                payable(address(pool)).call{value: addLiquidity}("");
             }
 
             expectBalance(address(pool), receiver, expectedShares);
@@ -399,11 +373,8 @@ contract Pool4626Test is
             _initPoolLiquidity();
 
             uint256 desiredShares = addLiquidity / 2;
-            uint256 expectedAssetsPaid = feeToken
-                ? _divFee(addLiquidity, fee)
-                : addLiquidity;
-            uint256 expectedAvailableLiquidity = pool.availableLiquidity() +
-                addLiquidity;
+            uint256 expectedAssetsPaid = feeToken ? _divFee(addLiquidity, fee) : addLiquidity;
+            uint256 expectedAvailableLiquidity = pool.availableLiquidity() + addLiquidity;
 
             evm.expectEmit(true, true, false, true);
             emit Transfer(address(0), FRIEND, desiredShares);
@@ -418,33 +389,11 @@ contract Pool4626Test is
 
             console.log(gl - gasleft());
 
-            expectBalance(
-                address(pool),
-                FRIEND,
-                desiredShares,
-                "Incorrect shares "
-            );
-            expectBalance(
-                underlying,
-                USER,
-                liquidityProviderInitBalance - expectedAssetsPaid,
-                "Incorrect USER balance"
-            );
-            assertEq(
-                pool.expectedLiquidity(),
-                addLiquidity * 3,
-                "Incorrect expected liquidity"
-            );
-            assertEq(
-                pool.availableLiquidity(),
-                expectedAvailableLiquidity,
-                "Incorrect available liquidity"
-            );
-            assertEq(
-                assets,
-                expectedAssetsPaid,
-                "Incorrect assets return value"
-            );
+            expectBalance(address(pool), FRIEND, desiredShares, "Incorrect shares ");
+            expectBalance(underlying, USER, liquidityProviderInitBalance - expectedAssetsPaid, "Incorrect USER balance");
+            assertEq(pool.expectedLiquidity(), addLiquidity * 3, "Incorrect expected liquidity");
+            assertEq(pool.availableLiquidity(), expectedAvailableLiquidity, "Incorrect available liquidity");
+            assertEq(assets, expectedAssetsPaid, "Incorrect assets return value");
         }
     }
 

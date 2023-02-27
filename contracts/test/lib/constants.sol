@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
-import { WAD, RAY, DEFAULT_FEE_LIQUIDATION, DEFAULT_LIQUIDATION_PREMIUM } from "../../libraries/Constants.sol";
+import {WAD, RAY, DEFAULT_FEE_LIQUIDATION, DEFAULT_LIQUIDATION_PREMIUM} from "../../libraries/Constants.sol";
 import "../lib/test.sol";
-import { CheatCodes, HEVM_ADDRESS } from "../lib/cheatCodes.sol";
+import {CheatCodes, HEVM_ADDRESS} from "../lib/cheatCodes.sol";
 
-uint16 constant DEFAULT_UNDERLYING_LT = 10000 -
-    DEFAULT_FEE_LIQUIDATION -
-    DEFAULT_LIQUIDATION_PREMIUM;
+uint16 constant DEFAULT_UNDERLYING_LT = 10000 - DEFAULT_FEE_LIQUIDATION - DEFAULT_LIQUIDATION_PREMIUM;
 
 address constant DUMB_ADDRESS = 0xC4375B7De8af5a38a93548eb8453a498222C4fF2;
 address constant DUMB_ADDRESS2 = 0x93548eB8453a498222C4FF2C4375b7De8af5A38a;
@@ -36,8 +34,8 @@ uint128 constant DAI_MAX_BORROWED_AMOUNT = uint128(10000 * WAD);
 uint256 constant DAI_ACCOUNT_AMOUNT = 20000 * WAD;
 uint256 constant DAI_EXCHANGE_AMOUNT = DAI_ACCOUNT_AMOUNT / 2;
 
-uint256 constant USDC_ACCOUNT_AMOUNT = 20000 * (10**6);
-uint256 constant USDC_EXCHANGE_AMOUNT = 1000 * (10**6);
+uint256 constant USDC_ACCOUNT_AMOUNT = 20000 * (10 ** 6);
+uint256 constant USDC_EXCHANGE_AMOUNT = 1000 * (10 ** 6);
 uint256 constant USDT_ACCOUNT_AMOUNT = 42000 * WAD;
 uint256 constant LINK_ACCOUNT_AMOUNT = 12000 * WAD;
 uint256 constant LINK_EXCHANGE_AMOUNT = 300 * WAD;

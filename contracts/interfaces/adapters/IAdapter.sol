@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ICreditManagerV2 } from "../ICreditManagerV2.sol";
+import {ICreditManagerV2} from "../ICreditManagerV2.sol";
 
 enum AdapterType {
     ABSTRACT,

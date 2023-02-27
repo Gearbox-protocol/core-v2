@@ -3,8 +3,8 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import { IPriceFeedType } from "./IPriceFeedType.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {IPriceFeedType} from "./IPriceFeedType.sol";
 
 interface ILPPriceFeedEvents {
     /// @dev Emits on updating the virtual price bounds
@@ -20,12 +20,7 @@ interface ILPPriceFeedExceptions {
 }
 
 /// @title Interface for LP PriceFeeds with limiter
-interface ILPPriceFeed is
-    AggregatorV3Interface,
-    IPriceFeedType,
-    ILPPriceFeedEvents,
-    ILPPriceFeedExceptions
-{
+interface ILPPriceFeed is AggregatorV3Interface, IPriceFeedType, ILPPriceFeedEvents, ILPPriceFeedExceptions {
     /// @dev Sets the lower and upper bounds for virtual price.
     /// @param _lowerBound The new lower bound
     /// @notice The upper bound is computed automatically

@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IVersion } from "./IVersion.sol";
+import {IVersion} from "./IVersion.sol";
 
 interface IAccountFactoryEvents {
     /// @dev Emits when the account mining contract is changed
@@ -14,10 +14,7 @@ interface IAccountFactoryEvents {
     event NewCreditAccount(address indexed account);
 
     /// @dev Emits when a Credit Manager takes an account from the factory
-    event InitializeCreditAccount(
-        address indexed account,
-        address indexed creditManager
-    );
+    event InitializeCreditAccount(address indexed account, address indexed creditManager);
 
     /// @dev Emits when a Credit Manager returns an account to the factory
     event ReturnCreditAccount(address indexed account);
@@ -49,16 +46,9 @@ interface IAccountFactoryGetters {
     function countCreditAccounts() external view returns (uint256);
 }
 
-interface IAccountFactory is
-    IAccountFactoryGetters,
-    IAccountFactoryEvents,
-    IVersion
-{
+interface IAccountFactory is IAccountFactoryGetters, IAccountFactoryEvents, IVersion {
     /// @dev Provides a new credit account to a Credit Manager
-    function takeCreditAccount(
-        uint256 _borrowedAmount,
-        uint256 _cumulativeIndexAtOpen
-    ) external returns (address);
+    function takeCreditAccount(uint256 _borrowedAmount, uint256 _cumulativeIndexAtOpen) external returns (address);
 
     /// @dev Retrieves the Credit Account from the Credit Manager and adds it to the stock
     /// @param usedAccount Address of returned credit account

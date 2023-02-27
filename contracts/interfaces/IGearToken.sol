@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 
 pragma abicoder v2;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IGearToken is IERC20 {
     /**
@@ -18,15 +18,8 @@ interface IGearToken is IERC20 {
      * @param r Half of the ECDSA signature pair
      * @param s Half of the ECDSA signature pair
      */
-    function permit(
-        address owner,
-        address spender,
-        uint256 rawAmount,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function permit(address owner, address spender, uint256 rawAmount, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external;
 
     /**
      * @notice Delegate votes from `msg.sender` to `delegatee`
@@ -43,14 +36,7 @@ interface IGearToken is IERC20 {
      * @param r Half of the ECDSA signature pair
      * @param s Half of the ECDSA signature pair
      */
-    function delegateBySig(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s) external;
 
     /**
      * @notice Returns the current total votes for `account`
@@ -66,8 +52,5 @@ interface IGearToken is IERC20 {
      * @param blockNumber The block number to get the vote balance at
      * @return The number of votes the account had as of the given block
      */
-    function getPriorVotes(address account, uint256 blockNumber)
-        external
-        view
-        returns (uint96);
+    function getPriorVotes(address account, uint256 blockNumber) external view returns (uint96);
 }

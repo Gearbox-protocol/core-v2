@@ -15,17 +15,9 @@ interface IGaugeExceptions {
 }
 
 interface IGaugeEvents {
-    event Deposit(
-        address indexed caller,
-        address indexed owner,
-        uint256 assets
-    );
+    event Deposit(address indexed caller, address indexed owner, uint256 assets);
 
-    event Withdraw(
-        address indexed caller,
-        address indexed receiver,
-        uint256 assets
-    );
+    event Withdraw(address indexed caller, address indexed receiver, uint256 assets);
 
     event VoteFor(address indexed token, uint96 votes, bool lpSide);
 
@@ -34,6 +26,4 @@ interface IGaugeEvents {
 
 /// @title IGauge
 
-interface IGauge is IGaugeEvents, IGaugeExceptions {
-
-}
+interface IGauge is IGaugeEvents, IGaugeExceptions {}

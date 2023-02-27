@@ -29,11 +29,7 @@ interface IPriceOracle {
      * @param tokenTo Token address - converts to
      * @return Amount converted to tokenTo asset
      */
-    function convert(
-        uint256 amount,
-        address tokenFrom,
-        address tokenTo
-    ) external view returns (uint256);
+    function convert(uint256 amount, address tokenFrom, address tokenTo) external view returns (uint256);
 
     /**
      * @dev Gets token rate with 18 decimals. Reverts if priceFeed doesn't exist
@@ -42,8 +38,5 @@ interface IPriceOracle {
      * @param tokenTo Converts to token address
      * @return Rate in WAD format
      */
-    function getLastPrice(address tokenFrom, address tokenTo)
-        external
-        view
-        returns (uint256);
+    function getLastPrice(address tokenFrom, address tokenTo) external view returns (uint256);
 }

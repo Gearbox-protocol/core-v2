@@ -5,18 +5,18 @@ pragma solidity ^0.8.10;
 
 pragma abicoder v2;
 
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
-import { IAccountFactory } from "../interfaces/IAccountFactory.sol";
-import { ICreditAccount } from "../interfaces/ICreditAccount.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {IAccountFactory} from "../interfaces/IAccountFactory.sol";
+import {ICreditAccount} from "../interfaces/ICreditAccount.sol";
 
-import { AddressProvider } from "./AddressProvider.sol";
-import { ContractsRegister } from "./ContractsRegister.sol";
-import { CreditAccount } from "../credit/CreditAccount.sol";
-import { ACLNonReentrantTrait } from "./ACLNonReentrantTrait.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {AddressProvider} from "./AddressProvider.sol";
+import {ContractsRegister} from "./ContractsRegister.sol";
+import {CreditAccount} from "../credit/CreditAccount.sol";
+import {ACLNonReentrantTrait} from "./ACLNonReentrantTrait.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import { Errors } from "../libraries/Errors.sol";
+import {Errors} from "../libraries/Errors.sol";
 
 /// @title Abstract reusable credit accounts factory
 /// @notice Creates, holds & lends credit accounts to Credit Managers
@@ -56,10 +56,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
 
     /// @dev Modifier restricting access to Credit Managers registered in the system
     modifier creditManagerOnly() {
-        require(
-            _contractsRegister.isCreditManager(msg.sender),
-            Errors.REGISTERED_CREDIT_ACCOUNT_MANAGERS_ONLY
-        );
+        require(_contractsRegister.isCreditManager(msg.sender), Errors.REGISTERED_CREDIT_ACCOUNT_MANAGERS_ONLY);
         _;
     }
 
@@ -78,14 +75,9 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
      * @param addressProvider Address of address repository
      */
     constructor(address addressProvider) ACLNonReentrantTrait(addressProvider) {
-        require(
-            addressProvider != address(0),
-            Errors.ZERO_ADDRESS_IS_NOT_ALLOWED
-        );
+        require(addressProvider != address(0), Errors.ZERO_ADDRESS_IS_NOT_ALLOWED);
 
-        _contractsRegister = ContractsRegister(
-            AddressProvider(addressProvider).getContractsRegister()
-        ); // T:[AF-1]
+        _contractsRegister = ContractsRegister(AddressProvider(addressProvider).getContractsRegister()); // T:[AF-1]
 
         masterCreditAccount = address(new CreditAccount()); // T:[AF-1]
         CreditAccount(masterCreditAccount).initialize(); // T:[AF-1]
@@ -137,10 +129,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
      *
      * @return Address of credit account
      */
-    function takeCreditAccount(
-        uint256 _borrowedAmount,
-        uint256 _cumulativeIndexAtOpen
-    )
+    function takeCreditAccount(uint256 _borrowedAmount, uint256 _cumulativeIndexAtOpen)
         external
         override
         creditManagerOnly // T:[AF-12]
@@ -154,11 +143,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
         _nextCreditAccount[result] = address(0); // T:[AF-2]
 
         // Connect the account to a Credit Manager
-        ICreditAccount(result).connectTo(
-            msg.sender,
-            _borrowedAmount,
-            _cumulativeIndexAtOpen
-        ); // T:[AF-11, 14]
+        ICreditAccount(result).connectTo(msg.sender, _borrowedAmount, _cumulativeIndexAtOpen); // T:[AF-11, 14]
 
         emit InitializeCreditAccount(result, msg.sender); // T:[AF-5]
         return result; // T:[AF-14]
@@ -197,13 +182,9 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
         override
         creditManagerOnly // T:[AF-12]
     {
+        require(creditAccountsSet.contains(usedAccount), Errors.AF_EXTERNAL_ACCOUNTS_ARE_FORBIDDEN);
         require(
-            creditAccountsSet.contains(usedAccount),
-            Errors.AF_EXTERNAL_ACCOUNTS_ARE_FORBIDDEN
-        );
-        require(
-            ICreditAccount(usedAccount).since() != block.number,
-            Errors.AF_CANT_CLOSE_CREDIT_ACCOUNT_IN_THE_SAME_BLOCK
+            ICreditAccount(usedAccount).since() != block.number, Errors.AF_CANT_CLOSE_CREDIT_ACCOUNT_IN_THE_SAME_BLOCK
         ); // T:[CM-20]
 
         _nextCreditAccount[tail] = usedAccount; // T:[AF-7]
@@ -213,12 +194,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
 
     /// @dev Gets the next available credit account after the passed one, or address(0) if the passed account is the tail
     /// @param creditAccount Credit Account previous to the one to retrieve
-    function getNext(address creditAccount)
-        external
-        view
-        override
-        returns (address)
-    {
+    function getNext(address creditAccount) external view override returns (address) {
         return _nextCreditAccount[creditAccount];
     }
 
@@ -262,11 +238,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
     /// @param prev Credit Account before the taken one in the linked list
     /// @param creditAccount Credit Account to take
     /// @param to Address to connect the taken Credit Account to
-    function takeOut(
-        address prev,
-        address creditAccount,
-        address to
-    )
+    function takeOut(address prev, address creditAccount, address to)
         external
         configuratorOnly // T:[AF-13]
     {
@@ -277,10 +249,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
             head = _nextCreditAccount[head]; // T:[AF-21] it exists because _checkStock() was called;
             _nextCreditAccount[prevHead] = address(0); // T:[AF-21]
         } else {
-            require(
-                _nextCreditAccount[prev] == creditAccount,
-                Errors.AF_CREDIT_ACCOUNT_NOT_IN_STOCK
-            ); // T:[AF-15]
+            require(_nextCreditAccount[prev] == creditAccount, Errors.AF_CREDIT_ACCOUNT_NOT_IN_STOCK); // T:[AF-15]
 
             // updates tail if the last CA is taken
             if (creditAccount == tail) {
@@ -332,11 +301,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
     /// @param account Address of credit account to be cancelled allowance
     /// @param token Address of token for allowance
     /// @param targetContract Address of contract to cancel allowance
-    function cancelAllowance(
-        address account,
-        address token,
-        address targetContract
-    )
+    function cancelAllowance(address account, address token, address targetContract)
         external
         configuratorOnly // T:[AF-13]
     {
@@ -348,12 +313,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
     //
 
     /// @dev Returns the number of unused credit accounts in stock
-    function countCreditAccountsInStock()
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function countCreditAccountsInStock() external view override returns (uint256) {
         uint256 count = 0;
         address pointer = head;
         while (pointer != address(0)) {
@@ -370,12 +330,7 @@ contract AccountFactory is IAccountFactory, ACLNonReentrantTrait {
 
     /// @dev Returns the credit account address under the passed id
     /// @param id The index of the requested CA
-    function creditAccounts(uint256 id)
-        external
-        view
-        override
-        returns (address)
-    {
+    function creditAccounts(uint256 id) external view override returns (address) {
         return creditAccountsSet.at(id);
     }
 

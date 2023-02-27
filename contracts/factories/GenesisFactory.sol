@@ -3,17 +3,17 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import { AddressProvider } from "../core/AddressProvider.sol";
-import { ContractsRegister } from "../core/ContractsRegister.sol";
-import { ACL } from "../core/ACL.sol";
-import { DataCompressor } from "../core/DataCompressor.sol";
-import { AccountFactory } from "../core/AccountFactory.sol";
+import {AddressProvider} from "../core/AddressProvider.sol";
+import {ContractsRegister} from "../core/ContractsRegister.sol";
+import {ACL} from "../core/ACL.sol";
+import {DataCompressor} from "../core/DataCompressor.sol";
+import {AccountFactory} from "../core/AccountFactory.sol";
 
-import { WETHGateway } from "../core/WETHGateway.sol";
-import { PriceOracle, PriceFeedConfig } from "../oracles/PriceOracle.sol";
-import { GearToken } from "../tokens/GearToken.sol";
+import {WETHGateway} from "../core/WETHGateway.sol";
+import {PriceOracle, PriceFeedConfig} from "../oracles/PriceOracle.sol";
+import {GearToken} from "../tokens/GearToken.sol";
 
 contract GenesisFactory is Ownable {
     AddressProvider public addressProvider;
@@ -62,10 +62,7 @@ contract GenesisFactory is Ownable {
         onlyOwner // T:[GD-3]
     {
         for (uint256 i = 0; i < priceFeeds.length; ++i) {
-            priceOracle.addPriceFeed(
-                priceFeeds[i].token,
-                priceFeeds[i].priceFeed
-            ); // T:[GD-4]
+            priceOracle.addPriceFeed(priceFeeds[i].token, priceFeeds[i].priceFeed); // T:[GD-4]
         }
 
         acl.transferOwnership(msg.sender); // T:[GD-4]

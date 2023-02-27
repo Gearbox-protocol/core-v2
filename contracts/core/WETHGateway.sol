@@ -3,19 +3,19 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { AddressProvider } from "./AddressProvider.sol";
-import { ContractsRegister } from "./ContractsRegister.sol";
+import {AddressProvider} from "./AddressProvider.sol";
+import {ContractsRegister} from "./ContractsRegister.sol";
 
-import { IPoolService } from "../interfaces/IPoolService.sol";
+import {IPoolService} from "../interfaces/IPoolService.sol";
 
-import { IWETH } from "../interfaces/external/IWETH.sol";
-import { IWETHGateway } from "../interfaces/IWETHGateway.sol";
-import { Errors } from "../libraries/Errors.sol";
+import {IWETH} from "../interfaces/external/IWETH.sol";
+import {IWETHGateway} from "../interfaces/IWETHGateway.sol";
+import {Errors} from "../libraries/Errors.sol";
 
 /// @title WETHGateway
 /// @notice Used for converting ETH <> WETH
@@ -35,19 +35,13 @@ contract WETHGateway is IWETHGateway {
     modifier wethPoolOnly(address pool) {
         require(_contractsRegister.isPool(pool), Errors.REGISTERED_POOLS_ONLY); // T:[WG-1]
 
-        require(
-            IPoolService(pool).underlyingToken() == wethAddress,
-            Errors.WG_DESTINATION_IS_NOT_WETH_COMPATIBLE
-        ); // T:[WG-2]
+        require(IPoolService(pool).underlyingToken() == wethAddress, Errors.WG_DESTINATION_IS_NOT_WETH_COMPATIBLE); // T:[WG-2]
         _;
     }
 
     /// @dev Checks that credit manager is registered
     modifier creditManagerOnly(address creditManager) {
-        require(
-            _contractsRegister.isCreditManager(creditManager),
-            Errors.REGISTERED_CREDIT_ACCOUNT_MANAGERS_ONLY
-        ); // T:[WG-3]
+        require(_contractsRegister.isCreditManager(creditManager), Errors.REGISTERED_CREDIT_ACCOUNT_MANAGERS_ONLY); // T:[WG-3]
 
         _;
     }
@@ -59,31 +53,22 @@ contract WETHGateway is IWETHGateway {
     /// @dev Constructor
     /// @param addressProvider Address Repository for upgradable contract model
     constructor(address addressProvider) {
-        require(
-            addressProvider != address(0),
-            Errors.ZERO_ADDRESS_IS_NOT_ALLOWED
-        );
+        require(addressProvider != address(0), Errors.ZERO_ADDRESS_IS_NOT_ALLOWED);
         wethAddress = AddressProvider(addressProvider).getWethToken();
-        _contractsRegister = ContractsRegister(
-            AddressProvider(addressProvider).getContractsRegister()
-        );
+        _contractsRegister = ContractsRegister(AddressProvider(addressProvider).getContractsRegister());
     }
 
     /// @dev convert ETH to WETH and add liqudity to the pool
     /// @param pool Address of PoolService contract to add liquidity to. This pool must have WETH as an underlying.
     /// @param onBehalfOf The address that will receive the diesel token.
     /// @param referralCode Code used to log the transaction facilitator, for potential rewards. 0 if non-applicable.
-    function addLiquidityETH(
-        address pool,
-        address onBehalfOf,
-        uint16 referralCode
-    )
+    function addLiquidityETH(address pool, address onBehalfOf, uint16 referralCode)
         external
         payable
         override
         wethPoolOnly(pool) // T:[WG-1, 2]
     {
-        IWETH(wethAddress).deposit{ value: msg.value }(); // T:[WG-8]
+        IWETH(wethAddress).deposit{value: msg.value}(); // T:[WG-8]
 
         _checkAllowance(pool, msg.value); // T:[WG-8]
         IPoolService(pool).addLiquidity(msg.value, onBehalfOf, referralCode); // T:[WG-8]
@@ -95,25 +80,14 @@ contract WETHGateway is IWETHGateway {
     /// @param pool Address of PoolService contract to withdraw liquidity from. This pool must have WETH as an underlying.
     /// @param amount Amount of Diesel tokens to send.
     /// @param to Address to transfer ETH to.
-    function removeLiquidityETH(
-        address pool,
-        uint256 amount,
-        address payable to
-    )
+    function removeLiquidityETH(address pool, uint256 amount, address payable to)
         external
         override
         wethPoolOnly(pool) // T:[WG-1, 2]
     {
-        IERC20(IPoolService(pool).dieselToken()).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        ); // T: [WG-9]
+        IERC20(IPoolService(pool).dieselToken()).safeTransferFrom(msg.sender, address(this), amount); // T: [WG-9]
 
-        uint256 amountGet = IPoolService(pool).removeLiquidity(
-            amount,
-            address(this)
-        ); // T: [WG-9]
+        uint256 amountGet = IPoolService(pool).removeLiquidity(amount, address(this)); // T: [WG-9]
         _unwrapWETH(to, amountGet); // T: [WG-9]
 
         emit WithdrawETH(pool, to);
@@ -147,9 +121,6 @@ contract WETHGateway is IWETHGateway {
 
     /// @dev Only WETH contract is allowed to transfer ETH here. Prevent other addresses to send Ether to this contract.
     receive() external payable {
-        require(
-            msg.sender == address(wethAddress),
-            Errors.WG_RECEIVE_IS_NOT_ALLOWED
-        ); // T:[WG-6]
+        require(msg.sender == address(wethAddress), Errors.WG_RECEIVE_IS_NOT_ALLOWED); // T:[WG-6]
     }
 }

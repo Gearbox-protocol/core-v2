@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ACL } from "../../core/ACL.sol";
+import {ACL} from "../../core/ACL.sol";
 
-import { IACLEvents, IACLExceptions } from "../../interfaces/IACL.sol";
+import {IACLEvents, IACLExceptions} from "../../interfaces/IACL.sol";
 
 // TEST
 import "../lib/constants.sol";
@@ -75,12 +75,7 @@ contract ACLTest is DSTest, IACLEvents, IACLExceptions {
     function test_ACL_03A_removePausable_admin_reverts_for_non_admins() public {
         evm.startPrank(CONFIGURATOR);
 
-        evm.expectRevert(
-            abi.encodeWithSelector(
-                AddressNotPausableAdminException.selector,
-                DUMB_ADDRESS
-            )
-        );
+        evm.expectRevert(abi.encodeWithSelector(AddressNotPausableAdminException.selector, DUMB_ADDRESS));
         acl.removePausableAdmin(DUMB_ADDRESS);
 
         evm.stopPrank();
@@ -117,17 +112,10 @@ contract ACLTest is DSTest, IACLEvents, IACLExceptions {
     }
 
     // [ACL-5A]: removeUnpausableAdmin reverts for non-admins
-    function test_ACL_05A_removeUnpausable_admin_reverts_for_non_admins()
-        public
-    {
+    function test_ACL_05A_removeUnpausable_admin_reverts_for_non_admins() public {
         evm.startPrank(CONFIGURATOR);
 
-        evm.expectRevert(
-            abi.encodeWithSelector(
-                AddressNotUnpausableAdminException.selector,
-                DUMB_ADDRESS
-            )
-        );
+        evm.expectRevert(abi.encodeWithSelector(AddressNotUnpausableAdminException.selector, DUMB_ADDRESS));
         acl.removeUnpausableAdmin(DUMB_ADDRESS);
 
         evm.stopPrank();

@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IVersion } from "./IVersion.sol";
+import {IVersion} from "./IVersion.sol";
 
 interface IAddressProviderEvents {
     /// @dev Emits when an address is set for a contract role

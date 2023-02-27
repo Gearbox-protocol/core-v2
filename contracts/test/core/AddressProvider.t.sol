@@ -3,10 +3,10 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { AddressProvider } from "../../core/AddressProvider.sol";
-import { IAddressProviderEvents } from "../../interfaces/IAddressProvider.sol";
+import {AddressProvider} from "../../core/AddressProvider.sol";
+import {IAddressProviderEvents} from "../../interfaces/IAddressProvider.sol";
 
-import { Errors } from "../../libraries/Errors.sol";
+import {Errors} from "../../libraries/Errors.sol";
 
 // TEST
 import "../lib/constants.sol";
@@ -52,9 +52,7 @@ contract AddressProviderTest is DSTest, IAddressProviderEvents {
     }
 
     // [AP-4]: setContractsRegister correctly sets ContractsRegister
-    function test_AP_04_setContractsRegister_correctly_sets_ContractsRegister()
-        public
-    {
+    function test_AP_04_setContractsRegister_correctly_sets_ContractsRegister() public {
         evm.prank(CONFIGURATOR);
         ap.setContractsRegister(DUMB_ADDRESS);
         assertEq(ap.getContractsRegister(), DUMB_ADDRESS);
@@ -68,27 +66,21 @@ contract AddressProviderTest is DSTest, IAddressProviderEvents {
     }
 
     // [AP-6]: setAccountFactory correctly sets AccountFactory
-    function test_AP_06_setAccountFactory_correctly_sets_AccountFactory()
-        public
-    {
+    function test_AP_06_setAccountFactory_correctly_sets_AccountFactory() public {
         evm.prank(CONFIGURATOR);
         ap.setAccountFactory(DUMB_ADDRESS);
         assertEq(ap.getAccountFactory(), DUMB_ADDRESS);
     }
 
     // [AP-7]: setDataCompressor correctly sets DataCompressor
-    function test_AP_07_setDataCompressor_correctly_sets_DataCompressor()
-        public
-    {
+    function test_AP_07_setDataCompressor_correctly_sets_DataCompressor() public {
         evm.prank(CONFIGURATOR);
         ap.setDataCompressor(DUMB_ADDRESS);
         assertEq(ap.getDataCompressor(), DUMB_ADDRESS);
     }
 
     // [AP-8]: setTreasuryContract correctly sets TreasuryContract
-    function test_AP_08_setTreasuryContract_correctly_sets_TreasuryContract()
-        public
-    {
+    function test_AP_08_setTreasuryContract_correctly_sets_TreasuryContract() public {
         evm.prank(CONFIGURATOR);
         ap.setTreasuryContract(DUMB_ADDRESS);
         assertEq(ap.getTreasuryContract(), DUMB_ADDRESS);

@@ -3,21 +3,21 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { CreditManager } from "../../credit/CreditManager.sol";
-import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
+import {CreditManager} from "../../credit/CreditManager.sol";
+import {CreditManagerOpts, CollateralToken} from "../../credit/CreditConfigurator.sol";
 
-import { IWETH } from "../../interfaces/external/IWETH.sol";
-import { QuotaRateUpdate } from "../../interfaces/IPoolQuotaKeeper.sol";
+import {IWETH} from "../../interfaces/external/IWETH.sol";
+import {QuotaRateUpdate} from "../../interfaces/IPoolQuotaKeeper.sol";
 
-import { PercentageMath, PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
+import {PercentageMath, PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
 
 import "../../libraries/Constants.sol";
 
 import "../lib/constants.sol";
-import { CreditManagerTestInternal } from "../mocks/credit/CreditManagerTestInternal.sol";
-import { PoolDeployer } from "./PoolDeployer.sol";
-import { ICreditConfig } from "../interfaces/ICreditConfig.sol";
-import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
+import {CreditManagerTestInternal} from "../mocks/credit/CreditManagerTestInternal.sol";
+import {PoolDeployer} from "./PoolDeployer.sol";
+import {ICreditConfig} from "../interfaces/ICreditConfig.sol";
+import {ITokenTestSuite} from "../interfaces/ITokenTestSuite.sol";
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol
@@ -33,11 +33,7 @@ contract CreditManagerTestSuite is PoolDeployer {
 
     bool supportsQuotas;
 
-    constructor(
-        ICreditConfig creditConfig,
-        bool internalSuite,
-        bool _supportsQuotas
-    )
+    constructor(ICreditConfig creditConfig, bool internalSuite, bool _supportsQuotas)
         PoolDeployer(
             creditConfig.tokenTestSuite(),
             creditConfig.underlying(),
@@ -56,9 +52,8 @@ contract CreditManagerTestSuite is PoolDeployer {
 
         tokenTestSuite = creditConfig.tokenTestSuite();
 
-        creditManager = internalSuite
-            ? new CreditManagerTestInternal(address(poolMock))
-            : new CreditManager(address(poolMock));
+        creditManager =
+            internalSuite ? new CreditManagerTestInternal(address(poolMock)) : new CreditManager(address(poolMock));
 
         creditFacade = msg.sender;
 
@@ -76,27 +71,19 @@ contract CreditManagerTestSuite is PoolDeployer {
             PERCENTAGE_FACTOR - DEFAULT_LIQUIDATION_PREMIUM_EXPIRED
         );
 
-        CollateralToken[] memory collateralTokens = creditConfig
-            .getCollateralTokens();
+        CollateralToken[] memory collateralTokens = creditConfig.getCollateralTokens();
 
         for (uint256 i = 0; i < collateralTokens.length; i++) {
             if (collateralTokens[i].token != underlying) {
                 address token = collateralTokens[i].token;
                 creditManager.addToken(token);
-                creditManager.setLiquidationThreshold(
-                    token,
-                    collateralTokens[i].liquidationThreshold
-                );
+                creditManager.setLiquidationThreshold(token, collateralTokens[i].liquidationThreshold);
             }
         }
 
         evm.stopPrank();
 
-        assertEq(
-            creditManager.creditConfigurator(),
-            CONFIGURATOR,
-            "Configurator wasn't set"
-        );
+        assertEq(creditManager.creditConfigurator(), CONFIGURATOR, "Configurator wasn't set");
 
         cr.addCreditManager(address(creditManager));
 
@@ -148,12 +135,7 @@ contract CreditManagerTestSuite is PoolDeployer {
         // Set up real value, which should be configired before CM would be launched
         evm.prank(CONFIGURATOR);
         creditManager.setLiquidationThreshold(
-            underlying,
-            uint16(
-                PERCENTAGE_FACTOR -
-                    DEFAULT_FEE_LIQUIDATION -
-                    DEFAULT_LIQUIDATION_PREMIUM
-            )
+            underlying, uint16(PERCENTAGE_FACTOR - DEFAULT_FEE_LIQUIDATION - DEFAULT_LIQUIDATION_PREMIUM)
         );
 
         borrowedAmount = _borrowedAmount;
@@ -173,11 +155,7 @@ contract CreditManagerTestSuite is PoolDeployer {
         poolMock.setCumulative_RAY(cumulativeIndexAtClose);
     }
 
-    function makeTokenLimited(
-        address token,
-        uint16 rate,
-        uint96 limit
-    ) external {
+    function makeTokenLimited(address token, uint16 rate, uint96 limit) external {
         require(supportsQuotas, "Test suite does not support quotas");
 
         evm.startPrank(CONFIGURATOR);
@@ -191,10 +169,8 @@ contract CreditManagerTestSuite is PoolDeployer {
         );
 
         for (uint256 i = 0; i < quotedTokens.length; ++i) {
-            rateUpdates[i] = QuotaRateUpdate({
-                token: quotedTokens[i],
-                rate: poolQuotaKeeper.getQuotaRate(quotedTokens[i])
-            });
+            rateUpdates[i] =
+                QuotaRateUpdate({token: quotedTokens[i], rate: poolQuotaKeeper.getQuotaRate(quotedTokens[i])});
         }
 
         poolQuotaKeeper.updateRates(rateUpdates);

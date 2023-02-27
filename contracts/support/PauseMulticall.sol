@@ -3,11 +3,11 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
-import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
-import { ACL } from "../core/ACL.sol";
-import { ContractsRegister } from "../core/ContractsRegister.sol";
-import { CallerNotPausableAdminException } from "../interfaces/IErrors.sol";
+import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
+import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
+import {ACL} from "../core/ACL.sol";
+import {ContractsRegister} from "../core/ContractsRegister.sol";
+import {CallerNotPausableAdminException} from "../interfaces/IErrors.sol";
 
 contract PauseMulticall is ACLNonReentrantTrait {
     ACL public immutable acl;
@@ -20,9 +20,7 @@ contract PauseMulticall is ACLNonReentrantTrait {
         _;
     }
 
-    constructor(address _addressProvider)
-        ACLNonReentrantTrait(_addressProvider)
-    {
+    constructor(address _addressProvider) ACLNonReentrantTrait(_addressProvider) {
         IAddressProvider ap = IAddressProvider(_addressProvider);
         acl = ACL(ap.getACL()); // F: [PM-01]
 
@@ -52,11 +50,9 @@ contract PauseMulticall is ACLNonReentrantTrait {
         _pauseBatchOfContractrs(cr.getCreditManagers()); // F: [PM-04]
     }
 
-    function _pauseBatchOfContractrs(address[] memory contractsToPause)
-        internal
-    {
+    function _pauseBatchOfContractrs(address[] memory contractsToPause) internal {
         uint256 len = contractsToPause.length;
-        for (uint256 i = 0; i < len; ) {
+        for (uint256 i = 0; i < len;) {
             // try-catch block to ignore some contracts which are already paused
             try ACLNonReentrantTrait(contractsToPause[i]).pause() {} catch {}
             unchecked {

@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IPoolService } from "../../../interfaces/IPoolService.sol";
+import {IPoolService} from "../../../interfaces/IPoolService.sol";
 
-import { PoolService } from "../../../pool/PoolService.sol";
+import {PoolService} from "../../../pool/PoolService.sol";
 
 /**
  * @title Pool Service Test implementation
@@ -24,14 +24,7 @@ contract TestPoolService is IPoolService, PoolService {
         address _underlying,
         address interestRateModelAddress,
         uint256 _expectedLiquidityLimit
-    )
-        PoolService(
-            addressProvider,
-            _underlying,
-            interestRateModelAddress,
-            _expectedLiquidityLimit
-        )
-    {}
+    ) PoolService(addressProvider, _underlying, interestRateModelAddress, _expectedLiquidityLimit) {}
 
     /**
      * @dev Mock function to set _totalLiquidity manually

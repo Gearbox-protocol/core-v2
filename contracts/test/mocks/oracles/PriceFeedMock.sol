@@ -3,8 +3,8 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import { IPriceFeedType, PriceFeedType } from "../../../interfaces/IPriceFeedType.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {IPriceFeedType, PriceFeedType} from "../../../interfaces/IPriceFeedType.sol";
 
 enum FlagState {
     FALSE,
@@ -38,12 +38,7 @@ contract PriceFeedMock is AggregatorV3Interface, IPriceFeedType {
         updatedAt = uint256(block.timestamp) + 1;
     }
 
-    function setParams(
-        uint80 _roundId,
-        uint256 _startedAt,
-        uint256 _updatedAt,
-        uint80 _answerInRound
-    ) external {
+    function setParams(uint80 _roundId, uint256 _startedAt, uint256 _updatedAt, uint80 _answerInRound) external {
         roundId = _roundId;
         startedAt = _startedAt;
         updatedAt = _updatedAt;

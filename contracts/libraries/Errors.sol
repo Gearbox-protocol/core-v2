@@ -35,8 +35,7 @@ library Errors {
     //
     // ACCOUNT FACTORY
     //
-    string public constant AF_CANT_CLOSE_CREDIT_ACCOUNT_IN_THE_SAME_BLOCK =
-        "AF1";
+    string public constant AF_CANT_CLOSE_CREDIT_ACCOUNT_IN_THE_SAME_BLOCK = "AF1";
     string public constant AF_MINING_IS_FINISHED = "AF2";
     string public constant AF_CREDIT_ACCOUNT_NOT_IN_STOCK = "AF3";
     string public constant AF_EXTERNAL_ACCOUNTS_ARE_FORBIDDEN = "AF4";

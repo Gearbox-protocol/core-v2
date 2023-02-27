@@ -3,10 +3,10 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { CreditFacadeTestEngine } from "../helpers/CreditFacadeTestEngine.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
+import {CreditFacadeTestEngine} from "../helpers/CreditFacadeTestEngine.sol";
 import "../lib/constants.sol";
-import { Tokens } from "../config/Tokens.sol";
+import {Tokens} from "../config/Tokens.sol";
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol
@@ -15,16 +15,8 @@ contract CreditFacadeTestHelper is CreditFacadeTestEngine {
         expectTokenIsEnabled(t, expectedState, "");
     }
 
-    function expectTokenIsEnabled(
-        Tokens t,
-        bool expectedState,
-        string memory reason
-    ) internal {
-        expectTokenIsEnabled(
-            tokenTestSuite().addressOf(t),
-            expectedState,
-            reason
-        );
+    function expectTokenIsEnabled(Tokens t, bool expectedState, string memory reason) internal {
+        expectTokenIsEnabled(tokenTestSuite().addressOf(t), expectedState, reason);
     }
 
     function addCollateral(Tokens t, uint256 amount) internal {

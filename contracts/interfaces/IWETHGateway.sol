@@ -8,11 +8,7 @@ interface IWETHGateway {
     /// @param pool Address of PoolService contract to add liquidity to. This pool must have WETH as an underlying.
     /// @param onBehalfOf The address that will receive the diesel token.
     /// @param referralCode Code used to log the transaction facilitator, for potential rewards. 0 if non-applicable.
-    function addLiquidityETH(
-        address pool,
-        address onBehalfOf,
-        uint16 referralCode
-    ) external payable;
+    function addLiquidityETH(address pool, address onBehalfOf, uint16 referralCode) external payable;
 
     /// @dev Removes liquidity from the pool and converts WETH to ETH
     ///       - burns lp's diesel (LP) tokens
@@ -20,11 +16,7 @@ interface IWETHGateway {
     /// @param pool Address of PoolService contract to withdraw liquidity from. This pool must have WETH as an underlying.
     /// @param amount Amount of Diesel tokens to send.
     /// @param to Address to transfer ETH to.
-    function removeLiquidityETH(
-        address pool,
-        uint256 amount,
-        address payable to
-    ) external;
+    function removeLiquidityETH(address pool, uint256 amount, address payable to) external;
 
     /// @dev Converts WETH to ETH, and sends to the passed address
     /// @param to Address to send ETH to

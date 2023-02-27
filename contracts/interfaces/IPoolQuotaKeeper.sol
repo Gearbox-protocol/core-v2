@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IVersion } from "./IVersion.sol";
+import {IVersion} from "./IVersion.sol";
 
 enum QuotaStatusChange {
     NOT_CHANGED,
@@ -54,12 +54,7 @@ interface IPoolQuotaKeeperExceptions {
 
 interface IPoolQuotaKeeperEvents {
     /// @dev Emits when CA's quota for token is changed
-    event AccountQuotaChanged(
-        address creditAccount,
-        address token,
-        uint96 oldQuota,
-        uint96 newQuota
-    );
+    event AccountQuotaChanged(address creditAccount, address token, uint96 oldQuota, uint96 newQuota);
 
     /// @dev Emits when pool's total quota for token is changed
     event PoolQuotaChanged(address token, uint96 oldQuota, uint96 newQuota);
@@ -70,11 +65,7 @@ interface IPoolQuotaKeeperEvents {
 }
 
 /// @title Pool Quotas Interface
-interface IPoolQuotaKeeper is
-    IPoolQuotaKeeperEvents,
-    IPoolQuotaKeeperExceptions,
-    IVersion
-{
+interface IPoolQuotaKeeper is IPoolQuotaKeeperEvents, IPoolQuotaKeeperExceptions, IVersion {
     /// @dev Returns quota rate in PERCENTAGE FORMAT
     function getQuotaRate(address) external view returns (uint16);
 
@@ -84,16 +75,9 @@ interface IPoolQuotaKeeper is
     /// @notice Updates credit account's quotas for multiple tokens
     /// @param creditAccount Address of credit account
     /// @param quotaUpdates Requested quota updates, see `QuotaUpdate`
-    function updateQuotas(
-        address creditAccount,
-        QuotaUpdate[] memory quotaUpdates
-    )
+    function updateQuotas(address creditAccount, QuotaUpdate[] memory quotaUpdates)
         external
-        returns (
-            uint256,
-            QuotaStatusChange[] memory,
-            bool
-        );
+        returns (uint256, QuotaStatusChange[] memory, bool);
 
     function quotedTokens() external view returns (address[] memory);
 
@@ -108,15 +92,12 @@ interface IPoolQuotaKeeper is
         TokenLT[] memory tokens
     ) external view returns (uint256 value, uint256 totalQuotaInterest);
 
-    function closeCreditAccount(address creditAccount, TokenLT[] memory tokens)
-        external
-        returns (uint256);
+    function closeCreditAccount(address creditAccount, TokenLT[] memory tokens) external returns (uint256);
 
-    function outstandingQuotaInterest(
-        address creditManager,
-        address creditAccount,
-        TokenLT[] memory tokens
-    ) external view returns (uint256 caQuotaInterestChange);
+    function outstandingQuotaInterest(address creditManager, address creditAccount, TokenLT[] memory tokens)
+        external
+        view
+        returns (uint256 caQuotaInterestChange);
 
     function accrueQuotaInterest(address creditAccount, TokenLT[] memory tokens)
         external

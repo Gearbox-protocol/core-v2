@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IVersion } from "./IVersion.sol";
+import {IVersion} from "./IVersion.sol";
 
 interface IACLExceptions {
     /// @dev Thrown when attempting to delete an address from a set that is not a pausable admin

@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IAdapter } from "./IAdapter.sol";
+import {IAdapter} from "./IAdapter.sol";
 
 struct RevocationPair {
     address spender;
@@ -18,16 +18,12 @@ interface IUniversalAdapterExceptions {
 interface IUniversalAdapter is IAdapter, IUniversalAdapterExceptions {
     /// @dev Sets allowances to zero for provided spender/token pairs, for msg.sender's CA
     /// @param revocations Pairs of spenders/tokens to revoke allowances for
-    function revokeAdapterAllowances(RevocationPair[] calldata revocations)
-        external;
+    function revokeAdapterAllowances(RevocationPair[] calldata revocations) external;
 
     /// @dev Sets allowances to zero for the provided spender/token pairs
     /// Checks that the msg.sender CA matches the expected account, since
     /// provided revocations are specific to a particular CA
     /// @param revocations Pairs of spenders/tokens to revoke allowances for
     /// @param expectedCreditAccount Credit account that msg.sender is expected to have
-    function revokeAdapterAllowances(
-        RevocationPair[] calldata revocations,
-        address expectedCreditAccount
-    ) external;
+    function revokeAdapterAllowances(RevocationPair[] calldata revocations, address expectedCreditAccount) external;
 }

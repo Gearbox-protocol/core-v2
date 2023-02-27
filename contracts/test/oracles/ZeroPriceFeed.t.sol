@@ -3,32 +3,28 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ILPPriceFeedExceptions } from "../../interfaces/ILPPriceFeed.sol";
-import { ZeroPriceFeed } from "../../oracles/ZeroPriceFeed.sol";
+import {ILPPriceFeedExceptions} from "../../interfaces/ILPPriceFeed.sol";
+import {ZeroPriceFeed} from "../../oracles/ZeroPriceFeed.sol";
 
 // LIBRARIES
 
 // TEST
 
-import { CheatCodes, HEVM_ADDRESS } from "../lib/cheatCodes.sol";
+import {CheatCodes, HEVM_ADDRESS} from "../lib/cheatCodes.sol";
 import "../lib/test.sol";
 
 // MOCKS
 
 // SUITES
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
 
 // EXCEPTIONS
-import { ZeroAddressException, NotImplementedException } from "../../interfaces/IErrors.sol";
-import { IPriceOracleV2Exceptions } from "../../interfaces/IPriceOracle.sol";
+import {ZeroAddressException, NotImplementedException} from "../../interfaces/IErrors.sol";
+import {IPriceOracleV2Exceptions} from "../../interfaces/IPriceOracle.sol";
 
 /// @title ZeroFeedTest
 /// @notice Designed for unit test purposes only
-contract ZeroFeedTest is
-    DSTest,
-    ILPPriceFeedExceptions,
-    IPriceOracleV2Exceptions
-{
+contract ZeroFeedTest is DSTest, ILPPriceFeedExceptions, IPriceOracleV2Exceptions {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     ZeroPriceFeed public pf;
@@ -57,10 +53,7 @@ contract ZeroFeedTest is
             "Incorrect decimals"
         );
 
-        assertTrue(
-            pf.skipPriceCheck() == true,
-            "Incorrect deepencds for address"
-        );
+        assertTrue(pf.skipPriceCheck() == true, "Incorrect deepencds for address");
     }
 
     /// @dev [ZPF-2]: getRoundData reverts
@@ -72,13 +65,8 @@ contract ZeroFeedTest is
 
     /// @dev [ZPF-3]: latestRoundData works correctly
     function test_ZPF_03_latestRoundData_works_correctly() public {
-        (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = pf.latestRoundData();
+        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
+            pf.latestRoundData();
 
         assertEq(roundId, 1, "Incorrect round Id #1");
         assertEq(answer, 0, "Incorrect answer #1");

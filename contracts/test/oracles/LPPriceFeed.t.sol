@@ -3,35 +3,32 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ILPPriceFeedExceptions, ILPPriceFeedEvents } from "../../interfaces/ILPPriceFeed.sol";
-import { PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
+import {ILPPriceFeedExceptions, ILPPriceFeedEvents} from "../../interfaces/ILPPriceFeed.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
 
 // TEST
 import "../lib/constants.sol";
 
 // MOCKS
-import { LPPriceFeedMock } from "../mocks/oracles/LPPriceFeedMock.sol";
-import { AddressProviderACLMock } from "../mocks/core/AddressProviderACLMock.sol";
+import {LPPriceFeedMock} from "../mocks/oracles/LPPriceFeedMock.sol";
+import {AddressProviderACLMock} from "../mocks/core/AddressProviderACLMock.sol";
 
 // SUITES
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
 
 // EXCEPTIONS
 
-import { ZeroAddressException, CallerNotConfiguratorException, NotImplementedException } from "../../interfaces/IErrors.sol";
+import {
+    ZeroAddressException, CallerNotConfiguratorException, NotImplementedException
+} from "../../interfaces/IErrors.sol";
 
-import { IPriceOracleV2Exceptions } from "../../interfaces/IPriceOracle.sol";
+import {IPriceOracleV2Exceptions} from "../../interfaces/IPriceOracle.sol";
 
 uint256 constant RANGE_WIDTH = 200; // 2%
 
 /// @title LPPriceFeedTest
 /// @notice Designed for unit test purposes only
-contract LPPriceFeedTest is
-    DSTest,
-    ILPPriceFeedEvents,
-    ILPPriceFeedExceptions,
-    IPriceOracleV2Exceptions
-{
+contract LPPriceFeedTest is DSTest, ILPPriceFeedEvents, ILPPriceFeedExceptions, IPriceOracleV2Exceptions {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     AddressProviderACLMock public addressProvider;
@@ -81,21 +78,15 @@ contract LPPriceFeedTest is
         evm.expectRevert(ValueOutOfRangeException.selector);
         pf.checkAndUpperBoundValue(value - 1);
 
-        uint256 val = pf.checkAndUpperBoundValue(
-            (value * (PERCENTAGE_FACTOR + RANGE_WIDTH)) / PERCENTAGE_FACTOR + 1
-        );
+        uint256 val = pf.checkAndUpperBoundValue((value * (PERCENTAGE_FACTOR + RANGE_WIDTH)) / PERCENTAGE_FACTOR + 1);
 
         assertEq(
-            val,
-            (value * (PERCENTAGE_FACTOR + RANGE_WIDTH)) / PERCENTAGE_FACTOR,
-            "Upper bounded value is incorrect"
+            val, (value * (PERCENTAGE_FACTOR + RANGE_WIDTH)) / PERCENTAGE_FACTOR, "Upper bounded value is incorrect"
         );
     }
 
     /// @dev [LPF-4]: setLimiter reverts for non-configurator or value = 0
-    function test_LPF_04_setLimiter_reverts_for_non_configurator_or_with_zero_value()
-        public
-    {
+    function test_LPF_04_setLimiter_reverts_for_non_configurator_or_with_zero_value() public {
         evm.expectRevert(CallerNotConfiguratorException.selector);
         pf.setLimiter(44);
 
@@ -105,13 +96,10 @@ contract LPPriceFeedTest is
     }
 
     /// @dev [LPF-5]: setLimiter sets bounds correctly
-    function test_LPF_05_setLimiter_sets_bounds_correctly(uint256 value)
-        public
-    {
+    function test_LPF_05_setLimiter_sets_bounds_correctly(uint256 value) public {
         evm.assume(value > 0 && value < type(uint256).max >> 16);
 
-        uint256 expectedUpperBound = (value *
-            (PERCENTAGE_FACTOR + RANGE_WIDTH)) / PERCENTAGE_FACTOR;
+        uint256 expectedUpperBound = (value * (PERCENTAGE_FACTOR + RANGE_WIDTH)) / PERCENTAGE_FACTOR;
 
         evm.expectEmit(false, false, false, true);
         emit NewLimiterParams(value, expectedUpperBound);

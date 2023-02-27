@@ -3,21 +3,18 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import { AggregatorV2V3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV2V3Interface.sol";
-import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
-import { PriceFeedType, IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV2V3Interface.sol";
+import {PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
+import {PriceFeedType, IPriceFeedType} from "../interfaces/IPriceFeedType.sol";
 
 // EXCEPTIONS
-import { NotImplementedException } from "../interfaces/IErrors.sol";
+import {NotImplementedException} from "../interfaces/IErrors.sol";
 
 interface ChainlinkReadableAggregator {
     function aggregator() external view returns (address);
 
-    function phaseAggregators(uint16 idx)
-        external
-        view
-        returns (AggregatorV2V3Interface);
+    function phaseAggregators(uint16 idx) external view returns (AggregatorV2V3Interface);
 
     function phaseId() external view returns (uint16);
 }
@@ -25,11 +22,7 @@ interface ChainlinkReadableAggregator {
 /// @title Price feed with an upper bound on price
 /// @notice Used to limit prices on assets that should not rise above
 ///         a certain level, such as stablecoins and other pegged assets
-contract BoundedPriceFeed is
-    ChainlinkReadableAggregator,
-    AggregatorV3Interface,
-    IPriceFeedType
-{
+contract BoundedPriceFeed is ChainlinkReadableAggregator, AggregatorV3Interface, IPriceFeedType {
     /// @dev Chainlink price feed for the Vault's underlying
     AggregatorV3Interface public immutable priceFeed;
 
@@ -44,8 +37,7 @@ contract BoundedPriceFeed is
 
     uint256 public constant override version = 1;
 
-    PriceFeedType public constant override priceFeedType =
-        PriceFeedType.BOUNDED_ORACLE;
+    PriceFeedType public constant override priceFeedType = PriceFeedType.BOUNDED_ORACLE;
 
     bool public constant override skipPriceCheck = false;
 
@@ -54,9 +46,7 @@ contract BoundedPriceFeed is
     /// @param _upperBound Initial upper bound for the Chainlink price
     constructor(address _priceFeed, int256 _upperBound) {
         priceFeed = AggregatorV3Interface(_priceFeed);
-        description = string(
-            abi.encodePacked(priceFeed.description(), " Bounded")
-        );
+        description = string(abi.encodePacked(priceFeed.description(), " Bounded"));
         decimals = priceFeed.decimals();
         upperBound = _upperBound;
     }
@@ -90,16 +80,9 @@ contract BoundedPriceFeed is
         external
         view
         override
-        returns (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        )
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        (roundId, answer, startedAt, updatedAt, answeredInRound) = priceFeed
-            .latestRoundData(); // F:[OYPF-4]
+        (roundId, answer, startedAt, updatedAt, answeredInRound) = priceFeed.latestRoundData(); // F:[OYPF-4]
 
         answer = _upperBoundValue(answer);
     }
@@ -110,15 +93,8 @@ contract BoundedPriceFeed is
     }
 
     /// @dev Returns a phase aggregator by index
-    function phaseAggregators(uint16 idx)
-        external
-        view
-        returns (AggregatorV2V3Interface)
-    {
-        return
-            ChainlinkReadableAggregator(address(priceFeed)).phaseAggregators(
-                idx
-            );
+    function phaseAggregators(uint16 idx) external view returns (AggregatorV2V3Interface) {
+        return ChainlinkReadableAggregator(address(priceFeed)).phaseAggregators(idx);
     }
 
     function phaseId() external view returns (uint16) {

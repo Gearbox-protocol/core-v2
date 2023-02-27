@@ -3,12 +3,12 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IUniversalAdapter, RevocationPair } from "../interfaces/adapters/IUniversalAdapter.sol";
-import { AdapterType } from "../interfaces/adapters/IAdapter.sol";
-import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
-import { ZeroAddressException } from "../interfaces/IErrors.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { UNIVERSAL_CONTRACT } from "../libraries/Constants.sol";
+import {IUniversalAdapter, RevocationPair} from "../interfaces/adapters/IUniversalAdapter.sol";
+import {AdapterType} from "../interfaces/adapters/IAdapter.sol";
+import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
+import {ZeroAddressException} from "../interfaces/IErrors.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {UNIVERSAL_CONTRACT} from "../libraries/Constants.sol";
 
 /// @title UniversalAdapter
 /// @dev Implements the initial version of universal adapter, which handles allowance revocations
@@ -31,12 +31,8 @@ contract UniversalAdapter is IUniversalAdapter {
 
     /// @dev Sets allowances to zero for the provided spender/token pairs, for msg.sender's CA
     /// @param revocations Pairs of spenders/tokens to revoke allowances for
-    function revokeAdapterAllowances(RevocationPair[] calldata revocations)
-        external
-    {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        );
+    function revokeAdapterAllowances(RevocationPair[] calldata revocations) external {
+        address creditAccount = creditManager.getCreditAccountOrRevert(msg.sender);
 
         _revokeAdapterAllowances(revocations, creditAccount);
     }
@@ -46,19 +42,11 @@ contract UniversalAdapter is IUniversalAdapter {
     /// Provided revocations can be specific to a particular CA
     /// @param revocations Pairs of spenders/tokens to revoke allowances for
     /// @param expectedCreditAccount Credit account that msg.sender is expected to have
-    function revokeAdapterAllowances(
-        RevocationPair[] calldata revocations,
-        address expectedCreditAccount
-    ) external {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        );
+    function revokeAdapterAllowances(RevocationPair[] calldata revocations, address expectedCreditAccount) external {
+        address creditAccount = creditManager.getCreditAccountOrRevert(msg.sender);
 
         if (creditAccount != expectedCreditAccount) {
-            revert UnexpectedCreditAccountException(
-                expectedCreditAccount,
-                creditAccount
-            );
+            revert UnexpectedCreditAccountException(expectedCreditAccount, creditAccount);
         }
 
         _revokeAdapterAllowances(revocations, creditAccount);
@@ -69,13 +57,10 @@ contract UniversalAdapter is IUniversalAdapter {
     /// through CreditManager.approveCreditAccount
     /// @param revocations Pairs of spenders/tokens to revoke allowances for
     /// @param creditAccount Credit account to revoke allowances for
-    function _revokeAdapterAllowances(
-        RevocationPair[] calldata revocations,
-        address creditAccount
-    ) internal {
+    function _revokeAdapterAllowances(RevocationPair[] calldata revocations, address creditAccount) internal {
         uint256 numRevocations = revocations.length;
 
-        for (uint256 i; i < numRevocations; ) {
+        for (uint256 i; i < numRevocations;) {
             address spender = revocations[i].spender;
             address token = revocations[i].token;
 

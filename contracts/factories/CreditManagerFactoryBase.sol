@@ -3,13 +3,13 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ContractsRegister } from "../core/ContractsRegister.sol";
-import { PoolService } from "../pool/PoolService.sol";
-import { CreditManager } from "../credit/CreditManager.sol";
-import { CreditFacade } from "../credit/CreditFacade.sol";
-import { CreditConfigurator, CreditManagerOpts } from "../credit/CreditConfigurator.sol";
+import {ContractsRegister} from "../core/ContractsRegister.sol";
+import {PoolService} from "../pool/PoolService.sol";
+import {CreditManager} from "../credit/CreditManager.sol";
+import {CreditFacade} from "../credit/CreditFacade.sol";
+import {CreditConfigurator, CreditManagerOpts} from "../credit/CreditConfigurator.sol";
 
-import { ContractUpgrader } from "../support/ContractUpgrader.sol";
+import {ContractUpgrader} from "../support/ContractUpgrader.sol";
 
 struct Adapter {
     address adapter;
@@ -27,11 +27,9 @@ contract CreditManagerFactoryBase is ContractUpgrader {
 
     Adapter[] public adapters;
 
-    constructor(
-        address _pool,
-        CreditManagerOpts memory opts,
-        uint256 salt
-    ) ContractUpgrader(address(PoolService(_pool).addressProvider())) {
+    constructor(address _pool, CreditManagerOpts memory opts, uint256 salt)
+        ContractUpgrader(address(PoolService(_pool).addressProvider()))
+    {
         pool = PoolService(_pool);
 
         creditManager = new CreditManager(_pool);
@@ -42,10 +40,8 @@ contract CreditManagerFactoryBase is ContractUpgrader {
             opts.expirable
         );
 
-        bytes memory configuratorByteCode = abi.encodePacked(
-            type(CreditConfigurator).creationCode,
-            abi.encode(creditManager, creditFacade, opts)
-        );
+        bytes memory configuratorByteCode =
+            abi.encodePacked(type(CreditConfigurator).creationCode, abi.encode(creditManager, creditFacade, opts));
 
         address creditConfiguratorAddr = getAddress(configuratorByteCode, salt);
 
@@ -55,26 +51,11 @@ contract CreditManagerFactoryBase is ContractUpgrader {
 
         creditConfigurator = CreditConfigurator(creditConfiguratorAddr);
 
-        require(
-            address(creditConfigurator.creditManager()) ==
-                address(creditManager),
-            "Incorrect CM"
-        );
+        require(address(creditConfigurator.creditManager()) == address(creditManager), "Incorrect CM");
     }
 
-    function getAddress(bytes memory bytecode, uint256 _salt)
-        public
-        view
-        returns (address)
-    {
-        bytes32 hash = keccak256(
-            abi.encodePacked(
-                bytes1(0xff),
-                address(this),
-                _salt,
-                keccak256(bytecode)
-            )
-        );
+    function getAddress(bytes memory bytecode, uint256 _salt) public view returns (address) {
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), _salt, keccak256(bytecode)));
 
         // NOTE: cast last 20 bytes of hash to address
         return address(uint160(uint256(hash)));
@@ -94,17 +75,16 @@ contract CreditManagerFactoryBase is ContractUpgrader {
               s = big-endian 256-bit value
         */
         assembly {
-            addr := create2(
-                callvalue(), // wei sent with current call
-                // Actual code starts after skipping the first 32 bytes
-                add(bytecode, 0x20),
-                mload(bytecode), // Load the size of code contained in the first 32 bytes
-                _salt // Salt from function arguments
-            )
+            addr :=
+                create2(
+                    callvalue(), // wei sent with current call
+                    // Actual code starts after skipping the first 32 bytes
+                    add(bytecode, 0x20),
+                    mload(bytecode), // Load the size of code contained in the first 32 bytes
+                    _salt // Salt from function arguments
+                )
 
-            if iszero(extcodesize(addr)) {
-                revert(0, 0)
-            }
+            if iszero(extcodesize(addr)) { revert(0, 0) }
         }
     }
 
@@ -112,7 +92,7 @@ contract CreditManagerFactoryBase is ContractUpgrader {
     /// check the list before running configure command
     function addAdapters(Adapter[] memory _adapters) external onlyOwner {
         uint256 len = _adapters.length;
-        for (uint256 i = 0; i < len; ) {
+        for (uint256 i = 0; i < len;) {
             adapters.push(_adapters[i]);
             unchecked {
                 ++i;
@@ -121,16 +101,11 @@ contract CreditManagerFactoryBase is ContractUpgrader {
     }
 
     function _configure() internal override {
-        ContractsRegister cr = ContractsRegister(
-            addressProvider.getContractsRegister()
-        );
+        ContractsRegister cr = ContractsRegister(addressProvider.getContractsRegister());
 
         uint256 len = adapters.length;
-        for (uint256 i = 0; i < len; ) {
-            creditConfigurator.allowContract(
-                adapters[i].targetContract,
-                adapters[i].adapter
-            );
+        for (uint256 i = 0; i < len;) {
+            creditConfigurator.allowContract(adapters[i].targetContract, adapters[i].adapter);
             unchecked {
                 ++i;
             }

@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Claimable } from "./access/Claimable.sol";
-import { IACL } from "../interfaces/IACL.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Claimable} from "./access/Claimable.sol";
+import {IACL} from "../interfaces/IACL.sol";
 
 /// @title ACL contract that stores admin addresses
 /// More info: https://dev.gearbox.fi/security/roles
@@ -41,12 +41,7 @@ contract ACL is IACL, Claimable {
 
     /// @dev Returns true if the address is a pausable admin and false if not
     /// @param addr Address to check
-    function isPausableAdmin(address addr)
-        external
-        view
-        override
-        returns (bool)
-    {
+    function isPausableAdmin(address addr) external view override returns (bool) {
         return pausableAdminSet[addr]; // T:[ACL-2,3]
     }
 
@@ -75,27 +70,17 @@ contract ACL is IACL, Claimable {
 
     /// @dev Returns true if the address is unpausable admin and false if not
     /// @param addr Address to check
-    function isUnpausableAdmin(address addr)
-        external
-        view
-        override
-        returns (bool)
-    {
+    function isUnpausableAdmin(address addr) external view override returns (bool) {
         return unpausableAdminSet[addr]; // T:[ACL-4,5]
     }
 
     /// @dev Returns true if an address has configurator rights
     /// @param account Address to check
-    function isConfigurator(address account)
-        external
-        view
-        override
-        returns (bool)
-    {
+    function isConfigurator(address account) external view override returns (bool) {
         return account == owner(); // T:[ACL-6]
     }
 
-    function owner() public view override(IACL, Ownable) returns (address) {
+    function owner() public view override (IACL, Ownable) returns (address) {
         return Ownable.owner();
     }
 }

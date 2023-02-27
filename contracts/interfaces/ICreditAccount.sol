@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IVersion } from "./IVersion.sol";
+import {IVersion} from "./IVersion.sol";
 
 /// @title Credit Account
 /// @notice Implements generic credit account logic:
@@ -31,19 +31,12 @@ interface ICreditAccount is ICrediAccountExceptions, IVersion {
     /// @param _creditManager Credit manager address
     /// @param _borrowedAmount The amount borrowed at Credit Account opening
     /// @param _cumulativeIndexAtOpen The interest index at Credit Account opening
-    function connectTo(
-        address _creditManager,
-        uint256 _borrowedAmount,
-        uint256 _cumulativeIndexAtOpen
-    ) external;
+    function connectTo(address _creditManager, uint256 _borrowedAmount, uint256 _cumulativeIndexAtOpen) external;
 
     /// @dev Updates borrowed amount and cumulative index. Restricted to the currently connected Credit Manager.
     /// @param _borrowedAmount The amount currently lent to the Credit Account
     /// @param _cumulativeIndexAtOpen New cumulative index to calculate interest from
-    function updateParameters(
-        uint256 _borrowedAmount,
-        uint256 _cumulativeIndexAtOpen
-    ) external;
+    function updateParameters(uint256 _borrowedAmount, uint256 _cumulativeIndexAtOpen) external;
 
     /// @dev Removes allowance for a token to a 3rd-party contract. Restricted to factory only.
     /// @param token ERC20 token to remove allowance for.
@@ -54,11 +47,7 @@ interface ICreditAccount is ICrediAccountExceptions, IVersion {
     /// @param token Token to be transferred from the Credit Account.
     /// @param to Address of the recipient.
     /// @param amount Amount to be transferred.
-    function safeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    ) external;
+    function safeTransfer(address token, address to, uint256 amount) external;
 
     /// @dev Returns the principal amount borrowed from the pool
     function borrowedAmount() external view returns (uint256);
@@ -78,7 +67,5 @@ interface ICreditAccount is ICrediAccountExceptions, IVersion {
     /// @dev Executes a call to a 3rd party contract with provided data. Restricted to the current Credit Manager only.
     /// @param destination Contract address to be called.
     /// @param data Data to call the contract with.
-    function execute(address destination, bytes memory data)
-        external
-        returns (bytes memory);
+    function execute(address destination, bytes memory data) external returns (bytes memory);
 }

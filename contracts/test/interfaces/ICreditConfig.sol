@@ -3,16 +3,14 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ITokenTestSuite } from "./ITokenTestSuite.sol";
-import { PriceFeedConfig } from "../../oracles/PriceOracle.sol";
-import { CreditManagerOpts, CollateralToken } from "../../credit/CreditConfigurator.sol";
+import {ITokenTestSuite} from "./ITokenTestSuite.sol";
+import {PriceFeedConfig} from "../../oracles/PriceOracle.sol";
+import {CreditManagerOpts, CollateralToken} from "../../credit/CreditConfigurator.sol";
 
 interface ICreditConfig {
     function getCreditOpts() external returns (CreditManagerOpts memory);
 
-    function getCollateralTokens()
-        external
-        returns (CollateralToken[] memory collateralTokens);
+    function getCollateralTokens() external returns (CollateralToken[] memory collateralTokens);
 
     function getAccountAmount() external view returns (uint256);
 

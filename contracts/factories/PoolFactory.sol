@@ -5,12 +5,12 @@ pragma solidity ^0.8.10;
 
 pragma abicoder v2;
 
-import { ContractsRegister } from "../core/ContractsRegister.sol";
+import {ContractsRegister} from "../core/ContractsRegister.sol";
 
-import { LinearInterestRateModel } from "../pool/LinearInterestRateModel.sol";
-import { PoolService } from "../pool/PoolService.sol";
+import {LinearInterestRateModel} from "../pool/LinearInterestRateModel.sol";
+import {PoolService} from "../pool/PoolService.sol";
 
-import { ContractUpgrader } from "../support/ContractUpgrader.sol";
+import {ContractUpgrader} from "../support/ContractUpgrader.sol";
 
 struct PoolOpts {
     address addressProvider; // address of addressProvider contract
@@ -51,9 +51,7 @@ contract PoolFactory is ContractUpgrader {
     }
 
     function _configure() internal override {
-        ContractsRegister cr = ContractsRegister(
-            addressProvider.getContractsRegister()
-        );
+        ContractsRegister cr = ContractsRegister(addressProvider.getContractsRegister());
 
         pool.setWithdrawFee(withdrawFee);
 

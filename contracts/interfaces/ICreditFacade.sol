@@ -3,11 +3,11 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Balance } from "../libraries/Balances.sol";
-import { MultiCall } from "../libraries/MultiCall.sol";
-import { ICreditManagerV2, ICreditManagerV2Exceptions } from "./ICreditManagerV2.sol";
-import { QuotaUpdate } from "./IPoolQuotaKeeper.sol";
-import { IVersion } from "./IVersion.sol";
+import {Balance} from "../libraries/Balances.sol";
+import {MultiCall} from "../libraries/MultiCall.sol";
+import {ICreditManagerV2, ICreditManagerV2Exceptions} from "./ICreditManagerV2.sol";
+import {QuotaUpdate} from "./IPoolQuotaKeeper.sol";
+import {IVersion} from "./IVersion.sol";
 
 struct FullCheckParams {
     uint256[] collateralHints;
@@ -37,11 +37,7 @@ interface ICreditFacadeExtended {
     /// @param onBehalfOf Address of the borrower whose account is funded
     /// @param token Address of a collateral token
     /// @param amount Amount to add
-    function addCollateral(
-        address onBehalfOf,
-        address token,
-        uint256 amount
-    ) external payable;
+    function addCollateral(address onBehalfOf, address token, uint256 amount) external payable;
 
     /// @dev Increases debt for msg.sender's Credit Account
     /// - Borrows the requested amount from the pool
@@ -68,10 +64,7 @@ interface ICreditFacadeExtended {
     /// @param collateralHints Array of token mask in the desired order of checking
     /// @param minHealthFactor Minimal HF threshold to pass the collateral check in PERCENTAGE format.
     ///                        Cannot be lower than PERCENTAGE_FACTOR.
-    function setFullCheckParams(
-        uint256[] memory collateralHints,
-        uint16 minHealthFactor
-    ) external;
+    function setFullCheckParams(uint256[] memory collateralHints, uint16 minHealthFactor) external;
 }
 
 interface ICreditFacadeEvents {
@@ -81,10 +74,7 @@ interface ICreditFacadeEvents {
     /// @dev Emits when a new Credit Account is opened through the
     ///      Credit Facade
     event OpenCreditAccount(
-        address indexed onBehalfOf,
-        address indexed creditAccount,
-        uint256 borrowAmount,
-        uint16 referralCode
+        address indexed onBehalfOf, address indexed creditAccount, uint256 borrowAmount, uint16 referralCode
     );
 
     /// @dev Emits when the account owner closes their CA normally
@@ -92,26 +82,17 @@ interface ICreditFacadeEvents {
 
     /// @dev Emits when a Credit Account is liquidated due to low health factor
     event LiquidateCreditAccount(
-        address indexed borrower,
-        address indexed liquidator,
-        address indexed to,
-        uint256 remainingFunds
+        address indexed borrower, address indexed liquidator, address indexed to, uint256 remainingFunds
     );
 
     /// @dev Emits when a Credit Account is liquidated due to expiry
     event LiquidateExpiredCreditAccount(
-        address indexed borrower,
-        address indexed liquidator,
-        address indexed to,
-        uint256 remainingFunds
+        address indexed borrower, address indexed liquidator, address indexed to, uint256 remainingFunds
     );
 
     /// @dev Emits when remaining funds in underlying currency are sent to blacklist helper
     ///      upon blacklisted borrower liquidation
-    event UnderlyingSentToBlacklistHelper(
-        address indexed borrower,
-        uint256 amount
-    );
+    event UnderlyingSentToBlacklistHelper(address indexed borrower, uint256 amount);
 
     /// @dev Emits when the account owner increases CA's debt
     event IncreaseBorrowedAmount(address indexed borrower, uint256 amount);
@@ -120,11 +101,7 @@ interface ICreditFacadeEvents {
     event DecreaseBorrowedAmount(address indexed borrower, uint256 amount);
 
     /// @dev Emits when the account owner add new collateral to a CA
-    event AddCollateral(
-        address indexed onBehalfOf,
-        address indexed token,
-        uint256 value
-    );
+    event AddCollateral(address indexed onBehalfOf, address indexed token, uint256 value);
 
     /// @dev Emits when a multicall is started
     event MultiCallStarted(address indexed borrower);
@@ -136,11 +113,7 @@ interface ICreditFacadeEvents {
     event TransferAccount(address indexed oldOwner, address indexed newOwner);
 
     /// @dev Emits when the user changes approval for account transfers to itself from another address
-    event TransferAccountAllowed(
-        address indexed from,
-        address indexed to,
-        bool state
-    );
+    event TransferAccountAllowed(address indexed from, address indexed to, bool state);
 
     /// @dev Emits when the account owner enables a token on their CA
     event TokenEnabled(address indexed borrower, address indexed token);
@@ -214,11 +187,7 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     error NotApprovedBotException();
 }
 
-interface ICreditFacade is
-    ICreditFacadeEvents,
-    ICreditFacadeExceptions,
-    IVersion
-{
+interface ICreditFacade is ICreditFacadeEvents, ICreditFacadeExceptions, IVersion {
     //
     // CREDIT ACCOUNT MANAGEMENT
     //
@@ -231,12 +200,9 @@ interface ICreditFacade is
     /// @param leverageFactor Percentage of the user's own funds to borrow. 100 is equal to 100% - borrows the same amount
     /// as the user's own collateral, equivalent to 2x leverage.
     /// @param referralCode Referral code that is used for potential rewards. 0 if no referral code provided.
-    function openCreditAccount(
-        uint256 amount,
-        address onBehalfOf,
-        uint16 leverageFactor,
-        uint16 referralCode
-    ) external payable;
+    function openCreditAccount(uint256 amount, address onBehalfOf, uint16 leverageFactor, uint16 referralCode)
+        external
+        payable;
 
     /// @dev Opens a Credit Account and runs a batch of operations in a multicall
     /// @param borrowedAmount Debt size
@@ -268,12 +234,9 @@ interface ICreditFacade is
     /// @param skipTokenMask Uint-encoded bit mask where 1's mark tokens that shouldn't be transferred
     /// @param convertWETH If true, converts WETH into ETH before sending to "to"
     /// @param calls The array of MultiCall structs encoding the operations to execute before closing the account.
-    function closeCreditAccount(
-        address to,
-        uint256 skipTokenMask,
-        bool convertWETH,
-        MultiCall[] calldata calls
-    ) external payable;
+    function closeCreditAccount(address to, uint256 skipTokenMask, bool convertWETH, MultiCall[] calldata calls)
+        external
+        payable;
 
     /// @dev Runs a batch of transactions within a multicall and liquidates the account
     /// - Computes the total value and checks that hf < 1. An account can't be liquidated when hf >= 1.
@@ -349,11 +312,7 @@ interface ICreditFacade is
     /// @param onBehalfOf Address of the borrower whose account is funded
     /// @param token Address of a collateral token
     /// @param amount Amount to add
-    function addCollateral(
-        address onBehalfOf,
-        address token,
-        uint256 amount
-    ) external payable;
+    function addCollateral(address onBehalfOf, address token, uint256 amount) external payable;
 
     /// @dev Executes a batch of transactions within a Multicall, to manage an existing account
     ///  - Wraps ETH and sends it back to msg.sender, if value > 0
@@ -368,16 +327,11 @@ interface ICreditFacade is
     ///  - Performs a fullCollateralCheck to verify that hf > 1 after all actions
     /// @param borrower Borrower the perform the multicall for
     /// @param calls The array of MultiCall structs encoding the operations to execute.
-    function botMulticall(address borrower, MultiCall[] calldata calls)
-        external
-        payable;
+    function botMulticall(address borrower, MultiCall[] calldata calls) external payable;
 
     /// @dev Returns true if the borrower has an open Credit Account
     /// @param borrower Borrower address
-    function hasOpenedCreditAccount(address borrower)
-        external
-        view
-        returns (bool);
+    function hasOpenedCreditAccount(address borrower) external view returns (bool);
 
     // /// @dev Sets token allowance from msg.sender's Credit Account to a connected target contract
     // /// @param targetContract Contract to set allowance to. Cannot be in the list of upgradeable contracts
@@ -414,10 +368,7 @@ interface ICreditFacade is
     /// @param creditAccount Credit Account address
     /// @return total Total value in underlying
     /// @return twv Total weighted (discounted by liquidation thresholds) value in underlying
-    function calcTotalValue(address creditAccount)
-        external
-        view
-        returns (uint256 total, uint256 twv);
+    function calcTotalValue(address creditAccount) external view returns (uint256 total, uint256 twv);
 
     /**
      * @dev Calculates health factor for the credit account
@@ -432,10 +383,7 @@ interface ICreditFacade is
      * @param creditAccount Credit account address
      * @return hf = Health factor in bp (see PERCENTAGE FACTOR in PercentageMath.sol)
      */
-    function calcCreditAccountHealthFactor(address creditAccount)
-        external
-        view
-        returns (uint256 hf);
+    function calcCreditAccountHealthFactor(address creditAccount) external view returns (uint256 hf);
 
     /// @dev Returns true if token is a collateral token and is not forbidden,
     /// otherwise returns false
@@ -448,10 +396,7 @@ interface ICreditFacade is
     /// @dev Returns true if 'from' is allowed to transfer Credit Accounts to 'to'
     /// @param from Sender address to check allowance for
     /// @param to Receiver address to check allowance for
-    function transfersAllowed(address from, address to)
-        external
-        view
-        returns (bool);
+    function transfersAllowed(address from, address to) external view returns (bool);
 
     /// @return maxBorrowedAmountPerBlock Maximal amount of new debt that can be taken per block
     /// @return isIncreaseDebtForbidden True if increasing debt is forbidden
@@ -459,18 +404,11 @@ interface ICreditFacade is
     function params()
         external
         view
-        returns (
-            uint128 maxBorrowedAmountPerBlock,
-            bool isIncreaseDebtForbidden,
-            uint40 expirationDate
-        );
+        returns (uint128 maxBorrowedAmountPerBlock, bool isIncreaseDebtForbidden, uint40 expirationDate);
 
     /// @return minBorrowedAmount Minimal borrowed amount per credit account
     /// @return maxBorrowedAmount Maximal borrowed amount per credit account
-    function limits()
-        external
-        view
-        returns (uint128 minBorrowedAmount, uint128 maxBorrowedAmount);
+    function limits() external view returns (uint128 minBorrowedAmount, uint128 maxBorrowedAmount);
 
     /// @dev Address of the DegenNFT that gatekeeps account openings in whitelisted mode
     function degenNFT() external view returns (address);

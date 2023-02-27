@@ -3,22 +3,22 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { CreditFacade } from "../../credit/CreditFacade.sol";
-import { CreditConfigurator } from "../../credit/CreditConfigurator.sol";
-import { CreditManager } from "../../credit/CreditManager.sol";
+import {CreditFacade} from "../../credit/CreditFacade.sol";
+import {CreditConfigurator} from "../../credit/CreditConfigurator.sol";
+import {CreditManager} from "../../credit/CreditManager.sol";
 
-import { CreditManagerFactoryBase } from "../../factories/CreditManagerFactoryBase.sol";
+import {CreditManagerFactoryBase} from "../../factories/CreditManagerFactoryBase.sol";
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { DegenNFT } from "../../tokens/DegenNFT.sol";
-import { BlacklistHelper } from "../../support/BlacklistHelper.sol";
+import {DegenNFT} from "../../tokens/DegenNFT.sol";
+import {BlacklistHelper} from "../../support/BlacklistHelper.sol";
 
 import "../lib/constants.sol";
 
-import { PoolDeployer } from "./PoolDeployer.sol";
-import { ICreditConfig } from "../interfaces/ICreditConfig.sol";
-import { ITokenTestSuite } from "../interfaces/ITokenTestSuite.sol";
+import {PoolDeployer} from "./PoolDeployer.sol";
+import {ICreditConfig} from "../interfaces/ICreditConfig.sol";
+import {ITokenTestSuite} from "../interfaces/ITokenTestSuite.sol";
 
 /// @title CreditManagerTestSuite
 /// @notice Deploys contract for unit testing of CreditManager.sol

@@ -3,12 +3,12 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
-import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
-import { ICreditFacade } from "../interfaces/ICreditFacade.sol";
+import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
+import {IBlacklistHelper} from "../interfaces/IBlacklistHelper.sol";
+import {ICreditFacade} from "../interfaces/ICreditFacade.sol";
 
 interface IBlacklistableUSDC {
     function isBlacklisted(address _account) external view returns (bool);
@@ -47,11 +47,7 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
     /// @param _addressProvider Address of the address provider
     /// @param _usdc Address of USDC
     /// @param _usdt Address of USDT
-    constructor(
-        address _addressProvider,
-        address _usdc,
-        address _usdt
-    ) ACLNonReentrantTrait(_addressProvider) {
+    constructor(address _addressProvider, address _usdc, address _usdt) ACLNonReentrantTrait(_addressProvider) {
         usdc = _usdc;
         usdt = _usdt;
     }
@@ -60,12 +56,7 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
     /// @param underlying Underlying token to check
     /// @param _account Account to check
     /// @notice Used to consolidate different `isBlacklisted` functions under the same interface
-    function isBlacklisted(address underlying, address _account)
-        external
-        view
-        override
-        returns (bool)
-    {
+    function isBlacklisted(address underlying, address _account) external view override returns (bool) {
         if (underlying == usdc) {
             return IBlacklistableUSDC(usdc).isBlacklisted(_account);
         } else if (underlying == usdt) {
@@ -81,11 +72,7 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
     /// @param amount Incremented amount
     /// @notice Can only be called by Credit Facades when liquidating a blacklisted borrower
     ///         Expects the underlying to be transferred directly to this contract in the same transaction
-    function addClaimable(
-        address underlying,
-        address holder,
-        uint256 amount
-    ) external override creditFacadeOnly {
+    function addClaimable(address underlying, address holder, uint256 amount) external override creditFacadeOnly {
         claimable[underlying][holder] += amount;
         emit ClaimableAdded(underlying, holder, amount);
     }
@@ -115,10 +102,7 @@ contract BlacklistHelper is ACLNonReentrantTrait, IBlacklistHelper {
 
     /// @dev Removes a Credit Facade from the `supported` list
     /// @param _creditFacade Address of the Credit Facade
-    function removeCreditFacade(address _creditFacade)
-        external
-        configuratorOnly
-    {
+    function removeCreditFacade(address _creditFacade) external configuratorOnly {
         isSupportedCreditFacade[_creditFacade] = false;
         emit CreditFacadeRemoved(_creditFacade);
     }

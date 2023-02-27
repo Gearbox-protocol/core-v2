@@ -3,31 +3,29 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { BlacklistHelper } from "../../support/BlacklistHelper.sol";
-import { IBlacklistHelperEvents, IBlacklistHelperExceptions } from "../../interfaces/IBlacklistHelper.sol";
+import {BlacklistHelper} from "../../support/BlacklistHelper.sol";
+import {IBlacklistHelperEvents, IBlacklistHelperExceptions} from "../../interfaces/IBlacklistHelper.sol";
 
 // TEST
 import "../lib/constants.sol";
 
 // MOCKS
-import { AddressProviderACLMock } from "../mocks/core/AddressProviderACLMock.sol";
-import { ERC20BlacklistableMock } from "../mocks/token/ERC20Blacklistable.sol";
+import {AddressProviderACLMock} from "../mocks/core/AddressProviderACLMock.sol";
+import {ERC20BlacklistableMock} from "../mocks/token/ERC20Blacklistable.sol";
 
 // SUITES
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { Tokens } from "../config/Tokens.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
+import {Tokens} from "../config/Tokens.sol";
 
 // EXCEPTIONS
 
-import { ZeroAddressException, CallerNotConfiguratorException, NotImplementedException } from "../../interfaces/IErrors.sol";
+import {
+    ZeroAddressException, CallerNotConfiguratorException, NotImplementedException
+} from "../../interfaces/IErrors.sol";
 
 /// @title LPPriceFeedTest
 /// @notice Designed for unit test purposes only
-contract BlacklistHelperTest is
-    IBlacklistHelperEvents,
-    IBlacklistHelperExceptions,
-    DSTest
-{
+contract BlacklistHelperTest is IBlacklistHelperEvents, IBlacklistHelperExceptions, DSTest {
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     AddressProviderACLMock public addressProvider;
@@ -65,11 +63,7 @@ contract BlacklistHelperTest is
     function test_BH_01_constructor_sets_correct_values() public {
         assertEq(blacklistHelper.usdc(), usdc, "USDC address incorrect");
 
-        assertEq(
-            blacklistHelper.usdt(),
-            DUMB_ADDRESS,
-            "USDT address incorrect"
-        );
+        assertEq(blacklistHelper.usdt(), DUMB_ADDRESS, "USDT address incorrect");
     }
 
     /// @dev [BH-2]: isBlacklisted works correctly for all tokens
@@ -77,10 +71,7 @@ contract BlacklistHelperTest is
         ERC20BlacklistableMock(usdc).setBlacklisted(USER, true);
         ERC20BlacklistableMock(usdc).setBlackListed(USER, true);
 
-        evm.expectCall(
-            usdc,
-            abi.encodeWithSignature("isBlacklisted(address)", USER)
-        );
+        evm.expectCall(usdc, abi.encodeWithSignature("isBlacklisted(address)", USER));
 
         bool status = blacklistHelper.isBlacklisted(usdc, USER);
 
@@ -92,10 +83,7 @@ contract BlacklistHelperTest is
             usdc
         );
 
-        evm.expectCall(
-            usdc,
-            abi.encodeWithSignature("isBlackListed(address)", USER)
-        );
+        evm.expectCall(usdc, abi.encodeWithSignature("isBlackListed(address)", USER));
 
         status = blacklistHelper.isBlacklisted(usdc, USER);
 
@@ -107,18 +95,12 @@ contract BlacklistHelperTest is
         evm.prank(CONFIGURATOR);
         blacklistHelper.addCreditFacade(address(this));
 
-        assertTrue(
-            blacklistHelper.isSupportedCreditFacade(address(this)),
-            "Incorrect credit facade status"
-        );
+        assertTrue(blacklistHelper.isSupportedCreditFacade(address(this)), "Incorrect credit facade status");
 
         evm.prank(CONFIGURATOR);
         blacklistHelper.removeCreditFacade(address(this));
 
-        assertTrue(
-            !blacklistHelper.isSupportedCreditFacade(address(this)),
-            "Incorrect credit facade status"
-        );
+        assertTrue(!blacklistHelper.isSupportedCreditFacade(address(this)), "Incorrect credit facade status");
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
         evm.prank(DUMB_ADDRESS);

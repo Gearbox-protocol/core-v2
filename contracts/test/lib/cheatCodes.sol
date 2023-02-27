@@ -30,20 +30,10 @@ interface CheatCodes {
     function load(address, bytes32) external returns (bytes32);
 
     // Stores a value to an address' storage slot, (who, slot, value)
-    function store(
-        address,
-        bytes32,
-        bytes32
-    ) external;
+    function store(address, bytes32, bytes32) external;
 
     // Signs data, (privateKey, digest) => (v, r, s)
-    function sign(uint256, bytes32)
-        external
-        returns (
-            uint8,
-            bytes32,
-            bytes32
-        );
+    function sign(uint256, bytes32) external returns (uint8, bytes32, bytes32);
 
     // Gets address for a given private key, (privateKey) => (address)
     function addr(uint256) external returns (address);
@@ -52,11 +42,7 @@ interface CheatCodes {
     function deriveKey(string calldata, uint32) external returns (uint256);
 
     // Derive a private key from a provided mnemonic string (or mnemonic file path) at the derivation path {path}{index}
-    function deriveKey(
-        string calldata,
-        string calldata,
-        uint32
-    ) external returns (uint256);
+    function deriveKey(string calldata, string calldata, uint32) external returns (uint256);
 
     // Performs a foreign function call via terminal, (stringInputs) => (result)
     function ffi(string[] calldata) external returns (bytes memory);
@@ -80,33 +66,19 @@ interface CheatCodes {
     function envBytes(string calldata) external returns (bytes memory);
 
     // Read environment variables as arrays, (name, delim) => (value[])
-    function envBool(string calldata, string calldata)
-        external
-        returns (bool[] memory);
+    function envBool(string calldata, string calldata) external returns (bool[] memory);
 
-    function envUint(string calldata, string calldata)
-        external
-        returns (uint256[] memory);
+    function envUint(string calldata, string calldata) external returns (uint256[] memory);
 
-    function envInt(string calldata, string calldata)
-        external
-        returns (int256[] memory);
+    function envInt(string calldata, string calldata) external returns (int256[] memory);
 
-    function envAddress(string calldata, string calldata)
-        external
-        returns (address[] memory);
+    function envAddress(string calldata, string calldata) external returns (address[] memory);
 
-    function envBytes32(string calldata, string calldata)
-        external
-        returns (bytes32[] memory);
+    function envBytes32(string calldata, string calldata) external returns (bytes32[] memory);
 
-    function envString(string calldata, string calldata)
-        external
-        returns (string[] memory);
+    function envString(string calldata, string calldata) external returns (string[] memory);
 
-    function envBytes(string calldata, string calldata)
-        external
-        returns (bytes[] memory);
+    function envBytes(string calldata, string calldata) external returns (bytes[] memory);
 
     // Sets the *next* call's msg.sender to be the input address
     function prank(address) external;
@@ -140,9 +112,7 @@ interface CheatCodes {
     function record() external;
 
     // Gets all accessed reads and write slot from a recording session, for a given address
-    function accesses(address)
-        external
-        returns (bytes32[] memory reads, bytes32[] memory writes);
+    function accesses(address) external returns (bytes32[] memory reads, bytes32[] memory writes);
 
     // Record all the transaction logs
     function recordLogs() external;
@@ -154,39 +124,19 @@ interface CheatCodes {
     // Call this function, then emit an event, then call a function. Internally after the call, we check if
     // logs were emitted in the expected order with the expected topics and data (as specified by the booleans).
     // Second form also checks supplied address against emitting contract.
-    function expectEmit(
-        bool,
-        bool,
-        bool,
-        bool
-    ) external;
+    function expectEmit(bool, bool, bool, bool) external;
 
-    function expectEmit(
-        bool,
-        bool,
-        bool,
-        bool,
-        address
-    ) external;
+    function expectEmit(bool, bool, bool, bool, address) external;
 
     // Mocks a call to an address, returning specified data.
     // Calldata can either be strict or a partial match, e.g. if you only
     // pass a Solidity selector to the expected calldata, then the entire Solidity
     // function will be mocked.
-    function mockCall(
-        address,
-        bytes calldata,
-        bytes calldata
-    ) external;
+    function mockCall(address, bytes calldata, bytes calldata) external;
 
     // Mocks a call to an address with a specific msg.value, returning specified data.
     // Calldata match takes precedence over msg.value in case of ambiguity.
-    function mockCall(
-        address,
-        uint256,
-        bytes calldata,
-        bytes calldata
-    ) external;
+    function mockCall(address, uint256, bytes calldata, bytes calldata) external;
 
     // Clears all mocked calls
     function clearMockedCalls() external;
@@ -196,11 +146,7 @@ interface CheatCodes {
     function expectCall(address, bytes calldata) external;
 
     // Expect a call to an address with the specified msg.value and calldata
-    function expectCall(
-        address,
-        uint256,
-        bytes calldata
-    ) external;
+    function expectCall(address, uint256, bytes calldata) external;
 
     // Gets the code from an artifact file. Takes in the relative path to the json file
     function getCode(string calldata) external returns (bytes memory);
@@ -304,9 +250,7 @@ interface CheatCodes {
     function createFork(string calldata) external returns (uint256);
 
     // Creates _and_ also selects a new fork with the given endpoint and block and returns the identifier of the fork
-    function createSelectFork(string calldata, uint256)
-        external
-        returns (uint256);
+    function createSelectFork(string calldata, uint256) external returns (uint256);
 
     // Creates _and_ also selects a new fork with the given endpoint and the latest block and returns the identifier of the fork
     function createSelectFork(string calldata) external returns (uint256);
@@ -324,11 +268,7 @@ interface CheatCodes {
 
     function makePersistent(address, address) external;
 
-    function makePersistent(
-        address,
-        address,
-        address
-    ) external;
+    function makePersistent(address, address, address) external;
 
     function makePersistent(address[] calldata) external;
 
@@ -353,9 +293,7 @@ interface CheatCodes {
     /// Returns all rpc urls and their aliases `[alias, url][]`
     function rpcUrls() external returns (string[2][] memory);
 
-    function parseJson(string calldata, string calldata)
-        external
-        returns (bytes memory);
+    function parseJson(string calldata, string calldata) external returns (bytes memory);
 
     function parseJson(string calldata) external returns (bytes memory);
 }

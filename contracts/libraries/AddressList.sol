@@ -2,14 +2,10 @@
 pragma solidity ^0.8.10;
 
 library AddressList {
-    function includes(address[] memory array, address item)
-        internal
-        pure
-        returns (bool)
-    {
+    function includes(address[] memory array, address item) internal pure returns (bool) {
         uint256 len = array.length;
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (array[i] == item) return true;
             unchecked {
                 ++i;
@@ -19,11 +15,7 @@ library AddressList {
         return false;
     }
 
-    function trim(address[] memory array)
-        internal
-        pure
-        returns (address[] memory trimmed)
-    {
+    function trim(address[] memory array) internal pure returns (address[] memory trimmed) {
         uint256 len = array.length;
 
         if (len == 0) return array;
@@ -39,13 +31,9 @@ library AddressList {
         if (foundLen > 0) return copy(array, foundLen);
     }
 
-    function copy(address[] memory array, uint256 len)
-        internal
-        pure
-        returns (address[] memory res)
-    {
+    function copy(address[] memory array, uint256 len) internal pure returns (address[] memory res) {
         res = new address[](len);
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             res[i] = array[i];
             unchecked {
                 ++i;
@@ -53,11 +41,7 @@ library AddressList {
         }
     }
 
-    function concat(address[] memory calls1, address[] memory calls2)
-        internal
-        pure
-        returns (address[] memory res)
-    {
+    function concat(address[] memory calls1, address[] memory calls2) internal pure returns (address[] memory res) {
         uint256 len1 = calls1.length;
         uint256 lenTotal = len1 + calls2.length;
 
@@ -65,7 +49,7 @@ library AddressList {
 
         res = new address[](lenTotal);
 
-        for (uint256 i; i < lenTotal; ) {
+        for (uint256 i; i < lenTotal;) {
             res[i] = (i < len1) ? calls1[i] : calls2[i - len1];
             unchecked {
                 ++i;
@@ -73,11 +57,7 @@ library AddressList {
         }
     }
 
-    function append(address[] memory addrs, address newAddr)
-        internal
-        pure
-        returns (address[] memory res)
-    {
+    function append(address[] memory addrs, address newAddr) internal pure returns (address[] memory res) {
         address[] memory newAddrArray = new address[](1);
         newAddrArray[0] = newAddr;
         return concat(addrs, newAddrArray);

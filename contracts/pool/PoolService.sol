@@ -3,24 +3,24 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { RAY } from "../libraries/Constants.sol";
-import { PercentageMath } from "../libraries/PercentageMath.sol";
+import {RAY} from "../libraries/Constants.sol";
+import {PercentageMath} from "../libraries/PercentageMath.sol";
 
-import { IInterestRateModel } from "../interfaces/IInterestRateModel.sol";
-import { IPoolService } from "../interfaces/IPoolService.sol";
-import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
+import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
+import {IPoolService} from "../interfaces/IPoolService.sol";
+import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
 
-import { AddressProvider } from "../core/AddressProvider.sol";
-import { DieselToken } from "../tokens/DieselToken.sol";
-import { SECONDS_PER_YEAR, MAX_WITHDRAW_FEE } from "../libraries/Constants.sol";
-import { Errors } from "../libraries/Errors.sol";
+import {AddressProvider} from "../core/AddressProvider.sol";
+import {DieselToken} from "../tokens/DieselToken.sol";
+import {SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "../libraries/Constants.sol";
+import {Errors} from "../libraries/Errors.sol";
 
 /// @title Pool Service Interface
 /// @notice Implements business logic:
@@ -98,9 +98,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
         uint256 _expectedLiquidityLimit
     ) ACLNonReentrantTrait(_addressProvider) {
         require(
-            _addressProvider != address(0) &&
-                _underlyingToken != address(0) &&
-                _interestRateModelAddress != address(0),
+            _addressProvider != address(0) && _underlyingToken != address(0) && _interestRateModelAddress != address(0),
             Errors.ZERO_ADDRESS_IS_NOT_ALLOWED
         );
 
@@ -160,11 +158,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
      *      amount > 0 ==> borrowAPY_RAY <= old(currentBorrowRate());
      * #limit {:msg "Not more than 1 day since last borrow rate update"} block.timestamp <= _timestampLU + 3600 * 24;
      */
-    function addLiquidity(
-        uint256 amount,
-        address onBehalfOf,
-        uint256 referralCode
-    )
+    function addLiquidity(uint256 amount, address onBehalfOf, uint256 referralCode)
         external
         override
         whenNotPaused // T:[PS-4]
@@ -172,24 +166,13 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
     {
         require(onBehalfOf != address(0), Errors.ZERO_ADDRESS_IS_NOT_ALLOWED);
 
-        require(
-            expectedLiquidity() + amount <= expectedLiquidityLimit,
-            Errors.POOL_MORE_THAN_EXPECTED_LIQUIDITY_LIMIT
-        ); // T:[PS-31]
+        require(expectedLiquidity() + amount <= expectedLiquidityLimit, Errors.POOL_MORE_THAN_EXPECTED_LIQUIDITY_LIMIT); // T:[PS-31]
 
-        uint256 balanceBefore = IERC20(underlyingToken).balanceOf(
-            address(this)
-        );
+        uint256 balanceBefore = IERC20(underlyingToken).balanceOf(address(this));
 
-        IERC20(underlyingToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        ); // T:[PS-2, 7]
+        IERC20(underlyingToken).safeTransferFrom(msg.sender, address(this), amount); // T:[PS-2, 7]
 
-        amount =
-            IERC20(underlyingToken).balanceOf(address(this)) -
-            balanceBefore; // T:[FT-1]
+        amount = IERC20(underlyingToken).balanceOf(address(this)) - balanceBefore; // T:[FT-1]
 
         DieselToken(dieselToken).mint(onBehalfOf, toDiesel(amount)); // T:[PS-2, 7]
 
@@ -240,10 +223,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
         IERC20(underlyingToken).safeTransfer(to, amountSent); // T:[PS-3, 34]
 
         if (amountTreasury > 0) {
-            IERC20(underlyingToken).safeTransfer(
-                treasuryAddress,
-                amountTreasury
-            );
+            IERC20(underlyingToken).safeTransfer(treasuryAddress, amountTreasury);
         } // T:[PS-3, 34]
 
         DieselToken(dieselToken).burn(msg.sender, amount); // T:[PS-3, 8]
@@ -268,11 +248,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
         //  interestAccrued = totalBorrow *  ------------------------------------
         //                                             SECONDS_PER_YEAR
         //
-        uint256 interestAccrued = (totalBorrowed *
-            borrowAPY_RAY *
-            timeDifference) /
-            RAY /
-            SECONDS_PER_YEAR;
+        uint256 interestAccrued = (totalBorrowed * borrowAPY_RAY * timeDifference) / RAY / SECONDS_PER_YEAR;
         // T:[PS-29]
 
         return _expectedLiquidityLU + interestAccrued; // T:[PS-29]
@@ -302,10 +278,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
         override
         whenNotPaused // T:[PS-4]
     {
-        require(
-            creditManagersCanBorrow[msg.sender],
-            Errors.POOL_CONNECTED_CREDIT_MANAGERS_ONLY
-        ); // T:[PS-12, 13]
+        require(creditManagersCanBorrow[msg.sender], Errors.POOL_CONNECTED_CREDIT_MANAGERS_ONLY); // T:[PS-12, 13]
 
         // Transfer funds to credit account
         IERC20(underlyingToken).safeTransfer(creditAccount, borrowedAmount); // T:[PS-14]
@@ -332,19 +305,12 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
     /// #if_succeeds {:msg "After repayCreditAccount() if we are profitabe, or treasury can cover the losses, diesel rate doesn't decrease"}
     ///      (profit > 0 || toDiesel(loss) >= DieselToken(dieselToken).balanceOf(treasuryAddress)) ==> getDieselRate_RAY() >= old(getDieselRate_RAY());
     /// #limit {:msg "Not more than 1 day since last borrow rate update"} block.timestamp <= _timestampLU + 3600 * 24;
-    function repayCreditAccount(
-        uint256 borrowedAmount,
-        uint256 profit,
-        uint256 loss
-    )
+    function repayCreditAccount(uint256 borrowedAmount, uint256 profit, uint256 loss)
         external
         override
         whenNotPaused // T:[PS-4]
     {
-        require(
-            creditManagersCanRepay[msg.sender],
-            Errors.POOL_CONNECTED_CREDIT_MANAGERS_ONLY
-        ); // T:[PS-12]
+        require(creditManagersCanRepay[msg.sender], Errors.POOL_CONNECTED_CREDIT_MANAGERS_ONLY); // T:[PS-12]
 
         // For fee surplus we mint tokens for treasury
         if (profit > 0) {
@@ -358,16 +324,11 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
         else {
             uint256 amountToBurn = toDiesel(loss); // T:[PS-19,20]
 
-            uint256 treasuryBalance = DieselToken(dieselToken).balanceOf(
-                treasuryAddress
-            ); // T:[PS-19,20]
+            uint256 treasuryBalance = DieselToken(dieselToken).balanceOf(treasuryAddress); // T:[PS-19,20]
 
             if (treasuryBalance < amountToBurn) {
                 amountToBurn = treasuryBalance;
-                emit UncoveredLoss(
-                    msg.sender,
-                    loss - fromDiesel(treasuryBalance)
-                ); // T:[PS-23]
+                emit UncoveredLoss(msg.sender, loss - fromDiesel(treasuryBalance)); // T:[PS-23]
             }
 
             // If treasury has enough funds, it just burns needed amount
@@ -403,30 +364,23 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
         //solium-disable-next-line
         uint256 timeDifference = block.timestamp - _timestampLU; // T:[PS-28]
 
-        return
-            calcLinearIndex_RAY(
-                _cumulativeIndex_RAY,
-                borrowAPY_RAY,
-                timeDifference
-            ); // T:[PS-28]
+        return calcLinearIndex_RAY(_cumulativeIndex_RAY, borrowAPY_RAY, timeDifference); // T:[PS-28]
     }
 
     /// @dev Calculates a new cumulative index value from the initial value, borrow rate and time elapsed
     /// @param cumulativeIndex_RAY Cumulative index at last update, in RAY
     /// @param currentBorrowRate_RAY Current borrow rate, in RAY
     /// @param timeDifference Time elapsed since last update, in seconds
-    function calcLinearIndex_RAY(
-        uint256 cumulativeIndex_RAY,
-        uint256 currentBorrowRate_RAY,
-        uint256 timeDifference
-    ) public pure returns (uint256) {
+    function calcLinearIndex_RAY(uint256 cumulativeIndex_RAY, uint256 currentBorrowRate_RAY, uint256 timeDifference)
+        public
+        pure
+        returns (uint256)
+    {
         //                               /     currentBorrowRate * timeDifference \
         //  newIndex  = currentIndex *  | 1 + ------------------------------------ |
         //                               \              SECONDS_PER_YEAR          /
         //
-        uint256 linearAccumulated_RAY = RAY +
-            (currentBorrowRate_RAY * timeDifference) /
-            SECONDS_PER_YEAR;
+        uint256 linearAccumulated_RAY = RAY + (currentBorrowRate_RAY * timeDifference) / SECONDS_PER_YEAR;
         // T:[GM-2]
 
         return (cumulativeIndex_RAY * linearAccumulated_RAY) / RAY; // T:[GM-2]
@@ -443,10 +397,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
         _cumulativeIndex_RAY = calcLinearCumulative_RAY(); // T:[PS-27]
 
         // update borrow APY
-        borrowAPY_RAY = interestRateModel.calcBorrowRate(
-            _expectedLiquidityLU,
-            availableLiquidity()
-        ); // T:[PS-27]
+        borrowAPY_RAY = interestRateModel.calcBorrowRate(_expectedLiquidityLU, availableLiquidity()); // T:[PS-27]
         _timestampLU = block.timestamp; // T:[PS-27]
     }
 
@@ -489,10 +440,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
             Errors.POOL_INCOMPATIBLE_CREDIT_ACCOUNT_MANAGER
         ); // T:[PS-10]
 
-        require(
-            !creditManagersCanRepay[_creditManager],
-            Errors.POOL_CANT_ADD_CREDIT_MANAGER_TWICE
-        ); // T:[PS-35]
+        require(!creditManagersCanRepay[_creditManager], Errors.POOL_CANT_ADD_CREDIT_MANAGER_TWICE); // T:[PS-35]
 
         creditManagersCanBorrow[_creditManager] = true; // T:[PS-11]
         creditManagersCanRepay[_creditManager] = true; // T:[PS-11]
@@ -522,10 +470,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
 
     /// @dev IMPLEMENTATION: updateInterestRateModel
     function _updateInterestRateModel(address _interestRateModel) internal {
-        require(
-            _interestRateModel != address(0),
-            Errors.ZERO_ADDRESS_IS_NOT_ALLOWED
-        );
+        require(_interestRateModel != address(0), Errors.ZERO_ADDRESS_IS_NOT_ALLOWED);
         interestRateModel = IInterestRateModel(_interestRateModel); // T:[PS-25]
         _updateBorrowRate(0); // T:[PS-26]
         emit NewInterestRateModel(_interestRateModel); // T:[PS-25]

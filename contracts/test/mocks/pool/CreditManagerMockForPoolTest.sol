@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IPoolService } from "../../../interfaces/IPoolService.sol";
+import {IPoolService} from "../../../interfaces/IPoolService.sol";
 import "../../lib/constants.sol";
 
 contract CreditManagerMockForPoolTest {
@@ -36,23 +36,11 @@ contract CreditManagerMockForPoolTest {
      * @dev Recalculates total borrowed & borrowRate
      * mints/burns diesel tokens
      */
-    function repayCreditAccount(
-        uint256 borrowedAmount,
-        uint256 profit,
-        uint256 loss
-    ) external {
-        IPoolService(poolService).repayCreditAccount(
-            borrowedAmount,
-            profit,
-            loss
-        );
+    function repayCreditAccount(uint256 borrowedAmount, uint256 profit, uint256 loss) external {
+        IPoolService(poolService).repayCreditAccount(borrowedAmount, profit, loss);
     }
 
-    function getCreditAccountOrRevert(address)
-        public
-        view
-        returns (address result)
-    {
+    function getCreditAccountOrRevert(address) public view returns (address result) {
         result = creditAccount;
     }
 }

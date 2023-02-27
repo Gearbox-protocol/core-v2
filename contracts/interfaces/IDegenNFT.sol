@@ -3,8 +3,8 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IVersion } from "./IVersion.sol";
-import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IVersion} from "./IVersion.sol";
+import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 
 interface IDegenNFTExceptions {
     /// @dev Thrown if an access-restricted function was called by non-CreditFacade
@@ -31,12 +31,7 @@ interface IDegenNFTEvents {
     event NewCreditFacadeRemoved(address indexed);
 }
 
-interface IDegenNFT is
-    IDegenNFTExceptions,
-    IDegenNFTEvents,
-    IVersion,
-    IERC721Metadata
-{
+interface IDegenNFT is IDegenNFTExceptions, IDegenNFTEvents, IVersion, IERC721Metadata {
     /// @dev address of the current minter
     function minter() external view returns (address);
 

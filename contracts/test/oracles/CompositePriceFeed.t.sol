@@ -3,19 +3,19 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { CompositePriceFeed } from "../../oracles/CompositePriceFeed.sol";
-import { PriceFeedMock } from "../mocks/oracles/PriceFeedMock.sol";
-import { IPriceOracleV2Exceptions } from "../../interfaces/IPriceOracle.sol";
+import {CompositePriceFeed} from "../../oracles/CompositePriceFeed.sol";
+import {PriceFeedMock} from "../mocks/oracles/PriceFeedMock.sol";
+import {IPriceOracleV2Exceptions} from "../../interfaces/IPriceOracle.sol";
 
-import { CheatCodes, HEVM_ADDRESS } from "../lib/cheatCodes.sol";
+import {CheatCodes, HEVM_ADDRESS} from "../lib/cheatCodes.sol";
 import "../lib/test.sol";
 import "../lib/constants.sol";
 
 // SUITES
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
 
 // EXCEPTIONS
-import { NotImplementedException, CallerNotConfiguratorException } from "../../interfaces/IErrors.sol";
+import {NotImplementedException, CallerNotConfiguratorException} from "../../interfaces/IErrors.sol";
 
 /// @title CompositePriceFeedTest
 /// @notice Designed for unit test purposes only
@@ -42,19 +42,11 @@ contract CompositePriceFeedTest is DSTest, IPriceOracleV2Exceptions {
 
     /// @dev [CPF-1]: constructor sets correct values
     function test_CPF_01_constructor_sets_correct_values() public {
-        assertEq(
-            pf.description(),
-            "price oracle to USD Composite",
-            "Incorrect description"
-        );
+        assertEq(pf.description(), "price oracle to USD Composite", "Incorrect description");
 
         assertEq(pf.decimals(), 8, "Incorrect decimals");
 
-        assertEq(
-            pf.answerDenominator(),
-            int256(10**18),
-            "Incorrect ETH price feed decimals"
-        );
+        assertEq(pf.answerDenominator(), int256(10 ** 18), "Incorrect ETH price feed decimals");
 
         assertTrue(pf.skipPriceCheck(), "Incorrect skipPriceCheck");
     }
@@ -67,10 +59,7 @@ contract CompositePriceFeedTest is DSTest, IPriceOracleV2Exceptions {
     }
 
     /// @dev [CPF-3]: latestRoundData works correctly
-    function test_CPF_03_latestRoundData_works_correctly(
-        int256 answer1,
-        int256 answer2
-    ) public {
+    function test_CPF_03_latestRoundData_works_correctly(int256 answer1, int256 answer2) public {
         evm.assume(answer1 > 0);
         evm.assume(answer2 > 0);
         evm.assume(answer1 < int256(RAY));
@@ -79,14 +68,9 @@ contract CompositePriceFeedTest is DSTest, IPriceOracleV2Exceptions {
         targetPf.setPrice(answer1);
         baseUsdPf.setPrice(answer2);
 
-        (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = pf.latestRoundData();
-        (, int256 answerTarget, , , ) = targetPf.latestRoundData();
+        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
+            pf.latestRoundData();
+        (, int256 answerTarget,,,) = targetPf.latestRoundData();
         (
             uint80 roundIdBase,
             int256 answerBase,
@@ -96,31 +80,16 @@ contract CompositePriceFeedTest is DSTest, IPriceOracleV2Exceptions {
         ) = baseUsdPf.latestRoundData();
 
         assertEq(roundId, roundIdBase, "Incorrect round Id #1");
-        assertEq(
-            answer,
-            (answerTarget * answerBase) / int256(10**targetPf.decimals()),
-            "Incorrect answer #1"
-        );
+        assertEq(answer, (answerTarget * answerBase) / int256(10 ** targetPf.decimals()), "Incorrect answer #1");
         assertEq(startedAt, startedAtBase, "Incorrect startedAt #1");
         assertEq(updatedAt, updatedAtBase, "Incorrect updatedAt #1");
-        assertEq(
-            answeredInRound,
-            answeredInRoundBase,
-            "Incorrect answeredInRound #1"
-        );
+        assertEq(answeredInRound, answeredInRoundBase, "Incorrect answeredInRound #1");
     }
 
     /// @dev [CEPF-4]: latestRoundData reverts on failing sanity checks
-    function test_CEPF_04_latestRoundData_reverts_on_incorrect_answers()
-        public
-    {
-        (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = targetPf.latestRoundData();
+    function test_CEPF_04_latestRoundData_reverts_on_incorrect_answers() public {
+        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
+            targetPf.latestRoundData();
 
         targetPf.setParams(roundId, startedAt, 0, answeredInRound);
 
@@ -139,10 +108,9 @@ contract CompositePriceFeedTest is DSTest, IPriceOracleV2Exceptions {
         evm.expectRevert(ZeroPriceException.selector);
         pf.latestRoundData();
 
-        targetPf.setPrice(99 * 10**16);
+        targetPf.setPrice(99 * 10 ** 16);
 
-        (roundId, answer, startedAt, updatedAt, answeredInRound) = baseUsdPf
-            .latestRoundData();
+        (roundId, answer, startedAt, updatedAt, answeredInRound) = baseUsdPf.latestRoundData();
 
         baseUsdPf.setParams(roundId, startedAt, 0, answeredInRound);
 

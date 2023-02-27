@@ -5,10 +5,10 @@ pragma solidity ^0.8.10;
 
 pragma abicoder v2;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import { AddressProvider } from "../core/AddressProvider.sol";
-import { ACL } from "../core/ACL.sol";
+import {AddressProvider} from "../core/AddressProvider.sol";
+import {ACL} from "../core/ACL.sol";
 
 abstract contract ContractUpgrader is Ownable {
     AddressProvider public immutable addressProvider;

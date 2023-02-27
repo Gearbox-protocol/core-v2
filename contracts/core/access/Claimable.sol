@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title Claimable
 /// @dev Implements logic for a two-step ownership transfer on top of Ownable
@@ -23,10 +23,7 @@ contract Claimable is Ownable {
     /// transfer ownership yet
     /// @param newOwner The address to become the future owner
     function transferOwnership(address newOwner) public override onlyOwner {
-        require(
-            newOwner != address(0),
-            "Claimable: new owner is the zero address"
-        );
+        require(newOwner != address(0), "Claimable: new owner is the zero address");
         pendingOwner = newOwner;
     }
 

@@ -3,8 +3,8 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IDieselToken } from "../interfaces/IDieselToken.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IDieselToken} from "../interfaces/IDieselToken.sol";
 
 /// @dev DieselToken is LP token for Gearbox pools
 contract DieselToken is ERC20, IDieselToken {
@@ -18,11 +18,7 @@ contract DieselToken is ERC20, IDieselToken {
         _;
     }
 
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        uint8 decimals_
-    ) ERC20(name_, symbol_) {
+    constructor(string memory name_, string memory symbol_, uint8 decimals_) ERC20(name_, symbol_) {
         _decimals = decimals_;
         poolService = msg.sender;
     }

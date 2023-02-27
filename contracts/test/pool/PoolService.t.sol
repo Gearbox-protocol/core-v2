@@ -3,28 +3,34 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { TestPoolService } from "../mocks/pool/TestPoolService.sol";
-import { IPoolServiceEvents } from "../../interfaces/IPoolService.sol";
-import { LinearInterestRateModel } from "../../pool/LinearInterestRateModel.sol";
-import { DieselToken } from "../../tokens/DieselToken.sol";
+import {TestPoolService} from "../mocks/pool/TestPoolService.sol";
+import {IPoolServiceEvents} from "../../interfaces/IPoolService.sol";
+import {LinearInterestRateModel} from "../../pool/LinearInterestRateModel.sol";
+import {DieselToken} from "../../tokens/DieselToken.sol";
 
-import { ACL } from "../../core/ACL.sol";
-import { CreditManagerMockForPoolTest } from "../mocks/pool/CreditManagerMockForPoolTest.sol";
-import { liquidityProviderInitBalance, addLiquidity, removeLiquidity, referral, PoolServiceTestSuite } from "../suites/PoolServiceTestSuite.sol";
+import {ACL} from "../../core/ACL.sol";
+import {CreditManagerMockForPoolTest} from "../mocks/pool/CreditManagerMockForPoolTest.sol";
+import {
+    liquidityProviderInitBalance,
+    addLiquidity,
+    removeLiquidity,
+    referral,
+    PoolServiceTestSuite
+} from "../suites/PoolServiceTestSuite.sol";
 
 import "../../libraries/Errors.sol";
 
-import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
-import { Tokens } from "../config/Tokens.sol";
-import { BalanceHelper } from "../helpers/BalanceHelper.sol";
+import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
+import {Tokens} from "../config/Tokens.sol";
+import {BalanceHelper} from "../helpers/BalanceHelper.sol";
 
 // TEST
 import "../lib/constants.sol";
 
 // EXCEPTIONS
-import { CallerNotConfiguratorException } from "../../interfaces/IErrors.sol";
+import {CallerNotConfiguratorException} from "../../interfaces/IErrors.sol";
 
 /// @title PoolService
 /// @notice Business logic for borrowing liquidity pools
@@ -70,11 +76,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         poolService.addLiquidity(addLiquidity, FRIEND, referral);
 
         expectBalance(address(dieselToken), FRIEND, addLiquidity);
-        expectBalance(
-            underlying,
-            USER,
-            liquidityProviderInitBalance - addLiquidity
-        );
+        expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity);
         assertEq(poolService.expectedLiquidity(), addLiquidity);
         assertEq(poolService.availableLiquidity(), addLiquidity);
     }
@@ -90,24 +92,10 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         evm.prank(FRIEND);
         poolService.removeLiquidity(removeLiquidity, USER);
 
-        expectBalance(
-            address(dieselToken),
-            FRIEND,
-            addLiquidity - removeLiquidity
-        );
-        expectBalance(
-            underlying,
-            USER,
-            liquidityProviderInitBalance - addLiquidity + removeLiquidity
-        );
-        assertEq(
-            poolService.expectedLiquidity(),
-            addLiquidity - removeLiquidity
-        );
-        assertEq(
-            poolService.availableLiquidity(),
-            addLiquidity - removeLiquidity
-        );
+        expectBalance(address(dieselToken), FRIEND, addLiquidity - removeLiquidity);
+        expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity + removeLiquidity);
+        assertEq(poolService.expectedLiquidity(), addLiquidity - removeLiquidity);
+        assertEq(poolService.availableLiquidity(), addLiquidity - removeLiquidity);
     }
 
     // [PS-4]: addLiquidity, removeLiquidity, lendCreditAccount, repayCreditAccount reverts if contract is paused
@@ -164,9 +152,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     }
 
     // [PS-8]: removeLiquidity correctly removes liquidity if diesel rate != 1
-    function test_PS_08_correctly_removes_liquidity_at_new_diesel_rate()
-        public
-    {
+    function test_PS_08_correctly_removes_liquidity_at_new_diesel_rate() public {
         evm.prank(USER);
         poolService.addLiquidity(addLiquidity, FRIEND, referral);
 
@@ -175,24 +161,10 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         evm.prank(FRIEND);
         poolService.removeLiquidity(removeLiquidity, USER);
 
-        expectBalance(
-            address(dieselToken),
-            FRIEND,
-            addLiquidity - removeLiquidity
-        );
-        expectBalance(
-            underlying,
-            USER,
-            liquidityProviderInitBalance - addLiquidity + 2 * removeLiquidity
-        );
-        assertEq(
-            poolService.expectedLiquidity(),
-            (addLiquidity - removeLiquidity) * 2
-        );
-        assertEq(
-            poolService.availableLiquidity(),
-            addLiquidity - removeLiquidity * 2
-        );
+        expectBalance(address(dieselToken), FRIEND, addLiquidity - removeLiquidity);
+        expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity + 2 * removeLiquidity);
+        assertEq(poolService.expectedLiquidity(), (addLiquidity - removeLiquidity) * 2);
+        assertEq(poolService.availableLiquidity(), addLiquidity - removeLiquidity * 2);
     }
 
     // [PS-9]: connectCreditManager, forbidCreditManagerToBorrow, newInterestRateModel, setExpecetedLiquidityLimit reverts if called with non-configurator
@@ -218,9 +190,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     function test_PS_10_connectCreditManager_fails_on_incompatible_CM() public {
         cmMock.changePoolService(DUMB_ADDRESS);
 
-        evm.expectRevert(
-            bytes(Errors.POOL_INCOMPATIBLE_CREDIT_ACCOUNT_MANAGER)
-        );
+        evm.expectRevert(bytes(Errors.POOL_INCOMPATIBLE_CREDIT_ACCOUNT_MANAGER));
 
         evm.prank(CONFIGURATOR);
         poolService.connectCreditManager(address(cmMock));
@@ -308,9 +278,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     }
 
     // [PS-16]: lendCreditAccount correctly updates parameters
-    function test_PS_16_lendCreditAccount_correctly_updates_parameters()
-        public
-    {
+    function test_PS_16_lendCreditAccount_correctly_updates_parameters() public {
         evm.prank(CONFIGURATOR);
         poolService.connectCreditManager(address(cmMock));
 
@@ -323,17 +291,11 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
 
         cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-        assertEq(
-            poolService.totalBorrowed(),
-            totalBorrowed + addLiquidity / 2,
-            "Incorrect new borrow amount"
-        );
+        assertEq(poolService.totalBorrowed(), totalBorrowed + addLiquidity / 2, "Incorrect new borrow amount");
     }
 
     // [PS-17]: lendCreditAccount correctly updates borrow rate
-    function test_PS_17_lendCreditAccount_correctly_updates_borrow_rate()
-        public
-    {
+    function test_PS_17_lendCreditAccount_correctly_updates_borrow_rate() public {
         evm.prank(CONFIGURATOR);
         poolService.connectCreditManager(address(cmMock));
 
@@ -347,16 +309,9 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         uint256 expectedLiquidity = addLiquidity;
         uint256 expectedAvailable = expectedLiquidity - addLiquidity / 2;
 
-        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(
-            expectedLiquidity,
-            expectedAvailable
-        );
+        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, expectedAvailable);
 
-        assertEq(
-            expectedBorrowRate,
-            poolService.borrowAPY_RAY(),
-            "Borrow rate is incorrect"
-        );
+        assertEq(expectedBorrowRate, poolService.borrowAPY_RAY(), "Borrow rate is incorrect");
     }
 
     // [PS-18]: repayCreditAccount emits Repay event
@@ -378,9 +333,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     }
 
     // [PS-19]: repayCreditAccount correctly updates params on loss accrued: treasury < loss
-    function test_PS_19_repayCreditAccount_correctly_updates_on_uncovered_loss()
-        public
-    {
+    function test_PS_19_repayCreditAccount_correctly_updates_on_uncovered_loss() public {
         address treasury = psts.treasury();
 
         evm.prank(CONFIGURATOR);
@@ -402,51 +355,29 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
         uint256 expectedLiquidity = addLiquidity + expectedInterest - 1e6;
 
-        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(
-            expectedLiquidity,
-            addLiquidity + expectedInterest - 1e6
-        );
+        uint256 expectedBorrowRate =
+            psts.linearIRModel().calcBorrowRate(expectedLiquidity, addLiquidity + expectedInterest - 1e6);
 
         evm.warp(block.timestamp + timeWarp);
 
-        uint256 treasuryUnderlying = poolService.fromDiesel(
-            dieselToken.balanceOf(treasury)
-        );
+        uint256 treasuryUnderlying = poolService.fromDiesel(dieselToken.balanceOf(treasury));
 
-        tokenTestSuite.mint(
-            Tokens.DAI,
-            address(poolService),
-            addLiquidity / 2 + expectedInterest - 1e6
-        );
+        tokenTestSuite.mint(Tokens.DAI, address(poolService), addLiquidity / 2 + expectedInterest - 1e6);
 
         evm.expectEmit(true, false, false, true);
         emit UncoveredLoss(address(cmMock), 1e6 - treasuryUnderlying);
 
         cmMock.repayCreditAccount(addLiquidity / 2, 0, 1e6);
 
-        assertEq(
-            poolService.expectedLiquidity(),
-            expectedLiquidity,
-            "Expected liquidity was not updated correctly"
-        );
+        assertEq(poolService.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
 
-        assertEq(
-            dieselToken.balanceOf(treasury),
-            0,
-            "dToken remains in the treasury"
-        );
+        assertEq(dieselToken.balanceOf(treasury), 0, "dToken remains in the treasury");
 
-        assertEq(
-            poolService.borrowAPY_RAY(),
-            expectedBorrowRate,
-            "Borrow rate was not updated correctly"
-        );
+        assertEq(poolService.borrowAPY_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
     }
 
     // [PS-20]: repayCreditAccount correctly updates params on loss accrued: treasury >= loss; and emits event
-    function test_PS_20_repayCreditAccount_correctly_updates_on_covered_loss()
-        public
-    {
+    function test_PS_20_repayCreditAccount_correctly_updates_on_covered_loss() public {
         address treasury = psts.treasury();
 
         evm.prank(CONFIGURATOR);
@@ -469,29 +400,18 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
 
         evm.warp(block.timestamp + timeWarp);
 
-        uint256 treasuryUnderlying = poolService.fromDiesel(
-            dieselToken.balanceOf(treasury)
-        );
+        uint256 treasuryUnderlying = poolService.fromDiesel(dieselToken.balanceOf(treasury));
 
         uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
-        uint256 expectedLiquidity = addLiquidity +
-            expectedInterest -
-            (treasuryUnderlying / 2);
+        uint256 expectedLiquidity = addLiquidity + expectedInterest - (treasuryUnderlying / 2);
 
-        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(
-            expectedLiquidity,
-            addLiquidity
-        );
+        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, addLiquidity);
 
         tokenTestSuite.mint(Tokens.DAI, address(poolService), addLiquidity / 2);
 
         cmMock.repayCreditAccount(addLiquidity / 2, 0, treasuryUnderlying / 2);
 
-        assertEq(
-            poolService.expectedLiquidity(),
-            expectedLiquidity,
-            "Expected liquidity was not updated correctly"
-        );
+        assertEq(poolService.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
 
         assertEq(
             dieselToken.balanceOf(treasury),
@@ -499,17 +419,11 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
             "dToken balance incorrect"
         );
 
-        assertEq(
-            poolService.borrowAPY_RAY(),
-            expectedBorrowRate,
-            "Borrow rate was not updated correctly"
-        );
+        assertEq(poolService.borrowAPY_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
     }
 
     // [PS-21]: repayCreditAccount correctly updates params on profit
-    function test_PS_21_repayCreditAccount_correctly_updates_on_profit()
-        public
-    {
+    function test_PS_21_repayCreditAccount_correctly_updates_on_profit() public {
         address treasury = psts.treasury();
 
         evm.prank(CONFIGURATOR);
@@ -530,42 +444,22 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
         uint256 expectedLiquidity = addLiquidity + expectedInterest + 100;
 
-        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(
-            expectedLiquidity,
-            addLiquidity + expectedInterest + 100
-        );
+        uint256 expectedBorrowRate =
+            psts.linearIRModel().calcBorrowRate(expectedLiquidity, addLiquidity + expectedInterest + 100);
 
-        tokenTestSuite.mint(
-            Tokens.DAI,
-            address(poolService),
-            addLiquidity / 2 + expectedInterest + 100
-        );
+        tokenTestSuite.mint(Tokens.DAI, address(poolService), addLiquidity / 2 + expectedInterest + 100);
 
         cmMock.repayCreditAccount(addLiquidity / 2, 100, 0);
 
-        assertEq(
-            poolService.expectedLiquidity(),
-            expectedLiquidity,
-            "Expected liquidity was not updated correctly"
-        );
+        assertEq(poolService.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
 
-        assertEq(
-            dieselToken.balanceOf(treasury),
-            poolService.toDiesel(100),
-            "dToken balance incorrect"
-        );
+        assertEq(dieselToken.balanceOf(treasury), poolService.toDiesel(100), "dToken balance incorrect");
 
-        assertEq(
-            poolService.borrowAPY_RAY(),
-            expectedBorrowRate,
-            "Borrow rate was not updated correctly"
-        );
+        assertEq(poolService.borrowAPY_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
     }
 
     // [PS-22]: repayCreditAccount does not change the diesel rate outside margin of error
-    function test_PS_22_repayCreditAccount_does_not_change_diesel_rate()
-        public
-    {
+    function test_PS_22_repayCreditAccount_does_not_change_diesel_rate() public {
         evm.prank(CONFIGURATOR);
         poolService.connectCreditManager(address(cmMock));
 
@@ -584,11 +478,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
         uint256 expectedLiquidity = addLiquidity + expectedInterest;
 
-        tokenTestSuite.mint(
-            Tokens.DAI,
-            address(poolService),
-            addLiquidity / 2 + expectedInterest
-        );
+        tokenTestSuite.mint(Tokens.DAI, address(poolService), addLiquidity / 2 + expectedInterest);
 
         cmMock.repayCreditAccount(addLiquidity / 2, 100, 0);
 
@@ -618,9 +508,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         uint256 dieselRate = poolService.getDieselRate_RAY();
 
         assertEq(
-            poolService.toDiesel(addLiquidity),
-            (addLiquidity * RAY) / dieselRate,
-            "ToDiesel does not compute correctly"
+            poolService.toDiesel(addLiquidity), (addLiquidity * RAY) / dieselRate, "ToDiesel does not compute correctly"
         );
 
         assertEq(
@@ -631,9 +519,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     }
 
     // [PS-24]: updateInterestRateModel changes interest rate model & emit event
-    function test_PS_24_updateInterestRateModel_works_correctly_and_emits_event()
-        public
-    {
+    function test_PS_24_updateInterestRateModel_works_correctly_and_emits_event() public {
         LinearInterestRateModel newIR = new LinearInterestRateModel(
             8000,
             9000,
@@ -650,17 +536,11 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         evm.prank(CONFIGURATOR);
         poolService.updateInterestRateModel(address(newIR));
 
-        assertEq(
-            address(poolService.interestRateModel()),
-            address(newIR),
-            "Interest rate model was not set correctly"
-        );
+        assertEq(address(poolService.interestRateModel()), address(newIR), "Interest rate model was not set correctly");
     }
 
     // [PS-25]: updateInterestRateModel correctly computes new borrow rate
-    function test_PS_25_updateInterestRateModel_correctly_computes_new_borrow_rate()
-        public
-    {
+    function test_PS_25_updateInterestRateModel_correctly_computes_new_borrow_rate() public {
         LinearInterestRateModel newIR = new LinearInterestRateModel(
             8000,
             9000,
@@ -714,30 +594,15 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
         uint256 expectedLiquidity = addLiquidity + expectedInterest;
 
-        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(
-            expectedLiquidity,
-            addLiquidity / 2
-        );
+        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, addLiquidity / 2);
 
         poolService.updateBorrowRate();
 
-        assertEq(
-            poolService.expectedLiquidity(),
-            expectedLiquidity,
-            "Expected liquidity was not updated correctly"
-        );
+        assertEq(poolService.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
 
-        assertEq(
-            poolService._timestampLU(),
-            block.timestamp,
-            "Timestamp was not updated correctly"
-        );
+        assertEq(poolService._timestampLU(), block.timestamp, "Timestamp was not updated correctly");
 
-        assertEq(
-            poolService.borrowAPY_RAY(),
-            expectedBorrowRate,
-            "Borrow rate was not updated correctly"
-        );
+        assertEq(poolService.borrowAPY_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
 
         assertEq(
             poolService.calcLinearCumulative_RAY(),
@@ -766,11 +631,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
 
         uint256 expectedLinearRate = RAY + (borrowRate * timeWarp) / 365 days;
 
-        assertEq(
-            poolService.calcLinearCumulative_RAY(),
-            expectedLinearRate,
-            "Index value was not updated correctly"
-        );
+        assertEq(poolService.calcLinearCumulative_RAY(), expectedLinearRate, "Index value was not updated correctly");
     }
 
     // [PS-28]: expectedLiquidity() computes correctly
@@ -791,31 +652,20 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         evm.warp(block.timestamp + timeWarp);
 
         uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
-        uint256 expectedLiquidity = poolService._expectedLiquidityLU() +
-            expectedInterest;
+        uint256 expectedLiquidity = poolService._expectedLiquidityLU() + expectedInterest;
 
-        assertEq(
-            poolService.expectedLiquidity(),
-            expectedLiquidity,
-            "Index value was not updated correctly"
-        );
+        assertEq(poolService.expectedLiquidity(), expectedLiquidity, "Index value was not updated correctly");
     }
 
     // [PS-29]: setExpectedLiquidityLimit() sets limit & emits event
-    function test_PS_29_setExpectedLiquidityLimit_correct_and_emits_event()
-        public
-    {
+    function test_PS_29_setExpectedLiquidityLimit_correct_and_emits_event() public {
         evm.expectEmit(false, false, false, true);
         emit NewExpectedLiquidityLimit(10000);
 
         evm.prank(CONFIGURATOR);
         poolService.setExpectedLiquidityLimit(10000);
 
-        assertEq(
-            poolService.expectedLiquidityLimit(),
-            10000,
-            "expectedLiquidityLimit not set correctly"
-        );
+        assertEq(poolService.expectedLiquidityLimit(), 10000, "expectedLiquidityLimit not set correctly");
     }
 
     // [PS-30]: addLiquidity reverts above expectedLiquidityLimit
@@ -848,11 +698,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         evm.prank(CONFIGURATOR);
         poolService.setWithdrawFee(50);
 
-        assertEq(
-            poolService.withdrawFee(),
-            50,
-            "withdrawFee not set correctly"
-        );
+        assertEq(poolService.withdrawFee(), 50, "withdrawFee not set correctly");
     }
 
     // [PS-33]: removeLiqudity correctly takes withdrawal fee
@@ -872,19 +718,9 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         poolService.removeLiquidity(addLiquidity, USER);
         evm.stopPrank();
 
-        expectBalance(
-            underlying,
-            treasury,
-            (addLiquidity * 50) / 10000,
-            "Incorrect balance in treasury"
-        );
+        expectBalance(underlying, treasury, (addLiquidity * 50) / 10000, "Incorrect balance in treasury");
 
-        expectBalance(
-            underlying,
-            USER,
-            balanceBefore + (addLiquidity * 9950) / 10000,
-            "Incorrect balance for user"
-        );
+        expectBalance(underlying, USER, balanceBefore + (addLiquidity * 9950) / 10000, "Incorrect balance for user");
     }
 
     // [PS-34]: connectCreditManager reverts on adding a manager twice
@@ -899,9 +735,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
     }
 
     // [PS-35]: updateInterestRateModel reverts on zero address
-    function test_PS_35_updateInterestRateModel_reverts_on_zero_address()
-        public
-    {
+    function test_PS_35_updateInterestRateModel_reverts_on_zero_address() public {
         evm.expectRevert(bytes(Errors.ZERO_ADDRESS_IS_NOT_ALLOWED));
         evm.prank(CONFIGURATOR);
         poolService.updateInterestRateModel(address(0));

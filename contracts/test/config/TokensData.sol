@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { Tokens } from "./Tokens.sol";
+import {Tokens} from "./Tokens.sol";
 import "../lib/constants.sol";
 // import "../lib/test.sol";
 
@@ -18,74 +18,38 @@ struct TestToken {
 contract TokensData {
     function tokensData() internal pure returns (TestToken[] memory result) {
         TestToken[10] memory testTokensData = [
-            TestToken({
-                index: Tokens.DAI,
-                symbol: "DAI",
-                decimals: 18,
-                price: 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.USDC,
-                symbol: "USDC",
-                decimals: 6,
-                price: 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
+            TestToken({index: Tokens.DAI, symbol: "DAI", decimals: 18, price: 10 ** 8, underlying: Tokens.NO_TOKEN}),
+            TestToken({index: Tokens.USDC, symbol: "USDC", decimals: 6, price: 10 ** 8, underlying: Tokens.NO_TOKEN}),
             TestToken({
                 index: Tokens.WETH,
                 symbol: "WETH",
                 decimals: 18,
-                price: int256(DAI_WETH_RATE) * 10**8,
+                price: int256(DAI_WETH_RATE) * 10 ** 8,
                 underlying: Tokens.NO_TOKEN
             }),
-            TestToken({
-                index: Tokens.LINK,
-                symbol: "LINK",
-                decimals: 18,
-                price: 15 * 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
+            TestToken({index: Tokens.LINK, symbol: "LINK", decimals: 18, price: 15 * 10 ** 8, underlying: Tokens.NO_TOKEN}),
             TestToken({
                 index: Tokens.USDT,
                 symbol: "USDT",
                 decimals: 18,
-                price: 99 * 10**7, // .99 for test purposes
+                price: 99 * 10 ** 7, // .99 for test purposes
                 underlying: Tokens.NO_TOKEN
             }),
             TestToken({
                 index: Tokens.STETH,
                 symbol: "stETH",
                 decimals: 18,
-                price: 3300 * 10**8,
+                price: 3300 * 10 ** 8,
                 underlying: Tokens.NO_TOKEN
             }),
-            TestToken({
-                index: Tokens.CRV,
-                symbol: "CRV",
-                decimals: 18,
-                price: 14 * 10**7,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.CVX,
-                symbol: "CVX",
-                decimals: 18,
-                price: 7 * 10**8,
-                underlying: Tokens.NO_TOKEN
-            }),
-            TestToken({
-                index: Tokens.LUNA,
-                symbol: "LUNA",
-                decimals: 18,
-                price: 1,
-                underlying: Tokens.NO_TOKEN
-            }),
+            TestToken({index: Tokens.CRV, symbol: "CRV", decimals: 18, price: 14 * 10 ** 7, underlying: Tokens.NO_TOKEN}),
+            TestToken({index: Tokens.CVX, symbol: "CVX", decimals: 18, price: 7 * 10 ** 8, underlying: Tokens.NO_TOKEN}),
+            TestToken({index: Tokens.LUNA, symbol: "LUNA", decimals: 18, price: 1, underlying: Tokens.NO_TOKEN}),
             TestToken({
                 index: Tokens.wstETH,
                 symbol: "wstETH",
                 decimals: 18,
-                price: 3300 * 10**8,
+                price: 3300 * 10 ** 8,
                 underlying: Tokens.NO_TOKEN
             })
         ];

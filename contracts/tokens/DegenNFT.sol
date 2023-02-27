@@ -4,20 +4,20 @@
 
 pragma solidity ^0.8.10;
 
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-import { AddressProvider } from "../core/AddressProvider.sol";
-import { ContractsRegister } from "../core/ContractsRegister.sol";
+import {AddressProvider} from "../core/AddressProvider.sol";
+import {ContractsRegister} from "../core/ContractsRegister.sol";
 
-import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
-import { NotImplementedException } from "../interfaces/IErrors.sol";
+import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
+import {NotImplementedException} from "../interfaces/IErrors.sol";
 
-import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
-import { ICreditFacade } from "../interfaces/ICreditFacade.sol";
-import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
+import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
+import {ICreditFacade} from "../interfaces/ICreditFacade.sol";
+import {IDegenNFT} from "../interfaces/IDegenNFT.sol";
 
 contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
     using Address for address;
@@ -50,26 +50,17 @@ contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
 
     /// @dev Restricts calls to the configurator or Credit Facades
     modifier creditFacadeOrConfiguratorOnly() {
-        if (
-            !isSupportedCreditFacade[msg.sender] &&
-            !_acl.isConfigurator(msg.sender)
-        ) {
+        if (!isSupportedCreditFacade[msg.sender] && !_acl.isConfigurator(msg.sender)) {
             revert CreditFacadeOrConfiguratorOnlyException();
         }
         _;
     }
 
-    constructor(
-        address _addressProvider,
-        string memory _name,
-        string memory _symbol
-    )
+    constructor(address _addressProvider, string memory _name, string memory _symbol)
         ACLNonReentrantTrait(_addressProvider)
         ERC721(_name, _symbol) // F:[DNFT-1]
     {
-        contractsRegister = ContractsRegister(
-            AddressProvider(_addressProvider).getContractsRegister()
-        );
+        contractsRegister = ContractsRegister(AddressProvider(_addressProvider).getContractsRegister());
     }
 
     function setMinter(address minter_)
@@ -90,18 +81,16 @@ contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
             }
 
             address creditManager;
-            try ICreditFacade(creditFacade_).creditManager() returns (
-                ICreditManagerV2 cm
-            ) {
+            try ICreditFacade(creditFacade_).creditManager() returns (ICreditManagerV2 cm) {
                 creditManager = address(cm);
             } catch {
                 revert InvalidCreditFacadeException(); // F:[DNFT-6]
             }
 
             if (
-                !contractsRegister.isCreditManager(creditManager) ||
-                ICreditFacade(creditFacade_).degenNFT() != address(this) ||
-                ICreditManagerV2(creditManager).creditFacade() != creditFacade_
+                !contractsRegister.isCreditManager(creditManager)
+                    || ICreditFacade(creditFacade_).degenNFT() != address(this)
+                    || ICreditManagerV2(creditManager).creditFacade() != creditFacade_
             ) revert InvalidCreditFacadeException(); // F:[DNFT-6]
 
             isSupportedCreditFacade[creditFacade_] = true; // F: [DNFT-10]
@@ -133,16 +122,8 @@ contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
     /**
      * @dev See {IERC721Metadata-tokenURI}.
      */
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(IERC721Metadata, ERC721)
-        returns (string memory)
-    {
-        require(
-            _exists(tokenId),
-            "ERC721Metadata: URI query for nonexistent token"
-        );
+    function tokenURI(uint256 tokenId) public view override (IERC721Metadata, ERC721) returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
 
         return _baseURI();
     }
@@ -157,7 +138,7 @@ contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
     {
         uint256 balanceBefore = balanceOf(to); // F:[DNFT-7]
 
-        for (uint256 i; i < amount; ) {
+        for (uint256 i; i < amount;) {
             uint256 tokenId = (uint256(uint160(to)) << 40) + balanceBefore + i; // F:[DNFT-7]
             _mint(to, tokenId); // F:[DNFT-7]
 
@@ -183,7 +164,7 @@ contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
             revert InsufficientBalanceException(); // F:[DNFT-8A]
         }
 
-        for (uint256 i; i < amount; ) {
+        for (uint256 i; i < amount;) {
             uint256 tokenId = (uint256(uint160(from)) << 40) + balance - i - 1; // F:[DNFT-8]
             _burn(tokenId); // F:[DNFT-8]
 
@@ -196,50 +177,27 @@ contract DegenNFT is ERC721, ACLNonReentrantTrait, IDegenNFT {
     }
 
     /// @dev Not implemented as the token is not transferrable
-    function approve(address, uint256)
-        public
-        pure
-        virtual
-        override(IERC721, ERC721)
-    {
+    function approve(address, uint256) public pure virtual override (IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
     /// @dev Not implemented as the token is not transferrable
-    function setApprovalForAll(address, bool)
-        public
-        pure
-        virtual
-        override(IERC721, ERC721)
-    {
+    function setApprovalForAll(address, bool) public pure virtual override (IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
     /// @dev Not implemented as the token is not transferrable
-    function transferFrom(
-        address,
-        address,
-        uint256
-    ) public pure virtual override(IERC721, ERC721) {
+    function transferFrom(address, address, uint256) public pure virtual override (IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
     /// @dev Not implemented as the token is not transferrable
-    function safeTransferFrom(
-        address,
-        address,
-        uint256
-    ) public pure virtual override(IERC721, ERC721) {
+    function safeTransferFrom(address, address, uint256) public pure virtual override (IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 
     /// @dev Not implemented as the token is not transferrable
-    function safeTransferFrom(
-        address,
-        address,
-        uint256,
-        bytes memory
-    ) public pure virtual override(IERC721, ERC721) {
+    function safeTransferFrom(address, address, uint256, bytes memory) public pure virtual override (IERC721, ERC721) {
         revert NotImplementedException(); // F:[DNFT-11]
     }
 }
