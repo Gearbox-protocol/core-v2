@@ -29,6 +29,18 @@ struct TokenLT {
     uint16 lt;
 }
 
+struct TokenQuotaParams {
+    uint96 totalQuoted;
+    uint96 limit;
+    uint16 rate; // current rate update
+    uint192 cumulativeIndexLU_RAY; // max 10^57
+}
+
+struct AccountQuota {
+    uint96 quota;
+    uint192 cumulativeIndexLU;
+}
+
 interface IPoolQuotaKeeperExceptions {
     error TokenQuotaIsAlreadyAdded();
 
