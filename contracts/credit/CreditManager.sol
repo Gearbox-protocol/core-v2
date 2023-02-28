@@ -727,30 +727,16 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         nonReentrant
     {
         address creditAccount = getCreditAccountOrRevert(creditFacade);
-        _checkAndEnableToken(creditAccount, token); // F:[CM-30]
+        _checkAndEnableToken(creditAccount, token);
     }
 
     /// @dev IMPLEMENTATION: checkAndEnableToken
-    /// @param creditAccount Address of a Credit Account to enable the token for
-    /// @param token Address of the token to be enabled
-    function _checkAndEnableToken(address creditAccount, address token) internal virtual {
-        uint256 tokenMask = tokenMasksMap(token); // F:[CM-30,31]
-
-        // Checks that the token is valid collateral recognized by the system
-        // and that it is not forbidden
-        if (tokenMask == 0 || forbiddenTokenMask & tokenMask != 0) {
-            revert TokenNotAllowedException();
-        } // F:[CM-30]
-
-        // Performs an inclusion check using token masks,
-        // to avoid accidentally disabling the token
-        // Also checks that the token is not in limited token mask,
-        // as limited tokens are only enabled and disabled by setting quotas
-        if (
-            (enabledTokensMap[creditAccount] & tokenMask == 0) && (tokenMask & limitedTokenMask == 0) // F: [CMQ-07]
-        ) {
-            enabledTokensMap[creditAccount] |= tokenMask;
-        } // F:[CM-31]
+    function _checkAndEnableToken(address creditAccount, address token) internal {
+        uint256 tokenMask = tokenMasksMap(token);
+        if (tokenMask == 0) {
+            revert TokenNotAllowedException(); // F:[CM-30]
+        }
+        _changeEnabledTokens(creditAccount, tokenMask, 0);
     }
 
     /// @dev Performs a full health check on an account with a custom order of evaluated tokens and
@@ -980,17 +966,62 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
     /// @dev IMPLEMENTATION: disableToken
     function _disableToken(address creditAccount, address token) internal returns (bool wasChanged) {
-        // The enabled token mask encodes all enabled tokens as 1,
-        // therefore the corresponding bit is set to 0 to disable it
-        // Also checks that the token is not in limitedTokenMask,
-        // as limited tokens are only enabled and disabled by setting quotas
         uint256 tokenMask = tokenMasksMap(token);
-        if (
-            (enabledTokensMap[creditAccount] & tokenMask != 0) && (tokenMask & limitedTokenMask == 0) // F: [CMQ-07]
-        ) {
-            enabledTokensMap[creditAccount] &= ~tokenMask; // F:[CM-46]
-            wasChanged = true;
+        (, wasChanged) = _changeEnabledTokens(creditAccount, 0, tokenMask);
+    }
+
+    /// @dev Changes enabled tokens for a Credit Account currently owned by the Credit Facade
+    /// @notice Can be used by adapters that enable/disable multiple tokens at the same time to reduce gas costs
+    /// @param tokensToEnable Tokens mask where 1's represent tokens that should be enabled
+    /// @param tokensToDisable Tokens mask where 1's represent tokens that should be disabled
+    /// @return wasEnabled True if at least one token was enabled and false otherwise
+    /// @return wasDisabled True if at least one token was disabled and false otherwise
+    function changeEnabledTokens(uint256 tokensToEnable, uint256 tokensToDisable)
+        external
+        override
+        whenNotPausedOrEmergency
+        adaptersOrCreditFacadeOnly
+        nonReentrant
+        returns (bool wasEnabled, bool wasDisabled)
+    {
+        address creditAccount = getCreditAccountOrRevert(creditFacade);
+        return _changeEnabledTokens(creditAccount, tokensToEnable, tokensToDisable);
+    }
+
+    /// @dev IMPLEMENTATION: changeEnabledTokens
+    function _changeEnabledTokens(address creditAccount, uint256 tokensToEnable, uint256 tokensToDisable)
+        internal
+        virtual
+        returns (bool wasEnabled, bool wasDisabled)
+    {
+        // remove limited tokens as they can only enabled/disabled during quota updates
+        uint256 limitedTokens = limitedTokenMask;
+        tokensToEnable &= ~limitedTokens; // F:[CMQ-7]
+        tokensToDisable &= ~limitedTokens; // F:[CMQ-7]
+
+        // remove tokens on the intersection as they will cancel each other
+        uint256 intersection = tokensToEnable & tokensToDisable;
+        tokensToEnable &= ~intersection;
+        tokensToDisable &= ~intersection;
+
+        // check that operation doesn't try to enable one of forbidden tokens
+        if (forbiddenTokenMask & tokensToEnable != 0) {
+            revert TokenNotAllowedException(); // F:[CM-30]
         }
+
+        uint256 enabledTokens = enabledTokensMap[creditAccount];
+
+        wasEnabled = tokensToEnable & ~enabledTokens != 0;
+        if (wasEnabled) {
+            enabledTokens |= tokensToEnable; // F:[CM-31]
+        }
+
+        wasDisabled = tokensToDisable & enabledTokens != 0;
+        if (wasDisabled) {
+            enabledTokens &= ~tokensToDisable; // F:[CM-46]
+        }
+
+        if (wasEnabled || wasDisabled) enabledTokensMap[creditAccount] = enabledTokens;
     }
 
     //
