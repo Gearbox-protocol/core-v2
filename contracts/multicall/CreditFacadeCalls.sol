@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.17;
 
 import {MultiCall} from "../libraries/MultiCall.sol";
 import {Balance, BalanceOps} from "../libraries/Balances.sol";
+import {QuotaUpdate} from "../interfaces/IPoolQuotaKeeper.sol";
 import {ICreditFacade, ICreditFacadeExtended} from "../interfaces/ICreditFacade.sol";
 
 interface CreditFacadeMulticaller {}
@@ -17,7 +18,7 @@ library CreditFacadeCalls {
     {
         return MultiCall({
             target: address(creditFacade),
-            callData: abi.encodeWithSelector(ICreditFacadeExtended.revertIfReceivedLessThan.selector, expectedBalances)
+            callData: abi.encodeCall(ICreditFacadeExtended.revertIfReceivedLessThan, (expectedBalances))
         });
     }
 
@@ -28,7 +29,7 @@ library CreditFacadeCalls {
     {
         return MultiCall({
             target: address(creditFacade),
-            callData: abi.encodeWithSelector(ICreditFacade.addCollateral.selector, borrower, token, amount)
+            callData: abi.encodeCall(ICreditFacade.addCollateral, (borrower, token, amount))
         });
     }
 
@@ -39,7 +40,7 @@ library CreditFacadeCalls {
     {
         return MultiCall({
             target: address(creditFacade),
-            callData: abi.encodeWithSelector(ICreditFacadeExtended.increaseDebt.selector, amount)
+            callData: abi.encodeCall(ICreditFacadeExtended.increaseDebt, (amount))
         });
     }
 
@@ -50,7 +51,7 @@ library CreditFacadeCalls {
     {
         return MultiCall({
             target: address(creditFacade),
-            callData: abi.encodeWithSelector(ICreditFacadeExtended.decreaseDebt.selector, amount)
+            callData: abi.encodeCall(ICreditFacadeExtended.decreaseDebt, (amount))
         });
     }
 
@@ -61,7 +62,7 @@ library CreditFacadeCalls {
     {
         return MultiCall({
             target: address(creditFacade),
-            callData: abi.encodeWithSelector(ICreditFacadeExtended.enableToken.selector, token)
+            callData: abi.encodeCall(ICreditFacadeExtended.enableToken, (token))
         });
     }
 
@@ -72,7 +73,29 @@ library CreditFacadeCalls {
     {
         return MultiCall({
             target: address(creditFacade),
-            callData: abi.encodeWithSelector(ICreditFacadeExtended.disableToken.selector, token)
+            callData: abi.encodeCall(ICreditFacadeExtended.disableToken, (token))
+        });
+    }
+
+    function updateQuotas(CreditFacadeMulticaller creditFacade, QuotaUpdate[] memory quotaUpdates)
+        internal
+        pure
+        returns (MultiCall memory)
+    {
+        return MultiCall({
+            target: address(creditFacade),
+            callData: abi.encodeCall(ICreditFacadeExtended.updateQuotas, quotaUpdates)
+        });
+    }
+
+    function setFullCheckParams(
+        CreditFacadeMulticaller creditFacade,
+        uint256[] memory collateralHints,
+        uint16 minHealthFactor
+    ) internal pure returns (MultiCall memory) {
+        return MultiCall({
+            target: address(creditFacade),
+            callData: abi.encodeCall(ICreditFacadeExtended.setFullCheckParams, (collateralHints, minHealthFactor))
         });
     }
 }

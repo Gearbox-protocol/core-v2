@@ -128,9 +128,7 @@ contract CreditManagerQuotasTest is
         return cms.openCreditAccount();
     }
 
-    function expectTokenIsEnabled(Tokens t, bool expectedState) internal {
-        address creditAccount = creditManager.getCreditAccountOrRevert(USER);
-
+    function expectTokenIsEnabled(address creditAccount, Tokens t, bool expectedState) internal {
         bool state = creditManager.tokenMasksMap(tokenTestSuite.addressOf(t))
             & creditManager.enabledTokensMap(creditAccount) != 0;
         assertTrue(
@@ -145,12 +143,10 @@ contract CreditManagerQuotasTest is
         );
     }
 
-    function mintBalance(Tokens t, uint256 amount, bool enable) internal {
-        address creditAccount = creditManager.getCreditAccountOrRevert(USER);
-
+    function mintBalance(address creditAccount, Tokens t, uint256 amount, bool enable) internal {
         tokenTestSuite.mint(t, creditAccount, amount);
         if (enable) {
-            creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(t));
+            creditManager.checkAndEnableToken(tokenTestSuite.addressOf(t));
         }
     }
 
@@ -227,8 +223,8 @@ contract CreditManagerQuotasTest is
 
         creditManager.updateQuotas(creditAccount, quotaUpdates);
 
-        expectTokenIsEnabled(Tokens.LINK, true);
-        expectTokenIsEnabled(Tokens.USDT, true);
+        expectTokenIsEnabled(creditAccount, Tokens.LINK, true);
+        expectTokenIsEnabled(creditAccount, Tokens.USDT, true);
 
         evm.warp(block.timestamp + 60 * 60 * 24 * 365);
 
@@ -237,8 +233,8 @@ contract CreditManagerQuotasTest is
 
         creditManager.updateQuotas(creditAccount, quotaUpdates);
 
-        expectTokenIsEnabled(Tokens.LINK, false);
-        expectTokenIsEnabled(Tokens.USDT, true);
+        expectTokenIsEnabled(creditAccount, Tokens.LINK, false);
+        expectTokenIsEnabled(creditAccount, Tokens.USDT, true);
 
         assertEq(
             creditManager.cumulativeQuotaInterest(creditAccount),
@@ -380,10 +376,11 @@ contract CreditManagerQuotasTest is
 
     function test_CMQ_07_enableToken_disableToken_do_nothing_for_limited_tokens() public {
         (,,, address creditAccount) = _openCreditAccount();
+        creditManager.transferAccountOwnership(USER, address(this));
 
-        creditManager.checkAndEnableToken(creditAccount, tokenTestSuite.addressOf(Tokens.LINK));
+        creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.LINK));
 
-        expectTokenIsEnabled(Tokens.LINK, false);
+        expectTokenIsEnabled(creditAccount, Tokens.LINK, false);
 
         QuotaUpdate[] memory quotaUpdates = new QuotaUpdate[](1);
         quotaUpdates[0] =
@@ -391,9 +388,9 @@ contract CreditManagerQuotasTest is
 
         creditManager.updateQuotas(creditAccount, quotaUpdates);
 
-        creditManager.disableToken(creditAccount, tokenTestSuite.addressOf(Tokens.LINK));
+        creditManager.disableToken(tokenTestSuite.addressOf(Tokens.LINK));
 
-        expectTokenIsEnabled(Tokens.LINK, true);
+        expectTokenIsEnabled(creditAccount, Tokens.LINK, true);
     }
 
     /// @dev [CMQ-08]: fullCollateralCheck fuzzing test with quotas
@@ -419,6 +416,7 @@ contract CreditManagerQuotasTest is
         tokenTestSuite.mint(Tokens.DAI, address(poolMock), borrowedAmount);
 
         (,,, address creditAccount) = cms.openCreditAccount(borrowedAmount);
+        creditManager.transferAccountOwnership(USER, address(this));
 
         if (daiBalance > borrowedAmount) {
             tokenTestSuite.mint(Tokens.DAI, creditAccount, daiBalance - borrowedAmount);
@@ -438,9 +436,9 @@ contract CreditManagerQuotasTest is
             creditManager.updateQuotas(creditAccount, quotaUpdates);
         }
 
-        mintBalance(Tokens.WETH, wethBalance, enableWETH);
-        mintBalance(Tokens.USDC, usdcBalance, false);
-        mintBalance(Tokens.LINK, linkBalance, false);
+        mintBalance(creditAccount, Tokens.WETH, wethBalance, enableWETH);
+        mintBalance(creditAccount, Tokens.USDC, usdcBalance, false);
+        mintBalance(creditAccount, Tokens.LINK, linkBalance, false);
 
         uint256 twvUSD = (
             tokenTestSuite.balanceOf(Tokens.DAI, creditAccount) * tokenTestSuite.prices(Tokens.DAI)
@@ -501,6 +499,7 @@ contract CreditManagerQuotasTest is
         tokenTestSuite.mint(Tokens.DAI, address(poolMock), 1_250_000 * WAD);
 
         (,,, address creditAccount) = cms.openCreditAccount(1_250_000 * WAD);
+        creditManager.transferAccountOwnership(USER, address(this));
 
         {
             QuotaUpdate[] memory quotaUpdates = new QuotaUpdate[](2);
@@ -512,13 +511,13 @@ contract CreditManagerQuotasTest is
             creditManager.updateQuotas(creditAccount, quotaUpdates);
         }
 
-        mintBalance(Tokens.USDC, RAY, false);
-        mintBalance(Tokens.LINK, RAY, false);
+        mintBalance(creditAccount, Tokens.USDC, RAY, false);
+        mintBalance(creditAccount, Tokens.LINK, RAY, false);
 
         evm.prank(CONFIGURATOR);
         creditManager.addToken(DUMB_ADDRESS);
 
-        creditManager.checkAndEnableToken(creditAccount, DUMB_ADDRESS);
+        creditManager.checkAndEnableToken(DUMB_ADDRESS);
 
         uint256 revertMask = creditManager.tokenMasksMap(DUMB_ADDRESS);
 

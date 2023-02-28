@@ -716,17 +716,17 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     // COLLATERAL VALIDITY AND ACCOUNT HEALTH CHECKS
     //
 
-    /// @dev Enables a token on a Credit Account, including it
-    /// into account health and total value calculations
-    /// @param creditAccount Address of a Credit Account to enable the token for
-    /// @param token Address of the token to be enabled
-    function checkAndEnableToken(address creditAccount, address token)
+    /// @dev Enables a token on a Credit Account currently owned by the Credit Facade,
+    ///      including it into account health factor and total value calculations
+    /// @param token Address of the token to enable
+    function checkAndEnableToken(address token)
         external
         override
         whenNotPausedOrEmergency
         adaptersOrCreditFacadeOnly // F:[CM-3]
         nonReentrant
     {
+        address creditAccount = getCreditAccountOrRevert(creditFacade);
         _checkAndEnableToken(creditAccount, token); // F:[CM-30]
     }
 
@@ -959,11 +959,14 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         }
     }
 
-    /// @dev Disables a token on a credit account
+    /// @dev Disables a token on a Credit Account currently owned by the Credit Facade
+    ///      excluding it from account health factor and total value calculations
     /// @notice Usually called by adapters to disable spent tokens during a multicall,
     ///         but can also be called separately from the Credit Facade to remove
     ///         unwanted tokens
-    function disableToken(address creditAccount, address token)
+    /// @param token Address of the token to disable
+    /// @return True if token mask was changed and false otherwise
+    function disableToken(address token)
         external
         override
         whenNotPausedOrEmergency // F:[CM-5]
@@ -971,6 +974,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         nonReentrant
         returns (bool)
     {
+        address creditAccount = getCreditAccountOrRevert(creditFacade);
         return _disableToken(creditAccount, token);
     }
 
