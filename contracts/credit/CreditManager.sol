@@ -248,7 +248,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // Initializes the enabled token mask for Credit Account to 1 (only the underlying is enabled)
         enabledTokensMap[creditAccount] = 1; // F:[CM-8]
 
-        if (supportsQuotas) cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-01]
+        if (supportsQuotas) cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-1]
 
         // Returns the address of the opened Credit Account
         return creditAccount; // F:[CM-8]
@@ -338,7 +338,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 quotaInterest = cumulativeQuotaInterest[creditAccount];
 
                 if (tokens.length > 0) {
-                    quotaInterest += poolQuotaKeeper().closeCreditAccount(creditAccount, tokens); // F: [CMQ-06]
+                    quotaInterest += poolQuotaKeeper().closeCreditAccount(creditAccount, tokens); // F: [CMQ-6]
                 }
             }
 
@@ -515,23 +515,23 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
         TokenLT[] memory tokens = getLimitedTokens(creditAccount);
         if (tokens.length > 0) {
-            quotaInterestAccrued += poolQuotaKeeper().accrueQuotaInterest(creditAccount, tokens); // F: [CMQ-04, 05]
+            quotaInterestAccrued += poolQuotaKeeper().accrueQuotaInterest(creditAccount, tokens); // F: [CMQ-4,5]
         }
 
         if (quotaInterestAccrued > 2) {
             uint256 quotaProfit = (quotaInterestAccrued * fee) / PERCENTAGE_FACTOR;
 
             if (amountRepaid >= quotaInterestAccrued + quotaProfit) {
-                amountRepaid -= quotaInterestAccrued + quotaProfit; // F: [CMQ-05]
-                amountProfit += quotaProfit; // F: [CMQ-05]
-                cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-05]
+                amountRepaid -= quotaInterestAccrued + quotaProfit; // F: [CMQ-5]
+                amountProfit += quotaProfit; // F: [CMQ-5]
+                cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-5]
             } else {
                 uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) / (PERCENTAGE_FACTOR + fee);
 
-                amountProfit += amountRepaid - amountToPool; // F: [CMQ-04]
-                amountRepaid = 0; // F: [CMQ-04]
+                amountProfit += amountRepaid - amountToPool; // F: [CMQ-4]
+                amountRepaid = 0; // F: [CMQ-4]
 
-                cumulativeQuotaInterest[creditAccount] = quotaInterestAccrued - amountToPool + 1; // F: [CMQ-04]
+                cumulativeQuotaInterest[creditAccount] = quotaInterestAccrued - amountToPool + 1; // F: [CMQ-4]
             }
         }
     }
@@ -917,7 +917,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         external
         view
         override
-        adaptersOrCreditFacadeOnly // F: [CM-2]
+        adaptersOrCreditFacadeOnly // F:[CM-3]
     {
         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
         uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokenMask);
@@ -955,7 +955,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     function disableToken(address token)
         external
         override
-        whenNotPausedOrEmergency // F:[CM-5]
+        whenNotPausedOrEmergency
         adaptersOrCreditFacadeOnly // F:[CM-3]
         nonReentrant
         returns (bool)
@@ -980,7 +980,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         external
         override
         whenNotPausedOrEmergency
-        adaptersOrCreditFacadeOnly
+        adaptersOrCreditFacadeOnly // F:[CM-3]
         nonReentrant
         returns (bool wasEnabled, bool wasDisabled)
     {
@@ -1001,24 +1001,24 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
         // remove tokens on the intersection as they will cancel each other
         uint256 intersection = tokensToEnable & tokensToDisable;
-        tokensToEnable &= ~intersection;
-        tokensToDisable &= ~intersection;
+        tokensToEnable &= ~intersection; // F:[CM-33]
+        tokensToDisable &= ~intersection; // F:[CM-33]
 
         // check that operation doesn't try to enable one of forbidden tokens
         if (forbiddenTokenMask & tokensToEnable != 0) {
-            revert TokenNotAllowedException(); // F:[CM-30]
+            revert TokenNotAllowedException(); // F:[CM-30,32]
         }
 
         uint256 enabledTokens = enabledTokensMap[creditAccount];
 
         wasEnabled = tokensToEnable & ~enabledTokens != 0;
         if (wasEnabled) {
-            enabledTokens |= tokensToEnable; // F:[CM-31]
+            enabledTokens |= tokensToEnable; // F:[CM-31,34]
         }
 
         wasDisabled = tokensToDisable & enabledTokens != 0;
         if (wasDisabled) {
-            enabledTokens &= ~tokensToDisable; // F:[CM-46]
+            enabledTokens &= ~tokensToDisable; // F:[CM-34,46]
         }
 
         if (wasEnabled || wasDisabled) enabledTokensMap[creditAccount] = enabledTokens;
@@ -1628,9 +1628,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     ///         Tokens in the mask also incur additional interest based on their quotas
     function setLimitedMask(uint256 _limitedTokenMask)
         external
-        creditConfiguratorOnly // F: [CMQ-02]
+        creditConfiguratorOnly // F: [CMQ-2]
     {
-        limitedTokenMask = _limitedTokenMask; // F: [CMQ-02]
+        limitedTokenMask = _limitedTokenMask; // F: [CMQ-2]
     }
 
     /// @dev Sets the maximal number of enabled tokens on a single Credit Account.
