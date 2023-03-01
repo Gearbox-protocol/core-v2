@@ -58,23 +58,33 @@ abstract contract AbstractAdapter is IAdapter {
         return creditManager.executeOrder(targetContract, callData); // F: [AA-6,9]
     }
 
-    /// @dev Approves a token from the Credit Account to the target contract
+    /// @dev Approves the target contract to spend given token from the Credit Account
     /// @param token Token to be approved
     /// @param amount Amount to be approved
     function _approveToken(address token, uint256 amount) internal {
         creditManager.approveCreditAccount(targetContract, token, amount); // F: [AA-6,10]
     }
 
-    /// @dev Enable a token in the Credit Account
+    /// @dev Enables a token in the Credit Account
     /// @param token Address of the token to enable
     function _enableToken(address token) internal {
         creditManager.checkAndEnableToken(token); // F: [AA-6,11]
     }
 
-    /// @dev Disable a token in the Credit Account
+    /// @dev Disables a token in the Credit Account
     /// @param token Address of the token to disable
     function _disableToken(address token) internal {
         creditManager.disableToken(token); // F: [AA-6,12]
+    }
+
+    /// @dev Changes enabled tokens in the Credit Account
+    /// @param tokensToEnable Bitmask of tokens that should be enabled
+    /// @param tokensToDisable Bitmask of tokens that should be disabled
+    /// @dev This function might be useful for adapters that work with limited set of tokens, whose masks can be
+    ///      determined in the adapter constructor, thus saving gas by avoiding querying them during execution
+    ///      and combining multiple enable/disable operations into a single one
+    function _changeEnabledTokens(uint256 tokensToEnable, uint256 tokensToDisable) internal {
+        creditManager.changeEnabledTokens(tokensToEnable, tokensToDisable); // F: [AA-6,13]
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account

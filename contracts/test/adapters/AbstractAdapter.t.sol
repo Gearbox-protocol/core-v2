@@ -170,6 +170,17 @@ contract AbstractAdapterTest is
             )
         );
 
+        evm.prank(USER);
+        evm.expectRevert(HasNoOpenedAccountException.selector);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: abi.encodeCall(AdapterMock.changeEnabledTokens, (0, 0))
+                })
+            )
+        );
+
         for (uint256 dt; dt < 2; ++dt) {
             evm.prank(USER);
             evm.expectRevert(HasNoOpenedAccountException.selector);
@@ -326,6 +337,23 @@ contract AbstractAdapterTest is
         creditFacade.multicall(
             multicallBuilder(
                 MultiCall({target: address(adapterMock), callData: abi.encodeCall(adapterMock.disableToken, (usdc))})
+            )
+        );
+    }
+
+    /// @dev [AA-13]: _changeEnabledTokens correctly passes parameters to CreditManager
+    function test_AA_13_changeEnabledTokens_correctly_passes_to_credit_manager() public {
+        _openTestCreditAccount();
+
+        evm.expectCall(address(creditManager), abi.encodeCall(ICreditManagerV2.changeEnabledTokens, (1, 2)));
+
+        evm.prank(USER);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: abi.encodeCall(adapterMock.changeEnabledTokens, (1, 2))
+                })
             )
         );
     }

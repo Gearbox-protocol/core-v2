@@ -731,7 +731,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     }
 
     /// @dev IMPLEMENTATION: checkAndEnableToken
-    function _checkAndEnableToken(address creditAccount, address token) internal {
+    function _checkAndEnableToken(address creditAccount, address token) internal virtual {
         uint256 tokenMask = tokenMasksMap(token);
         if (tokenMask == 0) {
             revert TokenNotAllowedException(); // F:[CM-30]
@@ -965,7 +965,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     }
 
     /// @dev IMPLEMENTATION: disableToken
-    function _disableToken(address creditAccount, address token) internal returns (bool wasChanged) {
+    function _disableToken(address creditAccount, address token) internal virtual returns (bool wasChanged) {
         uint256 tokenMask = tokenMasksMap(token);
         (, wasChanged) = _changeEnabledTokens(creditAccount, 0, tokenMask);
     }
@@ -999,7 +999,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         tokensToEnable &= ~limitedTokens; // F:[CMQ-7]
         tokensToDisable &= ~limitedTokens; // F:[CMQ-7]
 
-        // remove tokens on the intersection as they will cancel each other
+        // remove tokens on the intersection (otherwise return variables might be incorrect)
         uint256 intersection = tokensToEnable & tokensToDisable;
         tokensToEnable &= ~intersection; // F:[CM-33]
         tokensToDisable &= ~intersection; // F:[CM-33]
