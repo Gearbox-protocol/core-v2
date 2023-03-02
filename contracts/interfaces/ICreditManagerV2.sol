@@ -231,6 +231,16 @@ interface ICreditManagerV2 is ICreditManagerV2Events, ICreditManagerV2Exceptions
     /// @return True if token mask was changed and false otherwise
     function disableToken(address token) external returns (bool);
 
+    /// @dev Changes enabled tokens for a Credit Account currently owned by the Credit Facade
+    /// @notice Can be used by adapters that enable/disable multiple tokens at the same time to reduce gas costs
+    /// @param tokensToEnable Tokens mask where 1's represent tokens that should be enabled
+    /// @param tokensToDisable Tokens mask where 1's represent tokens that should be disabled
+    /// @return wasEnabled True if at least one token was enabled and false otherwise
+    /// @return wasDisabled True if at least one token was disabled and false otherwise
+    function changeEnabledTokens(uint256 tokensToEnable, uint256 tokensToDisable)
+        external
+        returns (bool wasEnabled, bool wasDisabled);
+
     //
     // QUOTAS MANAGEMENT
     //

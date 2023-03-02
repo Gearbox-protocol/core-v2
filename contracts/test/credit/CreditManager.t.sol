@@ -383,7 +383,9 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
     /// - executeOrder
     /// - checkAndEnableToken
     /// - fullCollateralCheck
-    function test_CM_03_credit_account_execution_functions_revert_if_not_called_by_creditFacade() public {
+    /// - disableToken
+    /// - changeEnabledTokens
+    function test_CM_03_credit_account_execution_functions_revert_if_not_called_by_creditFacade_or_adapters() public {
         assertEq(creditManager.creditFacade(), address(this));
 
         evm.startPrank(USER);
@@ -402,6 +404,12 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
 
         evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
         creditManager.checkEnabledTokensLength(DUMB_ADDRESS);
+
+        evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
+        creditManager.disableToken(DUMB_ADDRESS);
+
+        evm.expectRevert(AdaptersOrCreditFacadeOnlyException.selector);
+        creditManager.changeEnabledTokens(0, 0);
 
         evm.stopPrank();
     }
@@ -1337,7 +1345,7 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         evm.expectRevert(TokenNotAllowedException.selector);
         creditManager.checkAndEnableToken(DUMB_ADDRESS);
 
-        // Case: token is frobidden
+        // Case: token is forbidden
         address token = tokenTestSuite.addressOf(Tokens.USDC);
         uint256 tokenMask = creditManager.tokenMasksMap(token);
 
@@ -1363,6 +1371,117 @@ contract CreditManagerTest is DSTest, ICreditManagerV2Events, ICreditManagerV2Ex
         // Case: token is already enabled
         creditManager.checkAndEnableToken(token);
         expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
+    }
+
+    //
+    // CHANGE ENABLED TOKENS
+    //
+
+    /// @dev [CM-32]: changeEnabledTokens reverts on enabling forbidden tokens
+    function test_CM_32_changeEnabledTokens_reverts_on_enabling_forbidden_tokens() public {
+        _openAccountAndTransferToCF();
+
+        address token = tokenTestSuite.addressOf(Tokens.USDC);
+        uint256 tokenMask = creditManager.tokenMasksMap(token);
+
+        evm.prank(CONFIGURATOR);
+        creditManager.setForbidMask(tokenMask);
+
+        evm.expectRevert(TokenNotAllowedException.selector);
+        creditManager.changeEnabledTokens(tokenMask, 0);
+    }
+
+    /// @dev [CM-33]: changeEnabledTokens ignores tokens on intersection of toEnable and toDisable
+    function test_CM_33_changeEnabledTokens_ignores_tokens_on_intersection() public {
+        address creditAccount = _openAccountAndTransferToCF();
+
+        address token = tokenTestSuite.addressOf(Tokens.USDC);
+        uint256 tokenMask = creditManager.tokenMasksMap(token);
+
+        (bool wasEnabled, bool wasDisabled) = creditManager.changeEnabledTokens(tokenMask, tokenMask);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, false);
+        assertTrue(!wasEnabled);
+        assertTrue(!wasDisabled);
+
+        creditManager.checkAndEnableToken(token);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
+
+        (wasEnabled, wasDisabled) = creditManager.changeEnabledTokens(tokenMask, tokenMask);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
+        assertTrue(!wasEnabled);
+        assertTrue(!wasDisabled);
+    }
+
+    /// @dev [CM-34] changeEnabledTokens enables and disables tokens for credit account
+    function test_CM_34_changeEnabledTokens_enables_and_disables_tokens_for_credit_account() public {
+        address creditAccount = _openAccountAndTransferToCF();
+
+        address token = tokenTestSuite.addressOf(Tokens.USDC);
+        uint256 tokenMask = creditManager.tokenMasksMap(token);
+
+        (bool wasEnabled, bool wasDisabled) = creditManager.changeEnabledTokens(tokenMask, 0);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, true);
+        assertTrue(wasEnabled);
+        assertTrue(!wasDisabled);
+
+        (wasEnabled, wasDisabled) = creditManager.changeEnabledTokens(0, tokenMask);
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, false);
+        assertTrue(!wasEnabled);
+        assertTrue(wasDisabled);
+    }
+
+    /// @dev [CM-35] changeEnabledTokens fuzzing test
+    function test_CM_35_changeEnabledTokens_fuzzing_test(
+        bool enableUsdc,
+        bool disableUsdc,
+        bool enableWeth,
+        bool disableWeth,
+        bool enableLink,
+        bool disableLink,
+        bool forbidLink
+    ) public {
+        address creditAccount = _openAccountAndTransferToCF();
+
+        if (disableUsdc) creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.USDC));
+        if (disableWeth) creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.WETH));
+        if (disableLink) creditManager.checkAndEnableToken(tokenTestSuite.addressOf(Tokens.LINK));
+
+        uint256 tokensToEnable;
+        uint256 tokensToDisable;
+        bool mustRevert;
+        {
+            uint256 usdcMask = creditManager.tokenMasksMap(tokenTestSuite.addressOf(Tokens.USDC));
+            uint256 wethMask = creditManager.tokenMasksMap(tokenTestSuite.addressOf(Tokens.WETH));
+            uint256 linkMask = creditManager.tokenMasksMap(tokenTestSuite.addressOf(Tokens.LINK));
+
+            tokensToEnable = 0;
+            if (enableUsdc) tokensToEnable |= usdcMask;
+            if (enableWeth) tokensToEnable |= wethMask;
+            if (enableLink) tokensToEnable |= linkMask;
+
+            tokensToDisable = 0;
+            if (disableUsdc) tokensToDisable |= usdcMask;
+            if (disableWeth) tokensToDisable |= wethMask;
+            if (disableLink) tokensToDisable |= linkMask;
+
+            if (forbidLink) {
+                evm.prank(CONFIGURATOR);
+                creditManager.setForbidMask(linkMask);
+            }
+
+            mustRevert = forbidLink && enableLink && !disableLink;
+        }
+
+        if (mustRevert) evm.expectRevert(TokenNotAllowedException.selector);
+        (bool enabled, bool disabled) = creditManager.changeEnabledTokens(tokensToEnable, tokensToDisable);
+        if (mustRevert) return;
+
+        expectTokenIsEnabled(creditAccount, Tokens.USDC, enableUsdc);
+        expectTokenIsEnabled(creditAccount, Tokens.WETH, enableWeth);
+        expectTokenIsEnabled(creditAccount, Tokens.LINK, enableLink);
+
+        assertTrue(enabled == (enableUsdc && !disableUsdc || enableWeth && !disableWeth || enableLink && !disableLink));
+        assertTrue(disabled == (!enableUsdc && disableUsdc || !enableWeth && disableWeth || !enableLink && disableLink));
     }
 
     //
