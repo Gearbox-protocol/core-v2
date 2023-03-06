@@ -24,50 +24,12 @@ contract AdapterMock is AbstractAdapter {
         return _creditAccount();
     }
 
-    function executeSwapNoApprove(
-        address account,
-        address tokenIn,
-        address tokenOut,
-        bytes memory callData,
-        bool disableTokenIn
-    ) external creditFacadeOnly returns (bytes memory result) {
-        return _executeSwapNoApprove(account, tokenIn, tokenOut, callData, disableTokenIn);
-    }
-
     function executeSwapNoApprove(address tokenIn, address tokenOut, bytes memory callData, bool disableTokenIn)
         external
         creditFacadeOnly
         returns (bytes memory result)
     {
         return _executeSwapNoApprove(tokenIn, tokenOut, callData, disableTokenIn);
-    }
-
-    function executeSwapMaxApprove(
-        address account,
-        address tokenIn,
-        address tokenOut,
-        bytes memory callData,
-        bool disableTokenIn
-    ) external creditFacadeOnly returns (bytes memory result) {
-        return _executeSwapMaxApprove(account, tokenIn, tokenOut, callData, disableTokenIn);
-    }
-
-    function executeSwapMaxApprove(address tokenIn, address tokenOut, bytes memory callData, bool disableTokenIn)
-        external
-        creditFacadeOnly
-        returns (bytes memory result)
-    {
-        return _executeSwapMaxApprove(tokenIn, tokenOut, callData, disableTokenIn);
-    }
-
-    function executeSwapSafeApprove(
-        address account,
-        address tokenIn,
-        address tokenOut,
-        bytes memory callData,
-        bool disableTokenIn
-    ) external creditFacadeOnly returns (bytes memory result) {
-        return _executeSwapSafeApprove(account, tokenIn, tokenOut, callData, disableTokenIn);
     }
 
     function executeSwapSafeApprove(address tokenIn, address tokenOut, bytes memory callData, bool disableTokenIn)
@@ -84,6 +46,18 @@ contract AdapterMock is AbstractAdapter {
 
     function approveToken(address token, uint256 amount) external creditFacadeOnly {
         _approveToken(token, amount);
+    }
+
+    function enableToken(address token) external creditFacadeOnly {
+        _enableToken(token);
+    }
+
+    function disableToken(address token) external creditFacadeOnly {
+        _disableToken(token);
+    }
+
+    function changeEnabledTokens(uint256 tokensToEnable, uint256 tokensToDisable) external creditFacadeOnly {
+        _changeEnabledTokens(tokensToEnable, tokensToDisable);
     }
 
     fallback() external creditFacadeOnly {

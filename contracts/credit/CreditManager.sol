@@ -248,7 +248,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         // Initializes the enabled token mask for Credit Account to 1 (only the underlying is enabled)
         enabledTokensMap[creditAccount] = 1; // F:[CM-8]
 
-        if (supportsQuotas) cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-01]
+        if (supportsQuotas) cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-1]
 
         // Returns the address of the opened Credit Account
         return creditAccount; // F:[CM-8]
@@ -338,7 +338,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
                 quotaInterest = cumulativeQuotaInterest[creditAccount];
 
                 if (tokens.length > 0) {
-                    quotaInterest += poolQuotaKeeper().closeCreditAccount(creditAccount, tokens); // F: [CMQ-06]
+                    quotaInterest += poolQuotaKeeper().closeCreditAccount(creditAccount, tokens); // F: [CMQ-6]
                 }
             }
 
@@ -515,23 +515,23 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
 
         TokenLT[] memory tokens = getLimitedTokens(creditAccount);
         if (tokens.length > 0) {
-            quotaInterestAccrued += poolQuotaKeeper().accrueQuotaInterest(creditAccount, tokens); // F: [CMQ-04, 05]
+            quotaInterestAccrued += poolQuotaKeeper().accrueQuotaInterest(creditAccount, tokens); // F: [CMQ-4,5]
         }
 
         if (quotaInterestAccrued > 2) {
             uint256 quotaProfit = (quotaInterestAccrued * fee) / PERCENTAGE_FACTOR;
 
             if (amountRepaid >= quotaInterestAccrued + quotaProfit) {
-                amountRepaid -= quotaInterestAccrued + quotaProfit; // F: [CMQ-05]
-                amountProfit += quotaProfit; // F: [CMQ-05]
-                cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-05]
+                amountRepaid -= quotaInterestAccrued + quotaProfit; // F: [CMQ-5]
+                amountProfit += quotaProfit; // F: [CMQ-5]
+                cumulativeQuotaInterest[creditAccount] = 1; // F: [CMQ-5]
             } else {
                 uint256 amountToPool = (amountRepaid * PERCENTAGE_FACTOR) / (PERCENTAGE_FACTOR + fee);
 
-                amountProfit += amountRepaid - amountToPool; // F: [CMQ-04]
-                amountRepaid = 0; // F: [CMQ-04]
+                amountProfit += amountRepaid - amountToPool; // F: [CMQ-4]
+                amountRepaid = 0; // F: [CMQ-4]
 
-                cumulativeQuotaInterest[creditAccount] = quotaInterestAccrued - amountToPool + 1; // F: [CMQ-04]
+                cumulativeQuotaInterest[creditAccount] = quotaInterestAccrued - amountToPool + 1; // F: [CMQ-4]
             }
         }
     }
@@ -716,41 +716,27 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     // COLLATERAL VALIDITY AND ACCOUNT HEALTH CHECKS
     //
 
-    /// @dev Enables a token on a Credit Account, including it
-    /// into account health and total value calculations
-    /// @param creditAccount Address of a Credit Account to enable the token for
-    /// @param token Address of the token to be enabled
-    function checkAndEnableToken(address creditAccount, address token)
+    /// @dev Enables a token on a Credit Account currently owned by the Credit Facade,
+    ///      including it into account health factor and total value calculations
+    /// @param token Address of the token to enable
+    function checkAndEnableToken(address token)
         external
         override
         whenNotPausedOrEmergency
         adaptersOrCreditFacadeOnly // F:[CM-3]
         nonReentrant
     {
-        _checkAndEnableToken(creditAccount, token); // F:[CM-30]
+        address creditAccount = getCreditAccountOrRevert(creditFacade);
+        _checkAndEnableToken(creditAccount, token);
     }
 
     /// @dev IMPLEMENTATION: checkAndEnableToken
-    /// @param creditAccount Address of a Credit Account to enable the token for
-    /// @param token Address of the token to be enabled
     function _checkAndEnableToken(address creditAccount, address token) internal virtual {
-        uint256 tokenMask = tokenMasksMap(token); // F:[CM-30,31]
-
-        // Checks that the token is valid collateral recognized by the system
-        // and that it is not forbidden
-        if (tokenMask == 0 || forbiddenTokenMask & tokenMask != 0) {
-            revert TokenNotAllowedException();
-        } // F:[CM-30]
-
-        // Performs an inclusion check using token masks,
-        // to avoid accidentally disabling the token
-        // Also checks that the token is not in limited token mask,
-        // as limited tokens are only enabled and disabled by setting quotas
-        if (
-            (enabledTokensMap[creditAccount] & tokenMask == 0) && (tokenMask & limitedTokenMask == 0) // F: [CMQ-07]
-        ) {
-            enabledTokensMap[creditAccount] |= tokenMask;
-        } // F:[CM-31]
+        uint256 tokenMask = tokenMasksMap(token);
+        if (tokenMask == 0) {
+            revert TokenNotAllowedException(); // F:[CM-30]
+        }
+        _changeEnabledTokens(creditAccount, tokenMask, 0);
     }
 
     /// @dev Performs a full health check on an account with a custom order of evaluated tokens and
@@ -931,7 +917,7 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         external
         view
         override
-        adaptersOrCreditFacadeOnly // F: [CM-2]
+        adaptersOrCreditFacadeOnly // F:[CM-3]
     {
         uint256 enabledTokenMask = enabledTokensMap[creditAccount];
         uint256 totalTokensEnabled = _calcEnabledTokens(enabledTokenMask);
@@ -959,34 +945,83 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
         }
     }
 
-    /// @dev Disables a token on a credit account
+    /// @dev Disables a token on a Credit Account currently owned by the Credit Facade
+    ///      excluding it from account health factor and total value calculations
     /// @notice Usually called by adapters to disable spent tokens during a multicall,
     ///         but can also be called separately from the Credit Facade to remove
     ///         unwanted tokens
-    function disableToken(address creditAccount, address token)
+    /// @param token Address of the token to disable
+    /// @return True if token mask was changed and false otherwise
+    function disableToken(address token)
         external
         override
-        whenNotPausedOrEmergency // F:[CM-5]
+        whenNotPausedOrEmergency
         adaptersOrCreditFacadeOnly // F:[CM-3]
         nonReentrant
         returns (bool)
     {
+        address creditAccount = getCreditAccountOrRevert(creditFacade);
         return _disableToken(creditAccount, token);
     }
 
     /// @dev IMPLEMENTATION: disableToken
-    function _disableToken(address creditAccount, address token) internal returns (bool wasChanged) {
-        // The enabled token mask encodes all enabled tokens as 1,
-        // therefore the corresponding bit is set to 0 to disable it
-        // Also checks that the token is not in limitedTokenMask,
-        // as limited tokens are only enabled and disabled by setting quotas
+    function _disableToken(address creditAccount, address token) internal virtual returns (bool wasChanged) {
         uint256 tokenMask = tokenMasksMap(token);
-        if (
-            (enabledTokensMap[creditAccount] & tokenMask != 0) && (tokenMask & limitedTokenMask == 0) // F: [CMQ-07]
-        ) {
-            enabledTokensMap[creditAccount] &= ~tokenMask; // F:[CM-46]
-            wasChanged = true;
+        (, wasChanged) = _changeEnabledTokens(creditAccount, 0, tokenMask);
+    }
+
+    /// @dev Changes enabled tokens for a Credit Account currently owned by the Credit Facade
+    /// @notice Can be used by adapters that enable/disable multiple tokens at the same time to reduce gas costs
+    /// @param tokensToEnable Tokens mask where 1's represent tokens that should be enabled
+    /// @param tokensToDisable Tokens mask where 1's represent tokens that should be disabled
+    /// @return wasEnabled True if at least one token was enabled and false otherwise
+    /// @return wasDisabled True if at least one token was disabled and false otherwise
+    function changeEnabledTokens(uint256 tokensToEnable, uint256 tokensToDisable)
+        external
+        override
+        whenNotPausedOrEmergency
+        adaptersOrCreditFacadeOnly // F:[CM-3]
+        nonReentrant
+        returns (bool wasEnabled, bool wasDisabled)
+    {
+        address creditAccount = getCreditAccountOrRevert(creditFacade);
+        return _changeEnabledTokens(creditAccount, tokensToEnable, tokensToDisable);
+    }
+
+    /// @dev IMPLEMENTATION: changeEnabledTokens
+    function _changeEnabledTokens(address creditAccount, uint256 tokensToEnable, uint256 tokensToDisable)
+        internal
+        virtual
+        returns (bool wasEnabled, bool wasDisabled)
+    {
+        // remove limited tokens as they can only enabled/disabled during quota updates
+        uint256 limitedTokens = limitedTokenMask;
+        tokensToEnable &= ~limitedTokens; // F:[CMQ-7]
+        tokensToDisable &= ~limitedTokens; // F:[CMQ-7]
+
+        // remove tokens on the intersection (otherwise return variables might be incorrect)
+        uint256 intersection = tokensToEnable & tokensToDisable;
+        tokensToEnable &= ~intersection; // F:[CM-33]
+        tokensToDisable &= ~intersection; // F:[CM-33]
+
+        // check that operation doesn't try to enable one of forbidden tokens
+        if (forbiddenTokenMask & tokensToEnable != 0) {
+            revert TokenNotAllowedException(); // F:[CM-30,32]
         }
+
+        uint256 enabledTokens = enabledTokensMap[creditAccount];
+
+        wasEnabled = tokensToEnable & ~enabledTokens != 0;
+        if (wasEnabled) {
+            enabledTokens |= tokensToEnable; // F:[CM-31,34]
+        }
+
+        wasDisabled = tokensToDisable & enabledTokens != 0;
+        if (wasDisabled) {
+            enabledTokens &= ~tokensToDisable; // F:[CM-34,46]
+        }
+
+        if (wasEnabled || wasDisabled) enabledTokensMap[creditAccount] = enabledTokens;
     }
 
     //
@@ -1593,9 +1628,9 @@ contract CreditManager is ICreditManagerV2, ACLNonReentrantTrait {
     ///         Tokens in the mask also incur additional interest based on their quotas
     function setLimitedMask(uint256 _limitedTokenMask)
         external
-        creditConfiguratorOnly // F: [CMQ-02]
+        creditConfiguratorOnly // F: [CMQ-2]
     {
-        limitedTokenMask = _limitedTokenMask; // F: [CMQ-02]
+        limitedTokenMask = _limitedTokenMask; // F: [CMQ-2]
     }
 
     /// @dev Sets the maximal number of enabled tokens on a single Credit Account.

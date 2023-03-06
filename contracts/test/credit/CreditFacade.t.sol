@@ -1842,7 +1842,7 @@ contract CreditFacadeTest is
         evm.warp(block.timestamp + 1);
         evm.roll(block.number + 1);
 
-        (uint256 borrowedAmount, uint256 borrowedAmountWithInterest, uint256 borrowedAmountWithInterestAndFees) =
+        (uint256 borrowedAmount, uint256 borrowedAmountWithInterest,) =
             creditManager.calcCreditAccountAccruedInterest(creditAccount);
 
         (, uint256 remainingFunds,,) = creditManager.calcClosePayments(
@@ -1913,13 +1913,12 @@ contract CreditFacadeTest is
 
     /// @dev [FA-53]: enableToken works as expected in a multicall
     function test_FA_53_enableToken_works_as_expected_multicall() public {
-        (address creditAccount,) = _openTestCreditAccount();
+        _openTestCreditAccount();
 
         address token = tokenTestSuite.addressOf(Tokens.USDC);
 
         evm.expectCall(
-            address(creditManager),
-            abi.encodeWithSelector(ICreditManagerV2.checkAndEnableToken.selector, creditAccount, token)
+            address(creditManager), abi.encodeWithSelector(ICreditManagerV2.checkAndEnableToken.selector, token)
         );
 
         evm.expectEmit(true, false, false, true);
@@ -1940,7 +1939,7 @@ contract CreditFacadeTest is
 
     /// @dev [FA-54]: disableToken works as expected in a multicall
     function test_FA_54_disableToken_works_as_expected_multicall() public {
-        (address creditAccount,) = _openTestCreditAccount();
+        _openTestCreditAccount();
 
         address token = tokenTestSuite.addressOf(Tokens.USDC);
 
@@ -1954,9 +1953,7 @@ contract CreditFacadeTest is
             )
         );
 
-        evm.expectCall(
-            address(creditManager), abi.encodeWithSelector(ICreditManagerV2.disableToken.selector, creditAccount, token)
-        );
+        evm.expectCall(address(creditManager), abi.encodeWithSelector(ICreditManagerV2.disableToken.selector, token));
 
         evm.expectEmit(true, false, false, true);
         emit TokenDisabled(USER, token);

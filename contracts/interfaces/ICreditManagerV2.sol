@@ -187,11 +187,10 @@ interface ICreditManagerV2 is ICreditManagerV2Events, ICreditManagerV2Exceptions
     // COLLATERAL VALIDITY AND ACCOUNT HEALTH CHECKS
     //
 
-    /// @dev Enables a token on a Credit Account, including it
-    /// into account health and total value calculations
-    /// @param creditAccount Address of a Credit Account to enable the token for
-    /// @param token Address of the token to be enabled
-    function checkAndEnableToken(address creditAccount, address token) external;
+    /// @dev Enables a token on a Credit Account currently owned by the Credit Facade,
+    ///      including it into account health factor and total value calculations
+    /// @param token Address of the token to enable
+    function checkAndEnableToken(address token) external;
 
     // /// @dev Performs a full health check on an account, summing up
     // /// value of all enabled collateral tokens
@@ -223,12 +222,24 @@ interface ICreditManagerV2 is ICreditManagerV2Events, ICreditManagerV2Exceptions
     /// @param creditAccount Account to check enabled tokens for
     function checkEnabledTokensLength(address creditAccount) external;
 
-    /// @dev Disables a token on a credit account
+    /// @dev Disables a token on a Credit Account currently owned by the Credit Facade
+    ///      excluding it from account health factor and total value calculations
     /// @notice Usually called by adapters to disable spent tokens during a multicall,
     ///         but can also be called separately from the Credit Facade to remove
     ///         unwanted tokens
-    /// @return True if token mask was change otherwise False
-    function disableToken(address creditAccount, address token) external returns (bool);
+    /// @param token Address of the token to disable
+    /// @return True if token mask was changed and false otherwise
+    function disableToken(address token) external returns (bool);
+
+    /// @dev Changes enabled tokens for a Credit Account currently owned by the Credit Facade
+    /// @notice Can be used by adapters that enable/disable multiple tokens at the same time to reduce gas costs
+    /// @param tokensToEnable Tokens mask where 1's represent tokens that should be enabled
+    /// @param tokensToDisable Tokens mask where 1's represent tokens that should be disabled
+    /// @return wasEnabled True if at least one token was enabled and false otherwise
+    /// @return wasDisabled True if at least one token was disabled and false otherwise
+    function changeEnabledTokens(uint256 tokensToEnable, uint256 tokensToDisable)
+        external
+        returns (bool wasEnabled, bool wasDisabled);
 
     //
     // QUOTAS MANAGEMENT
