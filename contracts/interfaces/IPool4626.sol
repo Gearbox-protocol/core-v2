@@ -21,7 +21,8 @@ interface IPool4626Exceptions {
     error CreditManagerOnlyException();
     error IncorrectWithdrawalFeeException();
     error ZeroAssetsException();
-    error AssetIsNotWETHException();
+
+    error PoolQuotaKeeperOnly();
     error IncompatibleCreditManagerException();
     error CreditManagerNotRegsiterException();
     error AdditionalYieldPoolException();
@@ -39,6 +40,9 @@ interface IPool4626Events {
 
     /// @dev Emits on updating the interest rate model
     event NewInterestRateModel(address indexed newInterestRateModel);
+
+    /// @dev Emits each time when new Pool Quota Manager updated
+    event NewPoolQuotaKeeper(address indexed newPoolQuotaKeeper);
 
     /// @dev Emits on connecting a new Credit Manager
     event NewCreditManagerConnected(address indexed creditManager);
@@ -66,12 +70,6 @@ interface IPool4626Events {
 /// More: https://dev.gearbox.fi/developers/pool/abstractpoolservice
 interface IPool4626 is IPool4626Events, IPool4626Exceptions, IERC4626, IVersion {
     function depositReferral(uint256 assets, address receiver, uint16 referralCode) external returns (uint256 shares);
-
-    function depositETHReferral(address receiver, uint16 referralCode) external payable returns (uint256 shares);
-
-    function withdrawETH(uint256 assets, address receiver, address owner) external returns (uint256 shares);
-
-    function redeemETH(uint256 shares, address receiver, address owner) external returns (uint256 assets);
 
     function burn(uint256 shares) external;
 
@@ -112,13 +110,10 @@ interface IPool4626 is IPool4626Events, IPool4626Exceptions, IERC4626, IVersion 
     function calcLinearCumulative_RAY() external view returns (uint256);
 
     /// @dev Calculates the current borrow rate, RAY format
-    function borrowRate_RAY() external view returns (uint256);
+    function borrowRate() external view returns (uint256);
 
     ///  @dev Total borrowed amount (includes principal only)
     function totalBorrowed() external view returns (uint256);
-
-    /// @dev diesel rate in RAY format
-    function getDieselRate_RAY() external view returns (uint256);
 
     /// @dev Address of the underlying
     function underlyingToken() external view returns (address);

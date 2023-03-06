@@ -33,7 +33,6 @@ import {IGauge} from "../interfaces/IGauge.sol";
 
 import {RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "../libraries/Constants.sol";
 import {Errors} from "../libraries/Errors.sol";
-import {FixedPointMathLib} from "../libraries/SolmateMath.sol";
 
 // EXCEPTIONS
 import {ZeroAddressException} from "../interfaces/IErrors.sol";
@@ -92,7 +91,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
 
     /// @dev Constructor
     /// @param _pool Pool address
-    constructor(address payable _pool) ACLNonReentrantTrait(address(Pool4626(_pool).addressProvider())) {
+    constructor(address _pool) ACLNonReentrantTrait(address(Pool4626(_pool).addressProvider())) {
         // Additional check that receiver is not address(0)
         if (_pool == address(0)) {
             revert ZeroAddressException(); // F:[P4-02]

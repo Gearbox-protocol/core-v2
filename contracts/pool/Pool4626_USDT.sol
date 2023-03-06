@@ -15,11 +15,11 @@ contract Pool4626_USDT is Pool4626, USDT_Transfer {
         // Additional check that receiver is not address(0)
     }
 
-    function _safeUnderlyingTransfer(address to, uint256 amount) internal override returns (uint256) {
-        return _safeUSDTTransfer(to, amount);
-    }
-
     function _amountWithFee(uint256 amount) internal view override returns (uint256) {
         return _amountUSDTWithFee(amount);
+    }
+
+    function _amountMinusFee(uint256 amount) internal view override returns (uint256) {
+        return _amountUSDTMinusFee(amount);
     }
 }

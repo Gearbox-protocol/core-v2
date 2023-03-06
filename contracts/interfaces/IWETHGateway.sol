@@ -4,6 +4,27 @@
 pragma solidity ^0.8.10;
 
 interface IWETHGateway {
+    /// @dev POOL V3:
+    function deposit(address pool, address receiver) external payable returns (uint256 shares);
+
+    function depositReferral(address pool, address receiver, uint16 referralCode)
+        external
+        payable
+        returns (uint256 shares);
+
+    function mint(address pool, uint256 shares, address receiver) external payable returns (uint256 assets);
+
+    function withdraw(address pool, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares);
+
+    function redeem(address pool, uint256 shares, address receiver, address owner)
+        external
+        payable
+        returns (uint256 assets);
+
+    /// @dev POOL V1:
+
     /// @dev Converts ETH to WETH and add liqudity to the pool
     /// @param pool Address of PoolService contract to add liquidity to. This pool must have WETH as an underlying.
     /// @param onBehalfOf The address that will receive the diesel token.

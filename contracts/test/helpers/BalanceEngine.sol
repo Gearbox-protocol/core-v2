@@ -21,7 +21,7 @@ contract BalanceEngine is DSTest {
         if (balance < minBalance) {
             emit log_named_address(
                 string(
-                    abi.encodePacked(reason, "Insufficient ", IERC20Metadata(token).symbol(), " balance on account: ")
+                    abi.encodePacked(reason, "\nInsufficient ", IERC20Metadata(token).symbol(), " balance on account: ")
                 ),
                 holder
                 );
@@ -35,7 +35,9 @@ contract BalanceEngine is DSTest {
 
         if (balance > maxBalance) {
             emit log_named_address(
-                string(abi.encodePacked(reason, "Exceeding ", IERC20Metadata(token).symbol(), " balance on account: ")),
+                string(
+                    abi.encodePacked(reason, "\nExceeding ", IERC20Metadata(token).symbol(), " balance on account: ")
+                ),
                 holder
                 );
         }
@@ -48,7 +50,9 @@ contract BalanceEngine is DSTest {
 
         if (balance != expectedBalance) {
             emit log_named_address(
-                string(abi.encodePacked(reason, "Incorrect ", IERC20Metadata(token).symbol(), " balance on account: ")),
+                string(
+                    abi.encodePacked(reason, "\nIncorrect ", IERC20Metadata(token).symbol(), " balance on account: ")
+                ),
                 holder
                 );
         }

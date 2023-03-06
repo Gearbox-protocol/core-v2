@@ -6,11 +6,14 @@ pragma solidity ^0.8.10;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {Pool4626} from "../../pool/Pool4626.sol";
 import {IERC4626Events} from "../../interfaces/IERC4626.sol";
 import {IPool4626Events, Pool4626Opts, IPool4626Exceptions} from "../../interfaces/IPool4626.sol";
-import {LinearInterestRateModel} from "../../pool/LinearInterestRateModel.sol";
+import {IERC4626Events} from "../../interfaces/IERC4626.sol";
+
+import {IInterestRateModel} from "../../interfaces/IInterestRateModel.sol";
 
 import {ACL} from "../../core/ACL.sol";
 import {CreditManagerMockForPoolTest} from "../mocks/pool/CreditManagerMockForPoolTest.sol";
@@ -31,6 +34,7 @@ import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 
 // TEST
 import "../lib/constants.sol";
+import "../lib/StringUtils.sol";
 import {PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
 
 import "forge-std/console.sol";
@@ -47,6 +51,9 @@ uint256 constant fee = 6000;
 /// @title pool
 /// @notice Business logic for borrowing liquidity pools
 contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events {
+    using Math for uint256;
+    using StringUtils for string;
+
     CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     PoolServiceTestSuite psts;
@@ -63,6 +70,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
     Pool4626 pool;
     address underlying;
     CreditManagerMockForPoolTest cmMock;
+    IInterestRateModel irm;
 
     function setUp() public {
         _setUp(Tokens.DAI);
@@ -73,10 +81,12 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
         psts = new PoolServiceTestSuite(
             tokenTestSuite,
             tokenTestSuite.addressOf(t),
-            true
+            true,
+            false
         );
 
         pool = psts.pool4626();
+        irm = psts.linearIRModel();
         underlying = address(psts.underlying());
         cmMock = psts.cmMock();
         acl = psts.acl();
@@ -85,17 +95,46 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
     //
     // HELPERS
     //
+    function _setUpTestCase(
+        Tokens t,
+        uint256 feeToken,
+        uint16 utilisation,
+        uint256 availableLiquidity,
+        uint256 dieselRate,
+        uint16 withdrawFee
+    ) internal {
+        _setUp(t);
+        if (t == Tokens.USDT) {
+            // set 50% fee if fee token
+            ERC20FeeMock(pool.asset()).setMaximumFee(type(uint256).max);
+            ERC20FeeMock(pool.asset()).setBasisPointsRate(feeToken);
+        }
+
+        _initPoolLiquidity(availableLiquidity, dieselRate);
+        _connectAndSetLimit();
+        _borrow(utilisation);
+
+        evm.prank(CONFIGURATOR);
+        pool.setWithdrawFee(withdrawFee);
+    }
+
     function _connectAndSetLimit() internal {
         evm.prank(CONFIGURATOR);
         pool.setCreditManagerLimit(address(cmMock), type(uint128).max);
     }
 
-    function _mulFee(uint256 amount, uint256 fee) internal returns (uint256) {
-        return (amount * (PERCENTAGE_FACTOR - fee)) / PERCENTAGE_FACTOR;
+    function _borrow(uint16 utilisation) internal {
+        cmMock.lendCreditAccount(pool.expectedLiquidity() / 2, DUMB_ADDRESS);
+
+        assertEq(pool.borrowRate(), irm.calcBorrowRate(PERCENTAGE_FACTOR, utilisation, false));
     }
 
-    function _divFee(uint256 amount, uint256 fee) internal returns (uint256) {
-        return (amount * PERCENTAGE_FACTOR) / (PERCENTAGE_FACTOR - fee);
+    function _mulFee(uint256 amount, uint256 _fee) internal returns (uint256) {
+        return (amount * (PERCENTAGE_FACTOR - _fee)) / PERCENTAGE_FACTOR;
+    }
+
+    function _divFee(uint256 amount, uint256 _fee) internal returns (uint256) {
+        return (amount * PERCENTAGE_FACTOR) / (PERCENTAGE_FACTOR - _fee);
     }
 
     function _updateBorrowrate() internal {
@@ -104,14 +143,24 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
     }
 
     function _initPoolLiquidity() internal {
-        evm.prank(INITIAL_LP);
-        pool.mint(2 * addLiquidity, INITIAL_LP);
+        _initPoolLiquidity(addLiquidity, 2 * RAY);
+    }
+
+    function _initPoolLiquidity(uint256 availableLiquidity, uint256 dieselRate) internal {
+        assertEq(pool.convertToAssets(RAY), RAY, "Incorrect diesel rate!");
 
         evm.prank(INITIAL_LP);
-        pool.burn(addLiquidity);
+        pool.mint(availableLiquidity, INITIAL_LP);
 
-        assertEq(pool.expectedLiquidityLU(), addLiquidity * 2, "ExpectedLU is not correct!");
-        assertEq(pool.getDieselRate_RAY(), 2 * RAY, "Incorrect diesel rate!");
+        evm.prank(INITIAL_LP);
+        pool.burn(availableLiquidity * (dieselRate - RAY) / dieselRate);
+
+        // assertEq(pool.expectedLiquidityLU(), availableLiquidity * dieselRate / RAY, "ExpectedLU is not correct!");
+        assertEq(pool.convertToAssets(RAY), dieselRate, "Incorrect diesel rate!");
+    }
+
+    function _testCaseErr(string memory caseName, string memory err) internal pure returns (string memory) {
+        return string("\nCase: ").concat(caseName).concat("\n").concat("Error: ").concat(err);
     }
 
     //
@@ -129,19 +178,15 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
         assertEq(pool.decimals(), IERC20Metadata(address(psts.underlying())).decimals(), "Incorrect decimals");
 
-        assertEq(pool.treasuryAddress(), psts.addressProvider().getTreasuryContract(), "Incorrect treasury");
+        assertEq(pool.treasury(), psts.addressProvider().getTreasuryContract(), "Incorrect treasury");
 
-        assertEq(pool.getDieselRate_RAY(), RAY);
+        assertEq(pool.convertToAssets(RAY), RAY, "Incorrect diesel rate!");
 
         assertEq(address(pool.interestRateModel()), address(psts.linearIRModel()), "Incorrect interest rate model");
 
         assertEq(pool.expectedLiquidityLimit(), type(uint256).max);
 
         assertEq(pool.totalBorrowedLimit(), type(uint256).max);
-
-        // assertTrue(!pool.isFeeToken(), "Incorrect isFeeToken");
-
-        assertEq(pool.wethAddress(), psts.addressProvider().getWethToken(), "Incorrect weth token");
     }
 
     // [P4-2]: constructor reverts for zero addresses
@@ -209,25 +254,13 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
         pool.depositReferral(addLiquidity, FRIEND, referral);
 
         evm.expectRevert(bytes(PAUSABLE_ERROR));
-        pool.depositETHReferral(FRIEND, referral);
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
-        payable(address(pool)).call{value: addLiquidity}("");
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
         pool.mint(addLiquidity, FRIEND);
 
         evm.expectRevert(bytes(PAUSABLE_ERROR));
         pool.withdraw(removeLiquidity, FRIEND, FRIEND);
 
         evm.expectRevert(bytes(PAUSABLE_ERROR));
-        pool.withdrawETH(removeLiquidity, FRIEND, FRIEND);
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
         pool.redeem(removeLiquidity, FRIEND, FRIEND);
-
-        evm.expectRevert(bytes(PAUSABLE_ERROR));
-        pool.redeemETH(removeLiquidity, FRIEND, FRIEND);
 
         evm.expectRevert(bytes(PAUSABLE_ERROR));
         pool.lendCreditAccount(1, FRIEND);
@@ -238,230 +271,704 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
         evm.stopPrank();
     }
 
-    // [P4-5]: depositing eth work for WETH pools only
-    function test_P4_05_eth_functions_work_for_WETH_pools_only() public {
-        // adds liqudity to mint initial diesel tokens to change 1:1 rate
-
-        evm.deal(USER, addLiquidity);
-
-        evm.startPrank(USER);
-
-        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
-        pool.depositETHReferral{value: addLiquidity}(FRIEND, referral);
-
-        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
-        payable(address(pool)).call{value: addLiquidity}("");
-
-        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
-        pool.withdrawETH(1, FRIEND, USER);
-
-        evm.expectRevert(IPool4626Exceptions.AssetIsNotWETHException.selector);
-        pool.redeemETH(1, FRIEND, USER);
-
-        evm.stopPrank();
+    struct DepositTestCase {
+        string name;
+        /// SETUP
+        Tokens asset;
+        uint256 tokenFee;
+        uint256 initialLiquidity;
+        uint256 dieselRate;
+        uint16 utilisation;
+        uint16 withdrawFee;
+        /// PARAMS
+        uint256 amountToDeposit;
+        /// EXPECTED VALUES
+        uint256 expectedShares;
+        uint256 expectedAvailableLiquidity;
+        uint256 expectedLiquidityAfter;
     }
 
-    // TODO: fix test
-
-    // // [P4-6]: deposit adds liquidity correctly
-    // function test_P4_06_deposit_adds_liquidity_correctly() public {
-    //     // adds liqudity to mint initial diesel tokens to change 1:1 rate
-
-    //     for (uint256 j; j < 2; ++j) {
-    //         for (uint256 i; i < 2; ++i) {
-    //             bool withReferralCode = j == 0;
-
-    //             bool feeToken = false; //i == 1;
-
-    //             _setUp(feeToken ? Tokens.USDT : Tokens.DAI);
-
-    //             if (feeToken) {
-    //                 // set 50% fee if fee token
-    //                 ERC20FeeMock(pool.asset()).setMaximumFee(type(uint256).max);
-    //                 ERC20FeeMock(pool.asset()).setBasisPointsRate(fee);
-    //             }
-
-    //             uint256 expectedShares = feeToken ? _mulFee(addLiquidity / 2, fee) : addLiquidity / 2;
-
-    //             evm.expectEmit(true, true, false, true);
-    //             emit Transfer(address(0), FRIEND, expectedShares);
-
-    //             evm.expectEmit(true, true, false, true);
-    //             emit Deposit(USER, FRIEND, addLiquidity, expectedShares);
-
-    //             if (withReferralCode) {
-    //                 evm.expectEmit(true, true, false, true);
-    //                 emit DepositReferral(USER, FRIEND, addLiquidity, referral);
-    //             }
-
-    //             evm.prank(USER);
-    //             uint256 shares = withReferralCode
-    //                 ? pool.depositReferral(addLiquidity, FRIEND, referral)
-    //                 : pool.deposit(addLiquidity, FRIEND);
-
-    //             expectBalance(address(pool), FRIEND, expectedShares, "Incorrect diesel tokens on FRIEND account");
-    //             // expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity);
-    //             // assertEq(pool.expectedLiquidity(), addLiquidity * 3);
-    //             // assertEq(pool.availableLiquidity(), addLiquidity * 3);
-    //             // assertEq(shares, expectedShares);
-    //         }
-    //     }
-    // }
-
-    // [P4-7]: depositETH adds liquidity correctly
-    function test_P4_07_depositETH_adds_liquidity_correctly() public {
+    // [P4-5]: deposit adds liquidity correctly
+    function test_P4_05_deposit_adds_liquidity_correctly() public {
         // adds liqudity to mint initial diesel tokens to change 1:1 rate
 
-        for (uint256 i; i < 2; ++i) {
-            bool depositReferral = i == 0;
+        DepositTestCase[2] memory cases = [
+            DepositTestCase({
+                name: "Normal token",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                // PARAMS
+                amountToDeposit: addLiquidity,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedShares: addLiquidity / 2,
+                // availableLiquidityBefore: addLiqudity /2 (cause 50% utilisation)
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity,
+                expectedLiquidityAfter: addLiquidity * 2
+            }),
+            DepositTestCase({
+                name: "Fee token",
+                /// SETUP
+                asset: Tokens.USDT,
+                // transfer fee: 60%, so 40% will be transfer to account
+                tokenFee: 60_00,
+                initialLiquidity: addLiquidity,
+                // 1 dUSDT = 2 USDT
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                /// PARAMS
+                amountToDeposit: addLiquidity,
+                /// EXPECTED VALUES
+                expectedShares: (addLiquidity * 40 / 100) / 2,
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity * 40 / 100,
+                expectedLiquidityAfter: addLiquidity + addLiquidity * 40 / 100
+            })
+        ];
 
-            _setUp(Tokens.WETH);
+        for (uint256 i; i < cases.length; ++i) {
+            DepositTestCase memory testCase = cases[i];
+            for (uint256 rc; rc < 2; ++rc) {
+                bool withReferralCode = rc == 0;
 
-            _initPoolLiquidity();
+                _setUpTestCase(
+                    testCase.asset,
+                    testCase.tokenFee,
+                    testCase.utilisation,
+                    testCase.initialLiquidity,
+                    testCase.dieselRate,
+                    testCase.withdrawFee
+                );
 
-            uint256 expectedShares = addLiquidity / 2;
-
-            address receiver = depositReferral ? FRIEND : USER;
-
-            evm.expectEmit(true, true, false, true);
-            emit Transfer(address(0), receiver, expectedShares);
-
-            evm.expectEmit(true, true, false, true);
-            emit Deposit(USER, receiver, addLiquidity, expectedShares);
-
-            if (depositReferral) {
                 evm.expectEmit(true, true, false, true);
-                emit DepositReferral(USER, FRIEND, addLiquidity, referral);
-            }
+                emit Transfer(address(0), FRIEND, testCase.expectedShares);
 
-            evm.deal(USER, addLiquidity);
+                evm.expectEmit(true, true, false, true);
+                emit Deposit(USER, FRIEND, testCase.amountToDeposit, testCase.expectedShares);
 
-            uint256 shares;
-            if (depositReferral) {
+                if (withReferralCode) {
+                    evm.expectEmit(true, true, false, true);
+                    emit DepositReferral(USER, FRIEND, testCase.amountToDeposit, referral);
+                }
+
                 evm.prank(USER);
-                shares = pool.depositETHReferral{value: addLiquidity}(FRIEND, referral);
-            } else {
-                evm.prank(USER);
-                payable(address(pool)).call{value: addLiquidity}("");
-            }
+                uint256 shares = withReferralCode
+                    ? pool.depositReferral(testCase.amountToDeposit, FRIEND, referral)
+                    : pool.deposit(testCase.amountToDeposit, FRIEND);
 
-            expectBalance(address(pool), receiver, expectedShares);
-            assertEq(pool.expectedLiquidity(), addLiquidity * 3);
-            assertEq(pool.availableLiquidity(), addLiquidity * 3);
+                expectBalance(
+                    address(pool),
+                    FRIEND,
+                    testCase.expectedShares,
+                    _testCaseErr(testCase.name, "Incorrect diesel tokens on FRIEND account")
+                );
+                expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity);
+                assertEq(
+                    pool.expectedLiquidity(),
+                    testCase.expectedLiquidityAfter,
+                    _testCaseErr(testCase.name, "Incorrect expected liquidity")
+                );
+                assertEq(
+                    pool.availableLiquidity(),
+                    testCase.expectedAvailableLiquidity,
+                    _testCaseErr(testCase.name, "Incorrect available liquidity")
+                );
+                assertEq(shares, testCase.expectedShares);
 
-            if (depositReferral) {
-                assertEq(shares, expectedShares);
+                assertEq(
+                    pool.borrowRate(),
+                    irm.calcBorrowRate(pool.expectedLiquidity(), pool.availableLiquidity(), false),
+                    _testCaseErr(testCase.name, "Borrow rate wasn't update correcty")
+                );
             }
         }
     }
 
-    // [P4-8]: deposit adds liquidity correctly
-    function test_P4_08_mint_adds_liquidity_correctly() public {
-        // adds liqudity to mint initial diesel tokens to change 1:1 rate
+    struct MintTestCase {
+        string name;
+        /// SETUP
+        Tokens asset;
+        uint256 tokenFee;
+        uint256 initialLiquidity;
+        uint256 dieselRate;
+        uint16 utilisation;
+        uint16 withdrawFee;
+        /// PARAMS
+        uint256 desiredShares;
+        /// EXPECTED VALUES
+        uint256 expectedAssetsWithdrawal;
+        uint256 expectedAvailableLiquidity;
+        uint256 expectedLiquidityAfter;
+    }
 
-        for (uint256 i; i < 2; ++i) {
-            bool feeToken = i == 1;
+    // [P4-6]: deposit adds liquidity correctly
+    function test_P4_06_mint_adds_liquidity_correctly() public {
+        MintTestCase[2] memory cases = [
+            MintTestCase({
+                name: "Normal token",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                // PARAMS
+                desiredShares: addLiquidity / 2,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedAssetsWithdrawal: addLiquidity,
+                // availableLiquidityBefore: addLiqudity /2 (cause 50% utilisation)
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity,
+                expectedLiquidityAfter: addLiquidity * 2
+            }),
+            MintTestCase({
+                name: "Fee token",
+                /// SETUP
+                asset: Tokens.USDT,
+                // transfer fee: 60%, so 40% will be transfer to account
+                tokenFee: 60_00,
+                initialLiquidity: addLiquidity,
+                // 1 dUSDT = 2 USDT
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                /// PARAMS
+                desiredShares: addLiquidity / 2,
+                /// EXPECTED VALUES
+                /// fee token makes impact on how much tokens will be wiotdrawn from user
+                expectedAssetsWithdrawal: addLiquidity * 100 / 40,
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity,
+                expectedLiquidityAfter: addLiquidity * 2
+            })
+        ];
 
-            _setUp(feeToken ? Tokens.USDT : Tokens.DAI);
+        for (uint256 i; i < cases.length; ++i) {
+            MintTestCase memory testCase = cases[i];
 
-            if (feeToken) {
-                // set 50% fee if fee token
-                ERC20FeeMock(pool.asset()).setMaximumFee(type(uint256).max);
-                ERC20FeeMock(pool.asset()).setBasisPointsRate(fee);
-            }
-
-            _initPoolLiquidity();
-
-            uint256 desiredShares = addLiquidity / 2;
-            uint256 expectedAssetsPaid = feeToken ? _divFee(addLiquidity, fee) : addLiquidity;
-            uint256 expectedAvailableLiquidity = pool.availableLiquidity() + addLiquidity;
+            _setUpTestCase(
+                testCase.asset,
+                testCase.tokenFee,
+                testCase.utilisation,
+                testCase.initialLiquidity,
+                testCase.dieselRate,
+                testCase.withdrawFee
+            );
 
             evm.expectEmit(true, true, false, true);
-            emit Transfer(address(0), FRIEND, desiredShares);
+            emit Transfer(address(0), FRIEND, testCase.desiredShares);
 
             evm.expectEmit(true, true, false, true);
-            emit Deposit(USER, FRIEND, expectedAssetsPaid, desiredShares);
-
-            uint256 gl = gasleft();
+            emit Deposit(USER, FRIEND, testCase.expectedAssetsWithdrawal, testCase.desiredShares);
 
             evm.prank(USER);
-            uint256 assets = pool.mint(desiredShares, FRIEND);
+            uint256 assets = pool.mint(testCase.desiredShares, FRIEND);
 
-            console.log(gl - gasleft());
+            expectBalance(
+                address(pool), FRIEND, testCase.desiredShares, _testCaseErr(testCase.name, "Incorrect shares ")
+            );
+            expectBalance(
+                underlying,
+                USER,
+                liquidityProviderInitBalance - testCase.expectedAssetsWithdrawal,
+                _testCaseErr(testCase.name, "Incorrect USER balance")
+            );
+            assertEq(
+                pool.expectedLiquidity(),
+                testCase.expectedLiquidityAfter,
+                _testCaseErr(testCase.name, "Incorrect expected liquidity")
+            );
+            assertEq(
+                pool.availableLiquidity(),
+                testCase.expectedAvailableLiquidity,
+                _testCaseErr(testCase.name, "Incorrect available liquidity")
+            );
+            assertEq(
+                assets, testCase.expectedAssetsWithdrawal, _testCaseErr(testCase.name, "Incorrect assets return value")
+            );
 
-            expectBalance(address(pool), FRIEND, desiredShares, "Incorrect shares ");
-            expectBalance(underlying, USER, liquidityProviderInitBalance - expectedAssetsPaid, "Incorrect USER balance");
-            assertEq(pool.expectedLiquidity(), addLiquidity * 3, "Incorrect expected liquidity");
-            assertEq(pool.availableLiquidity(), expectedAvailableLiquidity, "Incorrect available liquidity");
-            assertEq(assets, expectedAssetsPaid, "Incorrect assets return value");
+            assertEq(
+                pool.borrowRate(),
+                irm.calcBorrowRate(pool.expectedLiquidity(), pool.availableLiquidity(), false),
+                _testCaseErr(testCase.name, "Borrow rate wasn't update correcty")
+            );
+        }
+    }
+
+    // [P4-7]: deposit and mint if assets more than limit
+    function test_P4_07_deposit_and_mint_if_assets_more_than_limit() public {
+        for (uint256 j; j < 2; ++j) {
+            for (uint256 i; i < 2; ++i) {
+                bool feeToken = i == 1;
+
+                Tokens asset = feeToken ? Tokens.USDT : Tokens.DAI;
+
+                _setUpTestCase(asset, feeToken ? 60_00 : 0, 50_00, addLiquidity, 2 * RAY, 0);
+
+                evm.prank(CONFIGURATOR);
+                pool.setExpectedLiquidityLimit(1237882323 * WAD);
+
+                uint256 assetsToReachLimit = pool.expectedLiquidityLimit() - pool.expectedLiquidity();
+
+                uint256 sharesToReachLimit = assetsToReachLimit / 2;
+
+                if (feeToken) {
+                    assetsToReachLimit = _divFee(assetsToReachLimit, fee);
+                }
+
+                tokenTestSuite.mint(asset, USER, assetsToReachLimit + 1);
+
+                if (j == 0) {
+                    // DEPOSIT CASE
+                    evm.prank(USER);
+                    pool.deposit(assetsToReachLimit, FRIEND);
+                } else {
+                    // MINT CASE
+                    evm.prank(USER);
+                    pool.mint(sharesToReachLimit, FRIEND);
+                }
+            }
         }
     }
 
     //
-    // REMOVE LIQUIDITY
+    // WITHDRAW
     //
+    struct WithdrawTestCase {
+        string name;
+        /// SETUP
+        Tokens asset;
+        uint256 tokenFee;
+        uint256 initialLiquidity;
+        uint256 dieselRate;
+        uint16 utilisation;
+        uint16 withdrawFee;
+        /// PARAMS
+        uint256 sharesToMint;
+        uint256 assetsToWithdraw;
+        /// EXPECTED VALUES
+        uint256 expectedSharesBurnt;
+        uint256 expectedAvailableLiquidity;
+        uint256 expectedLiquidityAfter;
+        uint256 expectedTreasury;
+    }
 
-    // // [P4-5]: removeLiquidity correctly removes liquidity
-    // function test_PX_05_remove_liquidity_removes_correctly() public {
-    //     evm.prank(USER);
-    //     pool.depositReferral(addLiquidity, FRIEND, referral);
+    // [P4-8]: deposit and mint if assets more than limit
+    function test_P4_08_withdraw_works_as_expected() public {
+        WithdrawTestCase[4] memory cases = [
+            WithdrawTestCase({
+                name: "Normal token with 0 withdraw fee",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                assetsToWithdraw: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedSharesBurnt: addLiquidity / 8,
+                // availableLiquidityBefore: addLiqudity /2 (cause 50% utilisation)
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 4,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 4,
+                expectedTreasury: 0
+            }),
+            WithdrawTestCase({
+                name: "Normal token with 1% withdraw fee",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 1_00,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                assetsToWithdraw: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedSharesBurnt: addLiquidity / 8 * 100 / 99,
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 4 * 100 / 99,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 4 * 100 / 99,
+                expectedTreasury: addLiquidity / 4 * 1 / 99
+            }),
+            WithdrawTestCase({
+                name: "Fee token with 0 withdraw fee",
+                /// SETUP
+                asset: Tokens.USDT,
+                // transfer fee: 60%, so 40% will be transfer to account
+                tokenFee: 60_00,
+                initialLiquidity: addLiquidity,
+                // 1 dUSDT = 2 USDT
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                assetsToWithdraw: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedSharesBurnt: addLiquidity / 8 * 100 / 40,
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 4 * 100 / 40,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 4 * 100 / 40,
+                expectedTreasury: 0
+            }),
+            WithdrawTestCase({
+                name: "Fee token with 1% withdraw fee",
+                /// SETUP
+                asset: Tokens.USDT,
+                // transfer fee: 60%, so 40% will be transfer to account
+                tokenFee: 60_00,
+                initialLiquidity: addLiquidity,
+                // 1 dUSDT = 2 USDT
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 1_00,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                assetsToWithdraw: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // addLiquidity /2 * 1/2 (rate) * 1 / (100%-1%) / feeToken
+                expectedSharesBurnt: addLiquidity / 8 * 100 / 99 * 100 / 40 + 1,
+                // availableLiquidityBefore: addLiqudity /2 (cause 50% utilisation)
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 4 * 100 / 40 * 100 / 99 - 1,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 4 * 100 / 40 * 100 / 99 - 1,
+                expectedTreasury: addLiquidity / 4 * 1 / 99 + 1
+            })
+        ];
 
-    //     // evm.expectEmit(true, true, false, true);
-    //     // emit RemoveLiquidity(FRIEND, USER, removeLiquidity);
+        for (uint256 i; i < cases.length; ++i) {
+            WithdrawTestCase memory testCase = cases[i];
+            /// @dev a represents allowance, 0 means required amount +1, 1 means inlimited allowance
+            for (uint256 approveCase; approveCase < 2; ++approveCase) {
+                _setUpTestCase(
+                    testCase.asset,
+                    testCase.tokenFee,
+                    testCase.utilisation,
+                    testCase.initialLiquidity,
+                    testCase.dieselRate,
+                    testCase.withdrawFee
+                );
 
-    //     evm.prank(FRIEND);
-    //     pool.redeem(removeLiquidity, USER, FRIEND);
+                evm.prank(USER);
+                pool.mint(testCase.sharesToMint, FRIEND);
 
-    //     expectBalance(address(pool), FRIEND, addLiquidity - removeLiquidity);
-    //     expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity + removeLiquidity);
-    //     assertEq(pool.expectedLiquidity(), addLiquidity - removeLiquidity);
-    //     assertEq(pool.availableLiquidity(), addLiquidity - removeLiquidity);
-    // }
+                evm.prank(FRIEND);
+                pool.approve(USER, approveCase == 0 ? testCase.expectedSharesBurnt + 1 : type(uint256).max);
 
-    // // [P4-7]: constructor set correct cumulative index to 1 at start
-    // function test_PX_07_starting_cumulative_index_correct() public {
-    //     assertEq(pool.cumulativeIndexLU_RAY(), RAY);
-    // }
+                evm.expectEmit(true, true, false, true);
+                emit Transfer(FRIEND, address(0), testCase.expectedSharesBurnt);
 
-    // // [P4-8]: getDieselRate_RAY correctly computes rate
-    // function test_PX_08_diesel_rate_computes_correctly() public {
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, FRIEND);
+                evm.expectEmit(true, true, false, true);
+                emit Withdraw(USER, FRIEND2, FRIEND, testCase.assetsToWithdraw, testCase.expectedSharesBurnt);
 
-    //     // pool.setExpectedLiquidityLU(addLiquidity * 2);
+                evm.prank(USER);
+                uint256 shares = pool.withdraw(testCase.assetsToWithdraw, FRIEND2, FRIEND);
 
-    //     assertEq(pool.expectedLiquidity(), addLiquidity * 2);
-    //     assertEq(pool.getDieselRate_RAY(), RAY * 2);
-    // }
+                expectBalance(
+                    underlying,
+                    FRIEND2,
+                    testCase.assetsToWithdraw,
+                    _testCaseErr(testCase.name, "Incorrect assets on FRIEND2 account")
+                );
 
-    // // [P4-9]: addLiquidity correctly adds liquidity with DieselRate != 1
-    // function test_PX_09_correctly_adds_liquidity_at_new_diesel_rate() public {
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
+                expectBalance(
+                    underlying,
+                    pool.treasury(),
+                    testCase.expectedTreasury,
+                    _testCaseErr(testCase.name, "Incorrect DAO fee")
+                );
+                assertEq(
+                    shares, testCase.expectedSharesBurnt, _testCaseErr(testCase.name, "Incorrect shares return value")
+                );
 
-    //     // pool.setExpectedLiquidityLU(addLiquidity * 2);
+                expectBalance(
+                    address(pool),
+                    FRIEND,
+                    testCase.sharesToMint - testCase.expectedSharesBurnt,
+                    _testCaseErr(testCase.name, "Incorrect FRIEND balance")
+                );
 
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, FRIEND);
+                assertEq(
+                    pool.expectedLiquidity(),
+                    testCase.expectedLiquidityAfter,
+                    _testCaseErr(testCase.name, "Incorrect expected liquidity")
+                );
+                assertEq(
+                    pool.availableLiquidity(),
+                    testCase.expectedAvailableLiquidity,
+                    _testCaseErr(testCase.name, "Incorrect available liquidity")
+                );
 
-    //     assertEq(pool.balanceOf(FRIEND), addLiquidity / 2);
-    // }
+                assertEq(
+                    pool.allowance(FRIEND, USER),
+                    approveCase == 0 ? 1 : type(uint256).max,
+                    _testCaseErr(testCase.name, "Incorrect allowance after operation")
+                );
 
-    // // [P4-10]: removeLiquidity correctly removes liquidity if diesel rate != 1
-    // function test_PX_10_correctly_removes_liquidity_at_new_diesel_rate() public {
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, FRIEND);
+                assertEq(
+                    pool.borrowRate(),
+                    irm.calcBorrowRate(pool.expectedLiquidity(), pool.availableLiquidity(), false),
+                    _testCaseErr(testCase.name, "Borrow rate wasn't update correcty")
+                );
+            }
+        }
+    }
 
-    //     // pool.setExpectedLiquidityLU(uint128(addLiquidity * 2));
+    //
+    // REDEEM
+    //
+    struct RedeemTestCase {
+        string name;
+        /// SETUP
+        Tokens asset;
+        uint256 tokenFee;
+        uint256 initialLiquidity;
+        uint256 dieselRate;
+        uint16 utilisation;
+        uint16 withdrawFee;
+        /// PARAMS
+        uint256 sharesToMint;
+        uint256 sharesToRedeem;
+        /// EXPECTED VALUES
+        uint256 expectedAssetsDelivered;
+        uint256 expectedAvailableLiquidity;
+        uint256 expectedLiquidityAfter;
+        uint256 expectedTreasury;
+    }
 
-    //     evm.prank(FRIEND);
-    //     pool.redeem(removeLiquidity, USER, FRIEND);
+    // [P4-9]: deposit and mint if assets more than limit
+    function test_P4_09_redeem_works_as_expected() public {
+        RedeemTestCase[4] memory cases = [
+            RedeemTestCase({
+                name: "Normal token with 0 withdraw fee",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                sharesToRedeem: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedAssetsDelivered: addLiquidity / 2,
+                // availableLiquidityBefore: addLiqudity /2 (cause 50% utilisation)
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 2,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 2,
+                expectedTreasury: 0
+            }),
+            RedeemTestCase({
+                name: "Normal token with 1% withdraw fee",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 1_00,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                sharesToRedeem: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedAssetsDelivered: addLiquidity / 2 * 99 / 100,
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 2,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 2,
+                expectedTreasury: addLiquidity / 2 * 1 / 100
+            }),
+            RedeemTestCase({
+                name: "Fee token with 0 withdraw fee",
+                /// SETUP
+                asset: Tokens.USDT,
+                // transfer fee: 60%, so 40% will be transfer to account
+                tokenFee: 60_00,
+                initialLiquidity: addLiquidity,
+                // 1 dUSDT = 2 USDT
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 0,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                sharesToRedeem: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedAssetsDelivered: addLiquidity / 2 * 40 / 100,
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 2,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 2,
+                expectedTreasury: 0
+            }),
+            RedeemTestCase({
+                name: "Fee token with 1% withdraw fee",
+                /// SETUP
+                asset: Tokens.USDT,
+                // transfer fee: 60%, so 40% will be transfer to account
+                tokenFee: 60_00,
+                initialLiquidity: addLiquidity,
+                // 1 dUSDT = 2 USDT
+                dieselRate: 2 * RAY,
+                // 50% of available liquidity is borrowed
+                utilisation: 50_00,
+                withdrawFee: 1_00,
+                // PARAMS
+                sharesToMint: addLiquidity / 2,
+                sharesToRedeem: addLiquidity / 4,
+                // EXPECTED VALUES:
+                //
+                // addLiquidity /2 * 1/2 (rate) * 1 / (100%-1%) / feeToken
+                expectedAssetsDelivered: addLiquidity / 2 * 99 / 100 * 40 / 100,
+                // availableLiquidityBefore: addLiqudity /2 (cause 50% utilisation)
+                expectedAvailableLiquidity: addLiquidity / 2 + addLiquidity - addLiquidity / 2,
+                expectedLiquidityAfter: addLiquidity * 2 - addLiquidity / 2,
+                expectedTreasury: addLiquidity / 2 * 40 / 100 * 1 / 100
+            })
+        ];
+        /// @dev a represents allowance, 0 means required amount +1, 1 means inlimited allowance
 
-    //     expectBalance(address(pool), FRIEND, addLiquidity - removeLiquidity);
-    //     expectBalance(underlying, USER, liquidityProviderInitBalance - addLiquidity + 2 * removeLiquidity);
-    //     assertEq(pool.expectedLiquidity(), (addLiquidity - removeLiquidity) * 2);
-    //     assertEq(pool.availableLiquidity(), addLiquidity - removeLiquidity * 2);
-    // }
+        for (uint256 i; i < cases.length; ++i) {
+            RedeemTestCase memory testCase = cases[i];
+            for (uint256 approveCase; approveCase < 2; ++approveCase) {
+                bool feeToken = i == 1;
+
+                _setUpTestCase(
+                    testCase.asset,
+                    testCase.tokenFee,
+                    testCase.utilisation,
+                    testCase.initialLiquidity,
+                    testCase.dieselRate,
+                    testCase.withdrawFee
+                );
+
+                evm.prank(USER);
+                pool.mint(testCase.sharesToMint, FRIEND);
+
+                evm.prank(FRIEND);
+                pool.approve(USER, approveCase == 0 ? testCase.sharesToRedeem + 1 : type(uint256).max);
+
+                evm.expectEmit(true, true, false, true);
+                emit Transfer(FRIEND, address(0), testCase.sharesToRedeem);
+
+                evm.expectEmit(true, true, false, true);
+                emit Withdraw(USER, FRIEND2, FRIEND, testCase.expectedAssetsDelivered, testCase.sharesToRedeem);
+
+                evm.prank(USER);
+                uint256 assets = pool.redeem(testCase.sharesToRedeem, FRIEND2, FRIEND);
+
+                expectBalance(
+                    underlying,
+                    FRIEND2,
+                    testCase.expectedAssetsDelivered,
+                    _testCaseErr(testCase.name, "Incorrect assets on FRIEND2 account ")
+                );
+
+                expectBalance(
+                    underlying,
+                    pool.treasury(),
+                    testCase.expectedTreasury,
+                    _testCaseErr(testCase.name, "Incorrect treasury fee")
+                );
+                assertEq(
+                    assets,
+                    testCase.expectedAssetsDelivered,
+                    _testCaseErr(testCase.name, "Incorrect assets return value")
+                );
+                expectBalance(
+                    address(pool),
+                    FRIEND,
+                    testCase.sharesToMint - testCase.sharesToRedeem,
+                    _testCaseErr(testCase.name, "Incorrect FRIEND balance")
+                );
+
+                assertEq(
+                    pool.expectedLiquidity(),
+                    testCase.expectedLiquidityAfter,
+                    _testCaseErr(testCase.name, "Incorrect expected liquidity")
+                );
+                assertEq(
+                    pool.availableLiquidity(),
+                    testCase.expectedAvailableLiquidity,
+                    _testCaseErr(testCase.name, "Incorrect available liquidity")
+                );
+
+                assertEq(
+                    pool.allowance(FRIEND, USER),
+                    approveCase == 0 ? 1 : type(uint256).max,
+                    _testCaseErr(testCase.name, "Incorrect allowance after operation")
+                );
+
+                assertEq(
+                    pool.borrowRate(),
+                    irm.calcBorrowRate(pool.expectedLiquidity(), pool.availableLiquidity(), false),
+                    _testCaseErr(testCase.name, "Borrow rate wasn't update correcty")
+                );
+            }
+        }
+    }
+
+    // [P4-10]: burn works as expected
+    function test_P4_10_burn_works_as_expected() public {
+        _setUpTestCase(Tokens.DAI, 0, 50_00, addLiquidity, 2 * RAY, 0);
+
+        evm.prank(USER);
+        pool.mint(addLiquidity, USER);
+
+        uint256 borrowRate = pool.borrowRate();
+        uint256 dieselRate = pool.convertToAssets(RAY);
+        uint256 availableLiquidity = pool.availableLiquidity();
+        uint256 expectedLiquidity = pool.expectedLiquidity();
+
+        expectBalance(address(pool), USER, addLiquidity, "Incorrect USER balance");
+
+        /// Initial lp provided 1/2 AL + 1AL from USER
+        assertEq(pool.totalSupply(), addLiquidity * 3 / 2, "Incorrect total supply");
+
+        evm.prank(USER);
+        pool.burn(addLiquidity / 4);
+
+        expectBalance(address(pool), USER, addLiquidity * 3 / 4, "Incorrect USER balance");
+
+        assertEq(pool.borrowRate(), borrowRate, "Incorrect borrow rate");
+        /// Before burn totalSupply was 150% * AL, after 125% * LP
+        assertEq(pool.convertToAssets(RAY), dieselRate * 150 / 125, "Incorrect diesel rate");
+        assertEq(pool.availableLiquidity(), availableLiquidity, "Incorrect borrow rate");
+        assertEq(pool.expectedLiquidity(), expectedLiquidity, "Incorrect borrow rate");
+    }
 
     // // [P4-11]: connectCreditManager, forbidCreditManagerToBorrow, newInterestRateModel, setExpecetedLiquidityLimit reverts if called with non-configurator
     // function test_PX_11_admin_functions_revert_on_non_admin() public {
@@ -599,7 +1106,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, expectedAvailable);
 
-    //     assertEq(expectedBorrowRate, pool.borrowRate_RAY(), "Borrow rate is incorrect");
+    //     assertEq(expectedBorrowRate, pool.borrowRate(), "Borrow rate is incorrect");
     // }
 
     // // [P4-18]: repayCreditAccount emits Repay event
@@ -635,7 +1142,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-    //     uint256 borrowRate = pool.borrowRate_RAY();
+    //     uint256 borrowRate = pool.borrowRate();
     //     uint256 timeWarp = 365 days;
 
     //     uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
@@ -658,7 +1165,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     assertEq(pool.balanceOf(treasury), 0, "dToken remains in the treasury");
 
-    //     assertEq(pool.borrowRate_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
+    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
     // }
 
     // // [P4-20]: repayCreditAccount correctly updates params on loss accrued: treasury >= loss; and emits event
@@ -681,7 +1188,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     uint256 treasuryUnderlying = pool.convertToAssets(pool.balanceOf(treasury));
 
-    //     uint256 borrowRate = pool.borrowRate_RAY();
+    //     uint256 borrowRate = pool.borrowRate();
     //     uint256 timeWarp = 365 days;
 
     //     evm.warp(block.timestamp + timeWarp);
@@ -699,7 +1206,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     assertEq(pool.balanceOf(treasury), expectedTreasury, "dToken balance incorrect");
 
-    //     assertEq(pool.borrowRate_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
+    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
     // }
 
     // // [P4-21]: repayCreditAccount correctly updates params on profit
@@ -714,7 +1221,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-    //     uint256 borrowRate = pool.borrowRate_RAY();
+    //     uint256 borrowRate = pool.borrowRate();
     //     uint256 timeWarp = 365 days;
 
     //     evm.warp(block.timestamp + timeWarp);
@@ -735,7 +1242,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     assertEq(pool.balanceOf(treasury), pool.convertToShares(100), "dToken balance incorrect");
 
-    //     assertEq(pool.borrowRate_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
+    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
     // }
 
     // // [P4-22]: repayCreditAccount does not change the diesel rate outside margin of error
@@ -749,7 +1256,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-    //     uint256 borrowRate = pool.borrowRate_RAY();
+    //     uint256 borrowRate = pool.borrowRate();
     //     uint256 timeWarp = 365 days;
 
     //     evm.warp(block.timestamp + timeWarp);
@@ -844,7 +1351,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     assertEq(
     //         newIR.calcBorrowRate(expectedLiquidity, availableLiquidity),
-    //         pool.borrowRate_RAY(),
+    //         pool.borrowRate(),
     //         "Borrow rate does not match"
     //     );
     // }
@@ -860,7 +1367,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-    //     uint256 borrowRate = pool.borrowRate_RAY();
+    //     uint256 borrowRate = pool.borrowRate();
     //     uint256 timeWarp = 365 days;
 
     //     evm.warp(block.timestamp + timeWarp);
@@ -876,7 +1383,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     assertEq(uint256(pool.timestampLU()), block.timestamp, "Timestamp was not updated correctly");
 
-    //     assertEq(pool.borrowRate_RAY(), expectedBorrowRate, "Borrow rate was not updated correctly");
+    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
 
     //     assertEq(pool.calcLinearCumulative_RAY(), pool.cumulativeIndexLU_RAY(), "Index value was not updated correctly");
     // }
@@ -896,7 +1403,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     evm.warp(block.timestamp + timeWarp);
 
-    //     uint256 borrowRate = pool.borrowRate_RAY();
+    //     uint256 borrowRate = pool.borrowRate();
 
     //     uint256 expectedLinearRate = RAY + (borrowRate * timeWarp) / 365 days;
 
@@ -914,7 +1421,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
 
-    //     uint256 borrowRate = pool.borrowRate_RAY();
+    //     uint256 borrowRate = pool.borrowRate();
     //     uint256 timeWarp = 365 days;
 
     //     evm.warp(block.timestamp + timeWarp);
