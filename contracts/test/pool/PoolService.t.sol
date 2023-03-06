@@ -50,6 +50,7 @@ contract PoolServiceTest is DSTest, BalanceHelper, IPoolServiceEvents {
         psts = new PoolServiceTestSuite(
             tokenTestSuite,
             tokenTestSuite.addressOf(Tokens.DAI),
+            false, 
             false
         );
 

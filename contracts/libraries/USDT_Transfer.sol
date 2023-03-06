@@ -31,10 +31,20 @@ contract USDT_Transfer {
     /// @dev Computes how much usdt you should send to get exact amount on destination account
     function _amountUSDTWithFee(uint256 amount) internal view virtual returns (uint256) {
         uint256 amountWithBP = (amount * PERCENTAGE_FACTOR) / (PERCENTAGE_FACTOR - IUSDT(usdt).basisPointsRate());
-        uint256 maxFee = IUSDT(usdt).maximumFee();
+        uint256 maximumFee = IUSDT(usdt).maximumFee();
         unchecked {
-            uint256 amountWithMaxFee = maxFee > type(uint256).max - amount ? maxFee : amount + maxFee;
+            uint256 amountWithMaxFee = maximumFee > type(uint256).max - amount ? maximumFee : amount + maximumFee;
             return amountWithBP > amountWithMaxFee ? amountWithMaxFee : amountWithBP;
         }
+    }
+
+    /// @dev Computes how much usdt you should send to get exact amount on destination account
+    function _amountUSDTMinusFee(uint256 amount) internal view virtual returns (uint256) {
+        uint256 fee = amount * IUSDT(usdt).basisPointsRate() / 10000;
+        uint256 maximumFee = IUSDT(usdt).maximumFee();
+        if (fee > maximumFee) {
+            fee = maximumFee;
+        }
+        return amount - fee;
     }
 }

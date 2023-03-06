@@ -22,6 +22,7 @@ import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 import "../lib/constants.sol";
 import {ITokenTestSuite} from "../interfaces/ITokenTestSuite.sol";
 import {Pool4626} from "../../pool/Pool4626.sol";
+import {PoolQuotaKeeper} from "../../pool/PoolQuotaKeeper.sol";
 
 import {Pool4626_USDT} from "../../pool/Pool4626_USDT.sol";
 
@@ -45,10 +46,11 @@ contract PoolServiceTestSuite {
     IERC20 public underlying;
     DieselToken public dieselToken;
     LinearInterestRateModel public linearIRModel;
+    PoolQuotaKeeper public poolQuotaKeeper;
 
     address public treasury;
 
-    constructor(ITokenTestSuite _tokenTestSuite, address _underlying, bool is4626) {
+    constructor(ITokenTestSuite _tokenTestSuite, address _underlying, bool is4626, bool supportQuotas) {
         linearIRModel = new LinearInterestRateModel(
             8000,
             9000,
@@ -90,10 +92,14 @@ contract PoolServiceTestSuite {
                 underlyingToken: _underlying,
                 interestRateModel: address(linearIRModel),
                 expectedLiquidityLimit: type(uint256).max,
-                supportsQuotas: false
+                supportsQuotas: supportQuotas
             });
             pool4626 = isFeeToken ? new Pool4626_USDT(opts) : new Pool4626(opts);
             newPool = address(pool4626);
+
+            if (supportQuotas) {
+                _deployAndConnectPoolQuotaKeeper();
+            }
         } else {
             poolService = new TestPoolService(
                 address(addressProvider),
@@ -128,5 +134,12 @@ contract PoolServiceTestSuite {
         // evm.label(address(underlying), "UnderlyingToken");
 
         evm.stopPrank();
+    }
+
+    function _deployAndConnectPoolQuotaKeeper() internal {
+        poolQuotaKeeper = new PoolQuotaKeeper(address(pool4626));
+
+        evm.prank(CONFIGURATOR);
+        pool4626.connectPoolQuotaManager(address(poolQuotaKeeper));
     }
 }

@@ -30,10 +30,10 @@ contract TokensTestSuiteHelper is DSTest, ITokenTestSuite {
         if (token == wethToken) {
             evm.deal(address(this), amount);
             IWETH(wethToken).deposit{value: amount}();
+            IERC20(token).transfer(to, amount);
         } else {
-            ERC20Mock(token).mint(address(this), amount);
+            ERC20Mock(token).mint(to, amount);
         }
-        IERC20(token).transfer(to, amount);
     }
 
     function balanceOf(address token, address holder) public view override returns (uint256 balance) {
