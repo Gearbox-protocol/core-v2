@@ -2047,7 +2047,7 @@ contract CreditFacadeTest is
         creditFacade.openCreditAccountMulticall(USDC_ACCOUNT_AMOUNT, USER, multicallBuilder(), 0);
     }
 
-    /// @dev [FA-58]: botll works correctly
+    /// @dev [FA-58]: botMulticall works correctly
     function test_FA_58_botMulticall_works_correctly() public {
         (address creditAccount,) = _openTestCreditAccount();
 
