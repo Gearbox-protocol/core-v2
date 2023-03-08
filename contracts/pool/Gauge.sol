@@ -17,6 +17,7 @@ import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 // interfaces
 import {IGauge, GaugeOpts} from "../interfaces/IGauge.sol";
 import {IPoolQuotaKeeper, QuotaRateUpdate} from "../interfaces/IPoolQuotaKeeper.sol";
+import {IvlGEAR} from "../interfaces/IvlGEAR.sol";
 
 import {RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "../libraries/Constants.sol";
 import {Errors} from "../libraries/Errors.sol";
@@ -28,17 +29,15 @@ import {ZeroAddressException} from "../interfaces/IErrors.sol";
 import "forge-std/console.sol";
 
 struct QuotaRateParams {
-    uint16 minRiskRate; // set by risk dao
-    uint16 maxRate; // set by dao voting
-    uint96 votesLpSide;
-    uint96 votesCaSide;
+    uint16 minRiskRate;
+    uint16 maxRate;
+    uint96 totalVotesLpSide;
+    uint96 totalVotesCaSide;
 }
 
-struct Stake {
-    uint96 staked;
-    uint96 unstaking;
-    uint96 voted;
-    uint16 unstakedInEpoch;
+struct UserVotes {
+    uint96 votesLpSide;
+    uint96 votesCaSide;
 }
 
 /// @title Gauge fore new 4626 pools
@@ -52,20 +51,17 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
     /// @dev Address provider
     Pool4626 public immutable pool;
 
-    /// @dev Timestamp when the first epoch started
-    uint256 public immutable firstEpochTimestamp;
-
+    /// @dev Mapping from token address to its rate parameters
     mapping(address => QuotaRateParams) public quotaRateParams;
 
-    /// @dev Gear token
-    IERC20 public immutable gearToken;
+    /// @dev Mapping from (user, token) to vote amounts committed by user to each side
+    mapping(address => mapping(address => UserVotes)) userTokenVotes;
 
-    uint256 constant epochLength = 7 days;
+    /// @dev GEAR locking and voting contract
+    IvlGEAR public immutable voter;
 
-    uint16 public currentEpoch;
-
-    /// timelock for GEAR per epoch
-    mapping(address => Stake) public stakes;
+    /// @dev Epoch when the gauge was last updated
+    uint16 public epochLU;
 
     //
     // CONSTRUCTOR
@@ -81,20 +77,43 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
 
         addressProvider = opts.addressProvider; // F:[P4-01]
         pool = Pool4626(payable(opts.pool)); // F:[P4-01]
-        firstEpochTimestamp = opts.firstEpochTimestamp;
-        gearToken = IERC20(opts.gearToken);
+        voter = IvlGEAR(opts.vlGEAR);
+        epochLU = voter.getCurrentEpoch();
     }
 
-    function addQuotaToken(address token, uint16 _rate) external configuratorOnly {}
+    modifier onlyVoter() {
+        if (msg.sender != address(voter)) {
+            revert OnlyVoterException();
+        }
+        _;
+    }
+
+    function addQuotaToken(address token, uint16 _minRiskRate, uint16 _maxRate) external configuratorOnly {
+        quotaRateParams[token] =
+            QuotaRateParams({minRiskRate: _minRiskRate, maxRate: _maxRate, totalVotesLpSide: 0, totalVotesCaSide: 0});
+
+        IPoolQuotaKeeper keeper = IPoolQuotaKeeper(pool.poolQuotaKeeper());
+        keeper.addQuotaToken(token);
+    }
+
+    function changeQuotaTokenRateParams(address token, uint16 _minRiskRate, uint16 _maxRate)
+        external
+        configuratorOnly
+    {
+        QuotaRateParams memory qrp = quotaRateParams[token];
+        qrp.minRiskRate = _minRiskRate;
+        qrp.maxRate = _maxRate;
+        quotaRateParams[token] = qrp;
+    }
 
     function updateEpoch() external {
         _checkAndUpdateEpoch();
     }
 
     function _checkAndUpdateEpoch() internal {
-        uint16 epochNow = uint16((block.timestamp - firstEpochTimestamp) / epochLength);
-        if (epochNow > currentEpoch) {
-            currentEpoch = epochNow;
+        uint16 epochNow = voter.getCurrentEpoch();
+        if (epochNow > epochLU) {
+            epochLU = epochNow;
 
             /// compute all compounded rates
             IPoolQuotaKeeper keeper = IPoolQuotaKeeper(pool.poolQuotaKeeper());
@@ -109,8 +128,8 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
 
                 QuotaRateParams storage qrp = quotaRateParams[token];
 
-                uint96 votesLpSide = qrp.votesLpSide;
-                uint96 votesCaSide = qrp.votesCaSide;
+                uint96 votesLpSide = qrp.totalVotesLpSide;
+                uint96 votesCaSide = qrp.totalVotesCaSide;
 
                 uint96 totalVotes = votesLpSide + votesCaSide;
 
@@ -131,91 +150,45 @@ contract Gauge is IGauge, ACLNonReentrantTrait {
         }
     }
 
-    function stake(uint96 amount, address receiver) external nonReentrant {
-        // Transfer from
-        // add depositred
-        Stake storage stake = stakes[msg.sender];
-        stake.staked += amount;
-
-        gearToken.safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposit(msg.sender, receiver, amount);
+    function vote(address user, uint96 votes, bytes memory extraData) external onlyVoter {
+        (address token, bool lpSide) = abi.decode(extraData, (address, bool));
+        _vote(user, votes, token, lpSide);
     }
 
-    function vote(address token, uint96 votes, bool lpSide) external nonReentrant {
+    function _vote(address user, uint96 votes, address token, bool lpSide) internal {
         _checkAndUpdateEpoch();
-        Stake storage currentStake = stakes[msg.sender];
-        if (votes > currentStake.staked + currentStake.unstaking) {
-            revert NotEnoughBalance();
-        }
-
-        unchecked {
-            if (currentStake.unstaking > 0) {
-                if (currentStake.unstaking > votes) {
-                    currentStake.unstaking -= votes;
-                } else {
-                    currentStake.unstaking = 0;
-                    currentStake.staked -= votes - currentStake.unstaking;
-                }
-            } else {
-                currentStake.staked -= votes;
-                currentStake.voted += votes;
-            }
-        }
 
         QuotaRateParams storage qp = quotaRateParams[token];
+        UserVotes storage uv = userTokenVotes[user][token];
         if (lpSide) {
-            qp.votesLpSide += votes;
+            qp.totalVotesLpSide += votes;
+            uv.votesLpSide += votes;
         } else {
-            qp.votesCaSide += votes;
+            qp.totalVotesCaSide += votes;
+            uv.votesCaSide += votes;
         }
 
-        // emit
-        emit VoteFor(token, votes, lpSide);
+        emit VoteFor(user, token, votes, lpSide);
     }
 
-    function unvote(address token, uint96 votes, bool lpSide) external nonReentrant {
+    function unvote(address user, uint96 votes, bytes memory extraData) external onlyVoter {
+        (address token, bool lpSide) = abi.decode(extraData, (address, bool));
+        _unvote(user, votes, token, lpSide);
+    }
+
+    function _unvote(address user, uint96 votes, address token, bool lpSide) internal {
         _checkAndUpdateEpoch();
-        Stake storage currentStake = stakes[msg.sender];
-
-        if (votes > currentStake.staked) {
-            revert NotEnoughBalance();
-        }
-
-        if (currentStake.unstaking > 0 && currentStake.unstakedInEpoch < currentEpoch) {
-            currentStake.staked += currentStake.unstaking;
-            currentStake.unstaking = 0;
-        }
-
-        unchecked {
-            currentStake.unstaking += votes;
-            currentStake.voted -= votes;
-            currentStake.unstakedInEpoch = currentEpoch;
-        }
 
         QuotaRateParams storage qp = quotaRateParams[token];
+        UserVotes storage uv = userTokenVotes[user][token];
         if (lpSide) {
-            qp.votesLpSide -= votes;
+            qp.totalVotesLpSide -= votes;
+            uv.votesLpSide -= votes;
         } else {
-            qp.votesCaSide -= votes;
+            qp.totalVotesCaSide -= votes;
+            uv.votesCaSide -= votes;
         }
 
-        emit UnvoteFrom(token, votes, lpSide);
-    }
-
-    function unstake(uint96 amount, address receiver) external nonReentrant {
-        _checkAndUpdateEpoch();
-        Stake storage stake = stakes[msg.sender];
-        if (amount > stake.staked) {
-            revert NotEnoughBalance();
-        }
-
-        unchecked {
-            stake.staked -= amount;
-        }
-
-        gearToken.transfer(receiver, amount);
-
-        // emit event
-        emit Withdraw(msg.sender, receiver, amount);
+        emit UnvoteFrom(user, token, votes, lpSide);
     }
 }

@@ -6,22 +6,17 @@ pragma solidity ^0.8.10;
 struct GaugeOpts {
     address addressProvider;
     address pool;
-    uint256 firstEpochTimestamp;
-    address gearToken;
+    address vlGEAR;
 }
 
 interface IGaugeExceptions {
-    error NotEnoughBalance();
+    error OnlyVoterException();
 }
 
 interface IGaugeEvents {
-    event Deposit(address indexed caller, address indexed owner, uint256 assets);
+    event VoteFor(address indexed user, address indexed token, uint96 votes, bool lpSide);
 
-    event Withdraw(address indexed caller, address indexed receiver, uint256 assets);
-
-    event VoteFor(address indexed token, uint96 votes, bool lpSide);
-
-    event UnvoteFrom(address indexed token, uint96 votes, bool lpSide);
+    event UnvoteFrom(address indexed user, address indexed token, uint96 votes, bool lpSide);
 }
 
 /// @title IGauge

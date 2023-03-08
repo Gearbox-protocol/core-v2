@@ -159,7 +159,7 @@ contract CreditManagerTestSuite is PoolDeployer {
         require(supportsQuotas, "Test suite does not support quotas");
 
         evm.startPrank(CONFIGURATOR);
-        poolQuotaKeeper._addQuotaToken(token, rate);
+        poolQuotaKeeper.addQuotaToken(token);
         poolQuotaKeeper.setTokenLimit(token, limit);
 
         address[] memory quotedTokens = poolQuotaKeeper.quotedTokens();
@@ -169,8 +169,8 @@ contract CreditManagerTestSuite is PoolDeployer {
         );
 
         for (uint256 i = 0; i < quotedTokens.length; ++i) {
-            rateUpdates[i] =
-                QuotaRateUpdate({token: quotedTokens[i], rate: poolQuotaKeeper.getQuotaRate(quotedTokens[i])});
+            uint16 rateToSet = token == quotedTokens[i] ? rate : poolQuotaKeeper.getQuotaRate(quotedTokens[i]);
+            rateUpdates[i] = QuotaRateUpdate({token: quotedTokens[i], rate: rateToSet});
         }
 
         poolQuotaKeeper.updateRates(rateUpdates);
