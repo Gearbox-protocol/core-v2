@@ -21,11 +21,14 @@ contract UniversalAdapter is AbstractAdapter, IUniversalAdapter {
     /// @notice Constructor
     /// @param _creditManager Credit manager address
     /// @dev Target contract is always the same special address
-    constructor(address _creditManager) AbstractAdapter(_creditManager, UNIVERSAL_CONTRACT) {}
+    constructor(address _creditManager) AbstractAdapter(_creditManager, UNIVERSAL_CONTRACT) {} // F: [UA-1]
 
-    /// @notice Revokes adapters allowances for specified tokens of the credit account
-    /// @param revocations Adapter/token pairs to revoke allowances for
-    function revokeAdapterAllowances(RevocationPair[] calldata revocations) external creditFacadeOnly {
+    /// @notice Revokes allowances for specified spender/token pairs
+    /// @param revocations Spender/token pairs to revoke allowances for
+    function revokeAdapterAllowances(RevocationPair[] calldata revocations)
+        external
+        creditFacadeOnly // F: [UA-2]
+    {
         address creditAccount = _creditAccount();
 
         uint256 numRevocations = revocations.length;
@@ -34,12 +37,12 @@ contract UniversalAdapter is AbstractAdapter, IUniversalAdapter {
             address token = revocations[i].token;
 
             if (spender == address(0) || token == address(0)) {
-                revert ZeroAddressException();
+                revert ZeroAddressException(); // F: [UA-3]
             }
 
             uint256 allowance = IERC20(token).allowance(creditAccount, spender);
             if (allowance > 1) {
-                creditManager.approveCreditAccount(spender, token, 1);
+                creditManager.approveCreditAccount(spender, token, 1); // F: [UA-4]
             }
 
             unchecked {

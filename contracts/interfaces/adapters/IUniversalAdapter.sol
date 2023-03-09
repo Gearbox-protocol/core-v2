@@ -13,7 +13,7 @@ struct RevocationPair {
 /// @title Universal adapter interface
 /// @notice Implements the initial version of universal adapter, which handles allowance revocations
 interface IUniversalAdapter is IAdapter {
-    /// @notice Revokes adapters allowances for specified tokens of the credit account
-    /// @param revocations Adapter/token pairs to revoke allowances for
+    /// @notice Revokes allowances for specified spender/token pairs
+    /// @param revocations Spender/token pairs to revoke allowances for
     function revokeAdapterAllowances(RevocationPair[] calldata revocations) external;
 }
