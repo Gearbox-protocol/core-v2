@@ -4,7 +4,7 @@
 pragma solidity ^0.8.10;
 
 import {ILPPriceFeedExceptions, ILPPriceFeedEvents} from "../../interfaces/ILPPriceFeed.sol";
-import {PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
 
 // TEST
 import "../lib/constants.sol";

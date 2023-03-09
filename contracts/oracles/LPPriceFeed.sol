@@ -6,7 +6,7 @@ pragma solidity ^0.8.10;
 import {ILPPriceFeed} from "../interfaces/ILPPriceFeed.sol";
 import {PriceFeedChecker} from "./PriceFeedChecker.sol";
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
 
 // EXCEPTIONS
 import {NotImplementedException} from "../interfaces/IErrors.sol";

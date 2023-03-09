@@ -18,7 +18,7 @@ import {
     UNIVERSAL_CONTRACT
 } from "../libraries/Constants.sol";
 import {WAD} from "../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
 
 // CONTRACTS
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";

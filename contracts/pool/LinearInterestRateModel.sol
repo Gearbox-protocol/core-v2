@@ -3,41 +3,38 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {PercentageMath, PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
-import {WAD, RAY} from "../libraries/Constants.sol";
+import {WAD, RAY, PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
 import {Errors} from "../libraries/Errors.sol";
 
 /// @title Linear Interest Rate Model
 /// @notice Linear interest rate model, similar which Aave uses
 contract LinearInterestRateModel is IInterestRateModel {
-    using PercentageMath for uint256;
-
     bool public immutable isBorrowingMoreOptimalForbidden;
 
     // Uoptimal[0;1] in Wad
-    uint256 public immutable _U_Optimal_WAD;
+    uint256 public immutable U_Optimal_WAD;
 
     // 1 - Uoptimal [0;1] x10.000, percentage plus two decimals
-    uint256 public immutable _U_Optimal_inverted_WAD;
+    uint256 public immutable U_Optimal_inverted_WAD;
 
     // Uoptimal[0;1] in Wad
-    uint256 public immutable _U_Reserve_WAD;
+    uint256 public immutable U_Reserve_WAD;
 
     // 1 - Uoptimal [0;1] x10.000, percentage plus two decimals
-    uint256 public immutable _U_Reserve_inverted_WAD;
+    uint256 immutable U_Reserve_inverted_WAD;
 
     // R_base in Ray
-    uint256 public immutable _R_base_RAY;
+    uint256 public immutable R_base_RAY;
 
     // R_Slope1 in Ray
-    uint256 public immutable _R_slope1_RAY;
+    uint256 public immutable R_slope1_RAY;
 
     // R_Slope2 in Ray
-    uint256 public immutable _R_slope2_RAY;
+    uint256 public immutable R_slope2_RAY;
 
     // R_Slope2 in Ray
-    uint256 public immutable _R_slope3_RAY;
+    uint256 public immutable R_slope3_RAY;
 
     // Contract version
     uint256 public constant version = 2_01;
@@ -63,23 +60,23 @@ contract LinearInterestRateModel is IInterestRateModel {
         }
 
         // Convert percetns to WAD
-        uint256 U_optimal_WAD = WAD.percentMul(U_optimal);
-        _U_Optimal_WAD = (WAD * U_optimal) / PERCENTAGE_FACTOR;
+        uint256 U_optimal_WAD = WAD * U_optimal / PERCENTAGE_FACTOR;
+        U_Optimal_WAD = (WAD * U_optimal) / PERCENTAGE_FACTOR;
 
         // 1 - Uoptimal in WAD
-        _U_Optimal_inverted_WAD = WAD - U_optimal_WAD;
+        U_Optimal_inverted_WAD = WAD - U_optimal_WAD;
 
         // Convert percetns to WAD
-        uint256 U_Reserve_WAD = WAD.percentMul(U_reserve);
-        _U_Reserve_WAD = (WAD * U_reserve) / PERCENTAGE_FACTOR;
+        uint256 U_Reserve_wad = WAD * U_reserve / PERCENTAGE_FACTOR;
+        U_Reserve_WAD = WAD * U_reserve / PERCENTAGE_FACTOR;
 
         // 1 - UReserve in WAD
-        _U_Reserve_inverted_WAD = WAD - U_Reserve_WAD;
+        U_Reserve_inverted_WAD = WAD - U_Reserve_WAD;
 
-        _R_base_RAY = RAY.percentMul(R_base);
-        _R_slope1_RAY = RAY.percentMul(R_slope1);
-        _R_slope2_RAY = RAY.percentMul(R_slope2);
-        _R_slope3_RAY = RAY.percentMul(R_slope3);
+        R_base_RAY = RAY * R_base / PERCENTAGE_FACTOR;
+        R_slope1_RAY = RAY * R_slope1 / PERCENTAGE_FACTOR;
+        R_slope2_RAY = RAY * R_slope2 / PERCENTAGE_FACTOR;
+        R_slope3_RAY = RAY * R_slope3 / PERCENTAGE_FACTOR;
 
         isBorrowingMoreOptimalForbidden = _isBorrowingMoreOptimalForbidden;
     }
@@ -108,7 +105,7 @@ contract LinearInterestRateModel is IInterestRateModel {
         returns (uint256)
     {
         if (expectedLiquidity == 0 || expectedLiquidity < availableLiquidity) {
-            return _R_base_RAY;
+            return R_base_RAY;
         } // T: [LR-5,6]
 
         //      expectedLiquidity - availableLiquidity
@@ -123,12 +120,12 @@ contract LinearInterestRateModel is IInterestRateModel {
         // borrowRate = Rbase + Rslope1 * ----------
         //                                 Uoptimal
         //
-        if (U_WAD < _U_Optimal_WAD) {
-            return _R_base_RAY + ((_R_slope1_RAY * U_WAD) / _U_Optimal_WAD);
+        if (U_WAD < U_Optimal_WAD) {
+            return R_base_RAY + ((R_slope1_RAY * U_WAD) / U_Optimal_WAD);
         } else if (checkOptimalBorrowing && isBorrowingMoreOptimalForbidden) {
             revert BorrowingMoreOptimalForbiddenException();
-        } else if (U_WAD >= _U_Optimal_WAD && U_WAD < _U_Reserve_WAD) {
-            return _R_base_RAY + _R_slope1_RAY + (_R_slope2_RAY * (U_WAD - _U_Optimal_WAD)) / _U_Optimal_inverted_WAD; // T:[LR-1,2,3]
+        } else if (U_WAD >= U_Optimal_WAD && U_WAD < U_Reserve_WAD) {
+            return R_base_RAY + R_slope1_RAY + (R_slope2_RAY * (U_WAD - U_Optimal_WAD)) / U_Optimal_inverted_WAD; // T:[LR-1,2,3]
         }
 
         // if U >= Uoptimal & U < Ureserve:
@@ -137,8 +134,8 @@ contract LinearInterestRateModel is IInterestRateModel {
         // borrowRate = Rbase + Rslope1 + Rslope2  + Rslope * --------------
         //                                                     1 - Ureserve
 
-        return _R_base_RAY + _R_slope1_RAY + _R_slope2_RAY
-            + (_R_slope3_RAY * (U_WAD - _U_Reserve_WAD)) / _U_Reserve_inverted_WAD; // T:[LR-1,2,3]
+        return
+            R_base_RAY + R_slope1_RAY + R_slope2_RAY + (R_slope3_RAY * (U_WAD - U_Reserve_WAD)) / U_Reserve_inverted_WAD; // T:[LR-1,2,3]
     }
 
     /// @dev Returns the model's parameters
@@ -151,10 +148,10 @@ contract LinearInterestRateModel is IInterestRateModel {
         view
         returns (uint256 U_optimal, uint256 R_base, uint256 R_slope1, uint256 R_slope2)
     {
-        U_optimal = _U_Optimal_WAD.percentDiv(WAD); // T:[LR-4]
-        R_base = _R_base_RAY; // T:[LR-4]
-        R_slope1 = _R_slope1_RAY; // T:[LR-4]
-        R_slope2 = _R_slope2_RAY; // T:[LR-4]
+        U_optimal = U_Optimal_WAD * PERCENTAGE_FACTOR / WAD; // T:[LR-4]
+        R_base = R_base_RAY; // T:[LR-4]
+        R_slope1 = R_slope1_RAY; // T:[LR-4]
+        R_slope2 = R_slope2_RAY; // T:[LR-4]
     }
 
     function availableToBorrow(uint256 expectedLiquidity, uint256 availableLiquidity)
@@ -166,7 +163,7 @@ contract LinearInterestRateModel is IInterestRateModel {
         if (isBorrowingMoreOptimalForbidden) {
             uint256 U_WAD = (WAD * (expectedLiquidity - availableLiquidity)) / expectedLiquidity;
 
-            return (U_WAD < _U_Optimal_WAD) ? ((_U_Optimal_WAD - U_WAD) * expectedLiquidity) / PERCENTAGE_FACTOR : 0;
+            return (U_WAD < U_Optimal_WAD) ? ((U_Optimal_WAD - U_WAD) * expectedLiquidity) / PERCENTAGE_FACTOR : 0;
         } else {
             return availableLiquidity;
         }

@@ -458,25 +458,25 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
         CreditManagerDebt storage cmDebt = creditManagersDebt[msg.sender];
 
         if (cmDebt.totalBorrowed + borrowedAmount > cmDebt.limit || borrowedAmount == 0) {
-            revert CreditManagerCantBorrowException();
+            revert CreditManagerCantBorrowException(); // F:[P4-12]
         }
-        cmDebt.totalBorrowed += uint128(borrowedAmount);
+        cmDebt.totalBorrowed += uint128(borrowedAmount); // F:[P4-11]
 
         // Increase total borrowed amount
-        _totalBorrowed += uint128(borrowedAmount);
+        _totalBorrowed += uint128(borrowedAmount); // F:[P4-11]
 
         // Reverts if total borrow more than limit
         if (_totalBorrowed > _totalBorrowedLimit) {
-            revert CreditManagerCantBorrowException();
+            revert CreditManagerCantBorrowException(); // F:[P4-12]
         }
 
         // Update borrow Rate, reverts of Uoptimal limit is set up
-        _updateBaseParameters(0, -int256(borrowedAmount), true);
+        _updateBaseParameters(0, -int256(borrowedAmount), true); // F:[P4-11]
 
         // Transfer funds to credit account
-        IERC20(underlyingToken).safeTransfer(creditAccount, borrowedAmount);
+        IERC20(underlyingToken).safeTransfer(creditAccount, borrowedAmount); // F:[P4-11]
 
-        emit Borrow(msg.sender, creditAccount, borrowedAmount);
+        emit Borrow(msg.sender, creditAccount, borrowedAmount); // F:[P4-11]
     }
 
     /// @dev Registers Credit Account's debt repayment and updates parameters.
@@ -494,39 +494,38 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
 
         uint128 cmTotalBorrowed = cmDebt.totalBorrowed;
         if (cmTotalBorrowed == 0) {
-            /// todo: add correct exception ??
-            revert CreditManagerOnlyException();
+            revert CreditManagerOnlyException(); // F:[P4-13]
         }
 
         // For fee surplus we mint tokens for treasury
         if (profit > 0) {
-            _mint(treasury, convertToShares(profit));
+            _mint(treasury, convertToShares(profit)); // F:[P4-14]
         } else {
             // If returned money < borrowed amount + interest accrued
             // it tries to compensate loss by burning diesel (LP) tokens
             // from treasury fund
-            uint256 sharesToBurn = convertToShares(loss);
-            uint256 sharesInTreasury = balanceOf(treasury);
+            uint256 sharesToBurn = convertToShares(loss); // F:[P4-14]
+            uint256 sharesInTreasury = balanceOf(treasury); // F:[P4-14]
 
             if (sharesInTreasury < sharesToBurn) {
-                sharesToBurn = sharesInTreasury;
-                emit UncoveredLoss(msg.sender, loss - convertToAssets(sharesInTreasury));
+                sharesToBurn = sharesInTreasury; // F:[P4-14]
+                emit UncoveredLoss(msg.sender, loss - convertToAssets(sharesInTreasury)); // F:[P4-14]
             }
 
             // If treasury has enough funds, it just burns needed amount
             // to keep diesel rate on the same level
-            _burn(treasury, sharesToBurn);
+            _burn(treasury, sharesToBurn); // F:[P4-14]
         }
 
         // Updates borrow rate
-        _updateBaseParameters(int256(profit) - int256(loss), 0, false);
+        _updateBaseParameters(int256(profit) - int256(loss), 0, false); // F:[P4-14]
 
         // Updates total borrowed
-        _totalBorrowed -= uint128(borrowedAmount);
+        _totalBorrowed -= uint128(borrowedAmount); // F:[P4-14]
 
-        cmDebt.totalBorrowed = cmTotalBorrowed - uint128(borrowedAmount);
+        cmDebt.totalBorrowed = cmTotalBorrowed - uint128(borrowedAmount); // F:[P4-14]
 
-        emit Repay(msg.sender, borrowedAmount, profit, loss);
+        emit Repay(msg.sender, borrowedAmount, profit, loss); // F:[P4-14]
     }
 
     //
@@ -541,28 +540,10 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
     ///
     /// @return Current cumulative index in RAY
     function calcLinearCumulative_RAY() public view override returns (uint256) {
-        //solium-disable-next-line
-        uint256 timeDifference = block.timestamp - timestampLU;
+        uint256 timeDifference = block.timestamp - timestampLU; // F:[P4-15]
+        uint256 linearAccumulated_RAY = RAY + (_borrowRate * timeDifference) / SECONDS_PER_YEAR; // F:[P4-15]
 
-        return calcLinearIndex_RAY(cumulativeIndexLU_RAY, _borrowRate, timeDifference);
-    }
-
-    /// @dev Calculates a new cumulative index value from the initial value, borrow rate and time elapsed
-    /// @param cumulativeIndex_RAY Cumulative index at last update, in RAY
-    /// @param currentborrowRate Current borrow rate, in RAY
-    /// @param timeDifference Time elapsed since last update, in seconds
-    function calcLinearIndex_RAY(uint256 cumulativeIndex_RAY, uint256 currentborrowRate, uint256 timeDifference)
-        public
-        pure
-        returns (uint256)
-    {
-        //                               /     currentBorrowRate * timeDifference \
-        //  newIndex  = currentIndex *  | 1 + ------------------------------------ |
-        //                               \              SECONDS_PER_YEAR          /
-        //
-        uint256 linearAccumulated_RAY = RAY + (currentborrowRate * timeDifference) / SECONDS_PER_YEAR;
-
-        return (cumulativeIndex_RAY * linearAccumulated_RAY) / RAY;
+        return (cumulativeIndexLU_RAY * linearAccumulated_RAY) / RAY; // F:[P4-15]
     }
 
     /// @dev Updates core popo when liquidity parameters are changed

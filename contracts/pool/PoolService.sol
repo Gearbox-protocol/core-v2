@@ -11,7 +11,6 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {RAY} from "../libraries/Constants.sol";
-import {PercentageMath} from "../libraries/PercentageMath.sol";
 
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
 import {IPoolService} from "../interfaces/IPoolService.sol";
@@ -19,7 +18,7 @@ import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
 
 import {AddressProvider} from "../core/AddressProvider.sol";
 import {DieselToken} from "../tokens/DieselToken.sol";
-import {SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "../libraries/Constants.sol";
+import {SECONDS_PER_YEAR, MAX_WITHDRAW_FEE, PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
 import {Errors} from "../libraries/Errors.sol";
 
 /// @title Pool Service Interface
@@ -31,7 +30,6 @@ import {Errors} from "../libraries/Errors.sol";
 /// More: https://dev.gearbox.fi/developers/pools/pool-service
 contract PoolService is IPoolService, ACLNonReentrantTrait {
     using SafeERC20 for IERC20;
-    using PercentageMath for uint256;
 
     /// @dev Expected liquidity at last update (LU)
     uint256 public _expectedLiquidityLU;
@@ -217,7 +215,7 @@ contract PoolService is IPoolService, ACLNonReentrantTrait {
 
         uint256 underlyingTokensAmount = fromDiesel(amount); // T:[PS-3, 8]
 
-        uint256 amountTreasury = underlyingTokensAmount.percentMul(withdrawFee);
+        uint256 amountTreasury = underlyingTokensAmount * withdrawFee / PERCENTAGE_FACTOR;
         uint256 amountSent = underlyingTokensAmount - amountTreasury;
 
         IERC20(underlyingToken).safeTransfer(to, amountSent); // T:[PS-3, 34]

@@ -35,7 +35,7 @@ import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 // TEST
 import "../lib/constants.sol";
 import "../lib/StringUtils.sol";
-import {PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
 
 import "forge-std/console.sol";
 
@@ -73,16 +73,16 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
     IInterestRateModel irm;
 
     function setUp() public {
-        _setUp(Tokens.DAI);
+        _setUp(Tokens.DAI, false);
     }
 
-    function _setUp(Tokens t) public {
+    function _setUp(Tokens t, bool supportQuotas) public {
         tokenTestSuite = new TokensTestSuite();
         psts = new PoolServiceTestSuite(
             tokenTestSuite,
             tokenTestSuite.addressOf(t),
             true,
-            false
+            supportQuotas
         );
 
         pool = psts.pool4626();
@@ -101,9 +101,10 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
         uint16 utilisation,
         uint256 availableLiquidity,
         uint256 dieselRate,
-        uint16 withdrawFee
+        uint16 withdrawFee,
+        bool supportQuotas
     ) internal {
-        _setUp(t);
+        _setUp(t, supportQuotas);
         if (t == Tokens.USDT) {
             // set 50% fee if fee token
             ERC20FeeMock(pool.asset()).setMaximumFee(type(uint256).max);
@@ -112,7 +113,8 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
         _initPoolLiquidity(availableLiquidity, dieselRate);
         _connectAndSetLimit();
-        _borrow(utilisation);
+
+        if (utilisation > 0) _borrowToUtilisation(utilisation);
 
         evm.prank(CONFIGURATOR);
         pool.setWithdrawFee(withdrawFee);
@@ -123,7 +125,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
         pool.setCreditManagerLimit(address(cmMock), type(uint128).max);
     }
 
-    function _borrow(uint16 utilisation) internal {
+    function _borrowToUtilisation(uint16 utilisation) internal {
         cmMock.lendCreditAccount(pool.expectedLiquidity() / 2, DUMB_ADDRESS);
 
         assertEq(pool.borrowRate(), irm.calcBorrowRate(PERCENTAGE_FACTOR, utilisation, false));
@@ -139,7 +141,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     function _updateBorrowrate() internal {
         evm.prank(CONFIGURATOR);
-        pool.updateInterestRateModel(address(pool.interestRateModel()));
+        pool.updateInterestRateModel(address(irm));
     }
 
     function _initPoolLiquidity() internal {
@@ -346,7 +348,8 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
                     testCase.utilisation,
                     testCase.initialLiquidity,
                     testCase.dieselRate,
-                    testCase.withdrawFee
+                    testCase.withdrawFee,
+                    false
                 );
 
                 evm.expectEmit(true, true, false, true);
@@ -465,7 +468,8 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
                 testCase.utilisation,
                 testCase.initialLiquidity,
                 testCase.dieselRate,
-                testCase.withdrawFee
+                testCase.withdrawFee,
+                false
             );
 
             evm.expectEmit(true, true, false, true);
@@ -516,7 +520,7 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
                 Tokens asset = feeToken ? Tokens.USDT : Tokens.DAI;
 
-                _setUpTestCase(asset, feeToken ? 60_00 : 0, 50_00, addLiquidity, 2 * RAY, 0);
+                _setUpTestCase(asset, feeToken ? 60_00 : 0, 50_00, addLiquidity, 2 * RAY, 0, false);
 
                 evm.prank(CONFIGURATOR);
                 pool.setExpectedLiquidityLimit(1237882323 * WAD);
@@ -673,7 +677,8 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
                     testCase.utilisation,
                     testCase.initialLiquidity,
                     testCase.dieselRate,
-                    testCase.withdrawFee
+                    testCase.withdrawFee,
+                    false
                 );
 
                 evm.prank(USER);
@@ -872,7 +877,8 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
                     testCase.utilisation,
                     testCase.initialLiquidity,
                     testCase.dieselRate,
-                    testCase.withdrawFee
+                    testCase.withdrawFee,
+                    false
                 );
 
                 evm.prank(USER);
@@ -943,20 +949,20 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     // [P4-10]: burn works as expected
     function test_P4_10_burn_works_as_expected() public {
-        _setUpTestCase(Tokens.DAI, 0, 50_00, addLiquidity, 2 * RAY, 0);
+        _setUpTestCase(Tokens.DAI, 0, 50_00, addLiquidity, 2 * RAY, 0, false);
 
         evm.prank(USER);
         pool.mint(addLiquidity, USER);
+
+        expectBalance(address(pool), USER, addLiquidity, "SETUP: Incorrect USER balance");
+
+        /// Initial lp provided 1/2 AL + 1AL from USER
+        assertEq(pool.totalSupply(), addLiquidity * 3 / 2, "SETUP: Incorrect total supply");
 
         uint256 borrowRate = pool.borrowRate();
         uint256 dieselRate = pool.convertToAssets(RAY);
         uint256 availableLiquidity = pool.availableLiquidity();
         uint256 expectedLiquidity = pool.expectedLiquidity();
-
-        expectBalance(address(pool), USER, addLiquidity, "Incorrect USER balance");
-
-        /// Initial lp provided 1/2 AL + 1AL from USER
-        assertEq(pool.totalSupply(), addLiquidity * 3 / 2, "Incorrect total supply");
 
         evm.prank(USER);
         pool.burn(addLiquidity / 4);
@@ -966,8 +972,364 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
         assertEq(pool.borrowRate(), borrowRate, "Incorrect borrow rate");
         /// Before burn totalSupply was 150% * AL, after 125% * LP
         assertEq(pool.convertToAssets(RAY), dieselRate * 150 / 125, "Incorrect diesel rate");
-        assertEq(pool.availableLiquidity(), availableLiquidity, "Incorrect borrow rate");
-        assertEq(pool.expectedLiquidity(), expectedLiquidity, "Incorrect borrow rate");
+        assertEq(pool.availableLiquidity(), availableLiquidity, "Incorrect available liquidity");
+        assertEq(pool.expectedLiquidity(), expectedLiquidity, "Incorrect expected liquidity");
+    }
+
+    ///
+    /// LEND CREDIT ACCOUNT
+    // [P4-11]: lendCreditAccount works as expected
+    function test_P4_11_lendCreditAccount_works_as_expected() public {
+        _setUpTestCase(Tokens.DAI, 0, 0, addLiquidity, 2 * RAY, 0, false);
+
+        address creditAccount = DUMB_ADDRESS;
+        uint256 borrowAmount = addLiquidity / 5;
+
+        expectBalance(pool.asset(), creditAccount, 0, "SETUP: incorrect CA balance");
+        assertEq(pool.borrowRate(), irm.R_base_RAY(), "SETUP: incorrect borrowRate");
+        assertEq(pool.totalBorrowed(), 0, "SETUP: incorrect totalBorrowed");
+        assertEq(pool.creditManagerBorrowed(address(cmMock)), 0, "SETUP: incorrect CM limit");
+
+        uint256 availableLiquidityBefore = pool.availableLiquidity();
+        uint256 expectedLiquidityBefore = pool.expectedLiquidity();
+
+        evm.expectEmit(true, true, false, true);
+        emit Transfer(address(pool), creditAccount, borrowAmount);
+
+        evm.expectEmit(true, true, false, true);
+        emit Borrow(address(cmMock), creditAccount, borrowAmount);
+
+        cmMock.lendCreditAccount(borrowAmount, creditAccount);
+
+        assertEq(pool.availableLiquidity(), availableLiquidityBefore - borrowAmount, "Incorrect available liquidity");
+        assertEq(pool.expectedLiquidity(), expectedLiquidityBefore, "Incorrect expected liquidity");
+        assertEq(pool.totalBorrowed(), borrowAmount, "Incorrect borrowAmount");
+
+        assertEq(
+            pool.borrowRate(),
+            irm.calcBorrowRate(pool.expectedLiquidity(), pool.availableLiquidity(), false),
+            "Borrow rate wasn't update correcty"
+        );
+
+        assertEq(pool.creditManagerBorrowed(address(cmMock)), borrowAmount, "Incorrect CM limit");
+    }
+
+    // [P4-12]: lendCreditAccount reverts if it breaches limits
+    function test_P4_12_lendCreditAccount_reverts_if_breach_limits() public {
+        address creditAccount = DUMB_ADDRESS;
+
+        _setUpTestCase(Tokens.DAI, 0, 0, addLiquidity, 2 * RAY, 0, false);
+
+        evm.expectRevert(IPool4626Exceptions.CreditManagerCantBorrowException.selector);
+        cmMock.lendCreditAccount(0, creditAccount);
+
+        evm.startPrank(CONFIGURATOR);
+        pool.setCreditManagerLimit(address(cmMock), type(uint128).max);
+        pool.setTotalBorrowedLimit(addLiquidity);
+        evm.stopPrank();
+
+        evm.expectRevert(IPool4626Exceptions.CreditManagerCantBorrowException.selector);
+        cmMock.lendCreditAccount(addLiquidity + 1, creditAccount);
+
+        evm.startPrank(CONFIGURATOR);
+        pool.setCreditManagerLimit(address(cmMock), addLiquidity);
+        pool.setTotalBorrowedLimit(type(uint128).max);
+        evm.stopPrank();
+
+        evm.expectRevert(IPool4626Exceptions.CreditManagerCantBorrowException.selector);
+        cmMock.lendCreditAccount(addLiquidity + 1, creditAccount);
+    }
+
+    //
+    // REPAY
+    //
+
+    // [P4-13]: repayCreditAccount reverts for incorrect credit managers
+    function test_P4_13_repayCreditAccount_reverts_for_incorrect_credit_managers() public {
+        _setUpTestCase(Tokens.DAI, 0, 0, addLiquidity, 2 * RAY, 0, false);
+
+        /// Case for unknown CM
+        evm.expectRevert(IPool4626Exceptions.CreditManagerOnlyException.selector);
+        evm.prank(USER);
+        pool.repayCreditAccount(1, 0, 0);
+
+        /// Case for CM with zero debt
+        assertEq(pool.creditManagerBorrowed(address(cmMock)), 0, "SETUP: Incorrect CM limit");
+
+        evm.expectRevert(IPool4626Exceptions.CreditManagerOnlyException.selector);
+        cmMock.repayCreditAccount(1, 0, 0);
+    }
+
+    struct RepayTestCase {
+        string name;
+        /// SETUP
+        Tokens asset;
+        uint256 tokenFee;
+        uint256 initialLiquidity;
+        uint256 dieselRate;
+        uint256 sharesInTreasury;
+        uint256 borrowBefore;
+        /// PARAMS
+        uint256 borrowAmount;
+        uint256 profit;
+        uint256 loss;
+        /// EXPECTED VALUES
+        uint256 expectedTotalSupply;
+        uint256 expectedAvailableLiquidity;
+        uint256 expectedLiquidityAfter;
+        uint256 expectedTreasury;
+        uint256 uncoveredLoss;
+    }
+
+    // [P4-14]: repayCreditAccount works as expected
+    function test_P4_14_repayCreditAccount_works_as_expected() public {
+        address creditAccount = DUMB_ADDRESS;
+        RepayTestCase[5] memory cases = [
+            RepayTestCase({
+                name: "profit: 0, loss: 0",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: 2 * addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // No borrowing on start
+                borrowBefore: addLiquidity,
+                sharesInTreasury: addLiquidity / 4,
+                // PARAMS
+                borrowAmount: addLiquidity / 2,
+                profit: 0,
+                loss: 0,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedTotalSupply: addLiquidity,
+                expectedAvailableLiquidity: 2 * addLiquidity - addLiquidity + addLiquidity / 2,
+                expectedLiquidityAfter: 2 * addLiquidity,
+                expectedTreasury: 0,
+                uncoveredLoss: 0
+            }),
+            RepayTestCase({
+                name: "profit: 10%, loss: 0",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: 2 * addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // No borrowing on start
+                borrowBefore: addLiquidity,
+                sharesInTreasury: addLiquidity / 4,
+                // PARAMS
+                borrowAmount: addLiquidity / 2,
+                profit: addLiquidity * 1 / 10,
+                loss: 0,
+                // EXPECTED VALUES:
+                //
+                // addLiqudity + new minted diesel tokens for 10% with rate 2:1
+                expectedTotalSupply: addLiquidity + addLiquidity * 1 / 10 / 2,
+                expectedAvailableLiquidity: 2 * addLiquidity - addLiquidity + addLiquidity / 2 + addLiquidity * 1 / 10,
+                // added profit here
+                expectedLiquidityAfter: 2 * addLiquidity + addLiquidity * 1 / 10,
+                expectedTreasury: 0,
+                uncoveredLoss: 0
+            }),
+            RepayTestCase({
+                name: "profit: 0, loss: 10% (covered)",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: 2 * addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // No borrowing on start
+                borrowBefore: addLiquidity,
+                sharesInTreasury: addLiquidity / 4,
+                // PARAMS
+                borrowAmount: addLiquidity / 2,
+                profit: 0,
+                loss: addLiquidity * 1 / 10,
+                // EXPECTED VALUES:
+                //
+                // with covered loss, the system should burn DAO shares based on current rate
+                expectedTotalSupply: addLiquidity - addLiquidity * 1 / 10 / 2,
+                expectedAvailableLiquidity: 2 * addLiquidity - addLiquidity + addLiquidity / 2 - addLiquidity * 1 / 10,
+                expectedLiquidityAfter: 2 * addLiquidity - addLiquidity * 1 / 10,
+                expectedTreasury: 0,
+                uncoveredLoss: 0
+            }),
+            RepayTestCase({
+                name: "profit: 0, loss: 10% (uncovered)",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: 2 * addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // No borrowing on start
+                borrowBefore: addLiquidity,
+                sharesInTreasury: 0,
+                // PARAMS
+                borrowAmount: addLiquidity / 2,
+                profit: 0,
+                loss: addLiquidity * 1 / 10,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedTotalSupply: addLiquidity,
+                expectedAvailableLiquidity: 2 * addLiquidity - addLiquidity + addLiquidity / 2 - addLiquidity * 1 / 10,
+                expectedLiquidityAfter: 2 * addLiquidity - addLiquidity * 1 / 10,
+                expectedTreasury: 0,
+                uncoveredLoss: addLiquidity * 1 / 10
+            }),
+            RepayTestCase({
+                name: "profit: 0, loss: 20% (partially covered)",
+                // POOL SETUP
+                asset: Tokens.DAI,
+                tokenFee: 0,
+                initialLiquidity: 2 * addLiquidity,
+                // 1 dDAI = 2 DAI
+                dieselRate: 2 * RAY,
+                // No borrowing on start
+                borrowBefore: addLiquidity,
+                sharesInTreasury: addLiquidity * 1 / 10 / 2,
+                // PARAMS
+                borrowAmount: addLiquidity / 2,
+                profit: 0,
+                loss: addLiquidity * 2 / 10,
+                // EXPECTED VALUES:
+                //
+                // Depends on dieselRate
+                expectedTotalSupply: addLiquidity - addLiquidity * 1 / 10 / 2,
+                expectedAvailableLiquidity: 2 * addLiquidity - addLiquidity + addLiquidity / 2 - addLiquidity * 2 / 10,
+                expectedLiquidityAfter: 2 * addLiquidity - addLiquidity * 2 / 10,
+                expectedTreasury: 0,
+                uncoveredLoss: addLiquidity * 1 / 10
+            })
+        ];
+        for (uint256 i; i < cases.length; ++i) {
+            RepayTestCase memory testCase = cases[i];
+
+            _setUpTestCase(
+                testCase.asset,
+                testCase.tokenFee,
+                // sets utilisation to 0
+                0,
+                testCase.initialLiquidity,
+                testCase.dieselRate,
+                // sets withdrawFee to 0
+                0,
+                false
+            );
+
+            address treasury = pool.treasury();
+
+            evm.prank(INITIAL_LP);
+            pool.transfer(treasury, testCase.sharesInTreasury);
+
+            cmMock.lendCreditAccount(testCase.borrowBefore, creditAccount);
+
+            assertEq(pool.totalBorrowed(), testCase.borrowBefore, "SETUP: incorrect totalBorrowed");
+            assertEq(pool.creditManagerBorrowed(address(cmMock)), testCase.borrowBefore, "SETUP: Incorrect CM limit");
+
+            evm.startPrank(creditAccount);
+            IERC20(pool.asset()).transfer(address(pool), testCase.borrowAmount + testCase.profit - testCase.loss);
+            evm.stopPrank();
+
+            if (testCase.uncoveredLoss > 0) {
+                evm.expectEmit(true, false, false, true);
+                emit UncoveredLoss(address(cmMock), testCase.uncoveredLoss);
+            }
+
+            evm.expectEmit(true, true, false, true);
+            emit Repay(address(cmMock), testCase.borrowAmount, testCase.profit, testCase.loss);
+
+            uint256 dieselRate = pool.convertToAssets(RAY);
+
+            cmMock.repayCreditAccount(testCase.borrowAmount, testCase.profit, testCase.loss);
+
+            if (testCase.uncoveredLoss == 0) {
+                assertEq(dieselRate, pool.convertToAssets(RAY), "Unexpceted change in borrow rate");
+            }
+
+            assertEq(
+                pool.totalSupply(), testCase.expectedTotalSupply, _testCaseErr(testCase.name, "Incorrect total supply")
+            );
+
+            assertEq(
+                pool.totalBorrowed(),
+                testCase.borrowBefore - testCase.borrowAmount,
+                _testCaseErr(testCase.name, "incorrect totalBorrowed")
+            );
+
+            assertEq(
+                pool.creditManagerBorrowed(address(cmMock)),
+                testCase.borrowBefore - testCase.borrowAmount,
+                "SETUP: Incorrect CM limit"
+            );
+
+            expectBalance(
+                underlying,
+                pool.treasury(),
+                testCase.expectedTreasury,
+                _testCaseErr(testCase.name, "Incorrect treasury fee")
+            );
+
+            assertEq(
+                pool.expectedLiquidity(),
+                testCase.expectedLiquidityAfter,
+                _testCaseErr(testCase.name, "Incorrect expected liquidity")
+            );
+            assertEq(
+                pool.availableLiquidity(),
+                testCase.expectedAvailableLiquidity,
+                _testCaseErr(testCase.name, "Incorrect available liquidity")
+            );
+        }
+    }
+
+    ///
+    ///  CALC LINEAR CUMULATIVE
+    ///
+
+    // [P4-15]: calcLinearCumulative_RAY computes correctly
+    function test_P4_15_calcLinearCumulative_RAY_correct() public {
+        _setUpTestCase(Tokens.DAI, 0, 50_00, addLiquidity, 2 * RAY, 0, false);
+
+        uint256 timeWarp = 180 days;
+
+        evm.warp(block.timestamp + timeWarp);
+
+        uint256 borrowRate = pool.borrowRate();
+
+        uint256 expectedLinearRate = RAY + (borrowRate * timeWarp) / 365 days;
+
+        assertEq(pool.calcLinearCumulative_RAY(), expectedLinearRate, "Index value was not updated correctly");
+    }
+
+    // [P4-16]: updateBorrowRate correctly updates parameters
+    function test_P4_16_updateBorrowRate_correct() public {
+        _setUpTestCase(Tokens.DAI, 0, 50_00, addLiquidity, 2 * RAY, 0, false);
+
+        uint256 borrowRate = pool.borrowRate();
+        uint256 timeWarp = 365 days;
+
+        evm.warp(block.timestamp + timeWarp);
+
+        uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
+        uint256 expectedLiquidity = addLiquidity + expectedInterest;
+
+        uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, addLiquidity / 2);
+
+        _updateBorrowrate();
+
+        assertEq(pool.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
+
+        assertEq(uint256(pool.timestampLU()), block.timestamp, "Timestamp was not updated correctly");
+
+        assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
+
+        assertEq(pool.calcLinearCumulative_RAY(), pool.cumulativeIndexLU_RAY(), "Index value was not updated correctly");
     }
 
     // // [P4-11]: connectCreditManager, forbidCreditManagerToBorrow, newInterestRateModel, setExpecetedLiquidityLimit reverts if called with non-configurator
@@ -1041,238 +1403,6 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
 
     //     evm.expectRevert(IPool4626Exceptions.CreditManagerCantBorrowException.selector);
     //     cmMock.lendCreditAccount(addLiquidity / 2, DUMB_ADDRESS);
-    // }
-
-    // // [P4-14]: lendCreditAccount transfers tokens correctly
-    // function test_PX_14_lendCreditAccount_correctly_transfers_tokens() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     expectBalance(underlying, ca, 0);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     expectBalance(underlying, ca, addLiquidity / 2);
-    // }
-
-    // // [P4-15]: lendCreditAccount emits Borrow event
-    // function test_PX_15_lendCreditAccount_emits_event() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     evm.expectEmit(false, false, false, true);
-    //     emit Borrow(address(cmMock), ca, addLiquidity / 2);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-    // }
-
-    // // [P4-16]: lendCreditAccount correctly updates parameters
-    // function test_PX_16_lendCreditAccount_correctly_updates_parameters() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     uint256 totalBorrowed = pool.totalBorrowed();
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     assertEq(pool.totalBorrowed(), totalBorrowed + addLiquidity / 2, "Incorrect new borrow amount");
-    // }
-
-    // // [P4-17]: lendCreditAccount correctly updates borrow rate
-    // function test_PX_17_lendCreditAccount_correctly_updates_borrow_rate() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     uint256 expectedLiquidity = addLiquidity;
-    //     uint256 expectedAvailable = expectedLiquidity - addLiquidity / 2;
-
-    //     uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, expectedAvailable);
-
-    //     assertEq(expectedBorrowRate, pool.borrowRate(), "Borrow rate is incorrect");
-    // }
-
-    // // [P4-18]: repayCreditAccount emits Repay event
-    // function test_PX_18_repayCreditAccount_emits_event() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     evm.expectEmit(true, false, false, true);
-    //     emit Repay(address(cmMock), addLiquidity / 2, 1, 0);
-
-    //     cmMock.repayCreditAccount(addLiquidity / 2, 1, 0);
-    // }
-
-    // // [P4-19]: repayCreditAccount correctly updates params on loss accrued: treasury < loss
-    // function test_PX_19_repayCreditAccount_correctly_updates_on_uncovered_loss() public {
-    //     address treasury = psts.treasury();
-
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     evm.prank(USER);
-    //     pool.mint(1e4, treasury);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     uint256 borrowRate = pool.borrowRate();
-    //     uint256 timeWarp = 365 days;
-
-    //     uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
-    //     uint256 expectedLiquidity = 1e4 + addLiquidity + expectedInterest - 1e6;
-
-    //     uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, expectedLiquidity);
-
-    //     evm.warp(block.timestamp + timeWarp);
-
-    //     uint256 treasuryUnderlying = pool.convertToAssets(pool.balanceOf(treasury));
-
-    //     tokenTestSuite.mint(Tokens.DAI, address(pool), addLiquidity / 2 + expectedInterest - 1e6);
-
-    //     evm.expectEmit(true, false, false, true);
-    //     emit UncoveredLoss(address(cmMock), 1e6 - treasuryUnderlying);
-
-    //     cmMock.repayCreditAccount(addLiquidity / 2, 0, 1e6);
-
-    //     // assertEq(pool.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
-
-    //     assertEq(pool.balanceOf(treasury), 0, "dToken remains in the treasury");
-
-    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
-    // }
-
-    // // [P4-20]: repayCreditAccount correctly updates params on loss accrued: treasury >= loss; and emits event
-    // function test_PX_20_repayCreditAccount_correctly_updates_on_covered_loss() public {
-    //     address treasury = psts.treasury();
-
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     uint256 dieselSupply = pool.totalSupply();
-
-    //     evm.prank(USER);
-    //     pool.mint(dieselSupply, treasury);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     uint256 treasuryUnderlying = pool.convertToAssets(pool.balanceOf(treasury));
-
-    //     uint256 borrowRate = pool.borrowRate();
-    //     uint256 timeWarp = 365 days;
-
-    //     evm.warp(block.timestamp + timeWarp);
-
-    //     uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
-    //     uint256 expectedLiquidity = treasuryUnderlying + addLiquidity - (addLiquidity / 2);
-
-    //     uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, expectedLiquidity);
-    //     uint256 expectedTreasury = dieselSupply - pool.convertToShares(addLiquidity / 2 + expectedInterest);
-
-    //     // It simulates zero return (full loss)
-    //     cmMock.repayCreditAccount(addLiquidity / 2, 0, addLiquidity / 2 + expectedInterest);
-
-    //     assertEq(pool.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
-
-    //     assertEq(pool.balanceOf(treasury), expectedTreasury, "dToken balance incorrect");
-
-    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
-    // }
-
-    // // [P4-21]: repayCreditAccount correctly updates params on profit
-    // function test_PX_21_repayCreditAccount_correctly_updates_on_profit() public {
-    //     address treasury = psts.treasury();
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     uint256 borrowRate = pool.borrowRate();
-    //     uint256 timeWarp = 365 days;
-
-    //     evm.warp(block.timestamp + timeWarp);
-
-    //     uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
-    //     uint256 expectedLiquidity = addLiquidity + expectedInterest + 100;
-
-    //     uint256 expectedBorrowRate =
-    //         psts.linearIRModel().calcBorrowRate(expectedLiquidity, addLiquidity + expectedInterest + 100);
-
-    //     tokenTestSuite.mint(Tokens.DAI, address(pool), addLiquidity / 2 + expectedInterest + 100);
-
-    //     cmMock.repayCreditAccount(addLiquidity / 2, 100, 0);
-
-    //     console.log("eq:", expectedLiquidity);
-
-    //     assertEq(pool.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
-
-    //     assertEq(pool.balanceOf(treasury), pool.convertToShares(100), "dToken balance incorrect");
-
-    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
-    // }
-
-    // // [P4-22]: repayCreditAccount does not change the diesel rate outside margin of error
-    // function test_PX_22_repayCreditAccount_does_not_change_diesel_rate() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     uint256 borrowRate = pool.borrowRate();
-    //     uint256 timeWarp = 365 days;
-
-    //     evm.warp(block.timestamp + timeWarp);
-
-    //     uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
-    //     uint256 expectedLiquidity = addLiquidity + expectedInterest;
-
-    //     tokenTestSuite.mint(Tokens.DAI, address(pool), addLiquidity / 2 + expectedInterest);
-
-    //     cmMock.repayCreditAccount(addLiquidity / 2, 100, 0);
-
-    //     assertEq(
-    //         (RAY * expectedLiquidity) / addLiquidity / 1e8,
-    //         pool.getDieselRate_RAY() / 1e8,
-    //         "Expected liquidity was not updated correctly"
-    //     );
     // }
 
     // // [P4-23]: fromDiesel / toDiesel works correctly
@@ -1354,60 +1484,6 @@ contract Pool4626Test is DSTest, BalanceHelper, IPool4626Events, IERC4626Events 
     //         pool.borrowRate(),
     //         "Borrow rate does not match"
     //     );
-    // }
-
-    // // [P4-26]: updateBorrowRate correctly updates parameters
-    // function test_PX_26_updateBorrowRate_correct() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     uint256 borrowRate = pool.borrowRate();
-    //     uint256 timeWarp = 365 days;
-
-    //     evm.warp(block.timestamp + timeWarp);
-
-    //     uint256 expectedInterest = ((addLiquidity / 2) * borrowRate) / RAY;
-    //     uint256 expectedLiquidity = addLiquidity + expectedInterest;
-
-    //     uint256 expectedBorrowRate = psts.linearIRModel().calcBorrowRate(expectedLiquidity, addLiquidity / 2);
-
-    //     _updateBorrowrate();
-
-    //     assertEq(pool.expectedLiquidity(), expectedLiquidity, "Expected liquidity was not updated correctly");
-
-    //     assertEq(uint256(pool.timestampLU()), block.timestamp, "Timestamp was not updated correctly");
-
-    //     assertEq(pool.borrowRate(), expectedBorrowRate, "Borrow rate was not updated correctly");
-
-    //     assertEq(pool.calcLinearCumulative_RAY(), pool.cumulativeIndexLU_RAY(), "Index value was not updated correctly");
-    // }
-
-    // // [P4-27]: calcLinearCumulative_RAY computes correctly
-    // function test_PX_27_calcLinearCumulative_RAY_correct() public {
-    //     _connectAndSetLimit();
-
-    //     evm.prank(USER);
-    //     pool.deposit(addLiquidity, USER);
-
-    //     address ca = cmMock.getCreditAccountOrRevert(DUMB_ADDRESS);
-
-    //     cmMock.lendCreditAccount(addLiquidity / 2, ca);
-
-    //     uint256 timeWarp = 180 days;
-
-    //     evm.warp(block.timestamp + timeWarp);
-
-    //     uint256 borrowRate = pool.borrowRate();
-
-    //     uint256 expectedLinearRate = RAY + (borrowRate * timeWarp) / 365 days;
-
-    //     assertEq(pool.calcLinearCumulative_RAY(), expectedLinearRate, "Index value was not updated correctly");
     // }
 
     // // [P4-28]: expectedLiquidity() computes correctly
