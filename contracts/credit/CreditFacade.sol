@@ -96,9 +96,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Stores in a compressed state the last block where borrowing happened and the total amount borrowed in that block
     uint256 internal totalBorrowedInBlock;
 
-    /// @dev Stores a set of contracts which have special restrictions applied for security (such as upgradeable contracts)
-    EnumerableSet.AddressSet internal upgradeableContracts;
-
     /// @dev Contract version
     uint256 public constant override version = 2;
 

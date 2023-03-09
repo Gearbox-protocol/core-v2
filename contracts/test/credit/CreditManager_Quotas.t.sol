@@ -244,7 +244,7 @@ contract CreditManagerQuotasTest is
 
         quotaUpdates[0] = QuotaUpdate({token: tokenTestSuite.addressOf(Tokens.USDC), quotaChange: -100000});
 
-        evm.expectRevert(UnknownQuotaException.selector);
+        evm.expectRevert(TokenIsNotQuotedException.selector);
         creditManager.updateQuotas(creditAccount, quotaUpdates);
     }
 

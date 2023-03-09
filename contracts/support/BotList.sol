@@ -63,12 +63,6 @@ contract BotList is ACLNonReentrantTrait, IBotList {
         emit BotApprovalChanged(msg.sender, bot, status);
     }
 
-    /// @dev Forbids the bot system-wide if it is known to be compromised
-    function setBotForbiddenStatus(address bot, bool status) external configuratorOnly {
-        forbiddenBot[bot] = status;
-        emit BotForbiddenStatusChanged(bot, status);
-    }
-
     /// @dev Adds funds to user's balance for a particular bot. The entire sent value in ETH is added
     /// @param bot Address of the bot to fund
     function increaseBotFunding(address bot) external payable nonReentrant {
@@ -144,6 +138,16 @@ contract BotList is ACLNonReentrantTrait, IBotList {
         if (feeAmount > 0) payable(treasury).sendValue(feeAmount);
 
         emit BotPaymentPulled(payer, msg.sender, paymentAmount, feeAmount);
+    }
+
+    //
+    // CONFIGURATION
+    //
+
+    /// @dev Forbids the bot system-wide if it is known to be compromised
+    function setBotForbiddenStatus(address bot, bool status) external configuratorOnly {
+        forbiddenBot[bot] = status;
+        emit BotForbiddenStatusChanged(bot, status);
     }
 
     /// @dev Sets the DAO fee on bot payments
