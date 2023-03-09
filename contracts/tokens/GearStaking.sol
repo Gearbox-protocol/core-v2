@@ -8,13 +8,19 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {IGearToken} from "../interfaces/IGearToken.sol";
 import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
 import {IVotingContract} from "../interfaces/IVotingContract.sol";
-import {IvlGEAR, UserVoteLockData, WithdrawalData, MultiVote} from "../interfaces/IvlGEAR.sol";
+import {
+    IGearStaking,
+    UserVoteLockData,
+    WithdrawalData,
+    MultiVote,
+    VotingContractStatus
+} from "../interfaces/IGearStaking.sol";
 
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 
 uint256 constant EPOCH_LENGTH = 7 days;
 
-contract vlGEAR is ACLNonReentrantTrait, IvlGEAR {
+contract GearStaking is ACLNonReentrantTrait, IGearStaking {
     using SafeCast for uint256;
 
     /// @dev Address of the GEAR token
@@ -27,7 +33,7 @@ contract vlGEAR is ACLNonReentrantTrait, IvlGEAR {
     mapping(address => WithdrawalData) internal withdrawalData;
 
     /// @dev Mapping of address to their status as allowed voting contract
-    mapping(address => bool) public allowedVotingContract;
+    mapping(address => VotingContractStatus) public allowedVotingContract;
 
     /// @dev Timestamp of the first epoch of voting
     uint256 immutable firstEpochTimestamp;
@@ -43,7 +49,7 @@ contract vlGEAR is ACLNonReentrantTrait, IvlGEAR {
         return uint16((block.timestamp - firstEpochTimestamp) / EPOCH_LENGTH) + 1;
     }
 
-    /// @dev Returns the total amount of GEAR the user staked into vlGEAR
+    /// @dev Returns the total amount of GEAR the user staked into staked GEAR
     function balanceOf(address user) external view returns (uint256) {
         return uint256(voteLockData[user].totalStaked);
     }
@@ -53,12 +59,12 @@ contract vlGEAR is ACLNonReentrantTrait, IvlGEAR {
         return uint256(voteLockData[user].available);
     }
 
-    /// @dev Deposits an amount of GEAR into vlGEAR. Optionally, performs a sequence of vote changes according to
+    /// @dev Deposits an amount of GEAR into staked GEAR. Optionally, performs a sequence of vote changes according to
     ///      the passed `votes` array
-    /// @param amount Amount of GEAR to deposit into vlGEAR
+    /// @param amount Amount of GEAR to deposit into staked GEAR
     /// @param votes Array of MultVote structs:
     ///              * votingContract - contract to submit a vote to
-    ///              * voteAmount - amount of vlGEAR to add to or remove from a vote
+    ///              * voteAmount - amount of staked GEAR to add to or remove from a vote
     ///              * isIncrease - whether to add or remove votes
     ///              * extraData - data specific to the voting contract that is decoded on recipient side
     function deposit(uint256 amount, MultiVote[] memory votes) external nonReentrant {
@@ -85,92 +91,84 @@ contract vlGEAR is ACLNonReentrantTrait, IvlGEAR {
     /// @dev Performs a sequence of vote changes according to the passed array
     /// @param votes Array of MultVote structs:
     ///              * votingContract - contract to submit a vote to
-    ///              * voteAmount - amount of vlGEAR to add to or remove from a vote
+    ///              * voteAmount - amount of staked GEAR to add to or remove from a vote
     ///              * isIncrease - whether to add or remove votes
     ///              * extraData - data specific to the voting contract that is decoded on recipient side
     function multivote(MultiVote[] memory votes) external nonReentrant {
         _multivote(msg.sender, votes);
     }
 
-    /// @dev Schedules a withdrawal from vlGEAR into GEAR, which can be claimed in 4 epochs.
+    /// @dev Schedules a withdrawal from staked GEAR into GEAR, which can be claimed in 4 epochs.
     ///      If there are any withdrawals available to claim, they are also claimed.
     ///      Optionally, performs a sequence of vote changes according to
     ///      the passed `votes` array.
-    /// @param amount Amount of vlGEAR to withdraw into GEAR
+    /// @param amount Amount of staked GEAR to withdraw into GEAR
+    /// @param to Address to send claimable GEAR, if any
     /// @param votes Array of MultVote structs:
     ///              * votingContract - contract to submit a vote to
-    ///              * voteAmount - amount of vlGEAR to add to or remove from a vote
+    ///              * voteAmount - amount of staked GEAR to add to or remove from a vote
     ///              * isIncrease - whether to add or remove votes
     ///              * extraData - data specific to the voting contract that is decoded on recipient side
-    function withdraw(uint256 amount, MultiVote[] memory votes) external nonReentrant {
+    function withdraw(uint256 amount, address to, MultiVote[] memory votes) external nonReentrant {
         if (votes.length > 0) {
             _multivote(msg.sender, votes);
         }
 
-        _processPendingWithdrawals(msg.sender);
+        _processPendingWithdrawals(msg.sender, to);
 
         uint96 amount96 = amount.toUint96();
         voteLockData[msg.sender].available -= amount96;
-        withdrawalData[msg.sender].withdrawalsEpochFour += amount96;
+        withdrawalData[msg.sender].withdrawalsPerEpoch[3] += amount96;
 
         emit GearWithdrawalScheduled(msg.sender, amount);
     }
 
     /// @dev Claims all of the caller's withdrawals that are mature
-    function claimWithdrawals() external nonReentrant {
-        _processPendingWithdrawals(msg.sender);
+    /// @param to Address to send claimable GEAR, if any
+    function claimWithdrawals(address to) external nonReentrant {
+        _processPendingWithdrawals(msg.sender, to);
     }
 
     /// @dev Refreshes the user's withdrawal struct, shifting the withdrawal amounts based
     ///      on the number of epochs that passed since the last update. If there are any mature withdrawals,
     ///      sends the corresponding amounts to the user
-    function _processPendingWithdrawals(address user) internal {
+    function _processPendingWithdrawals(address user, address to) internal {
         uint16 epochNow = getCurrentEpoch();
 
         WithdrawalData memory wd = withdrawalData[user];
 
         if (epochNow > wd.epochLU) {
             if (
-                wd.withdrawalsEpochOne + wd.withdrawalsEpochTwo + wd.withdrawalsEpochThree + wd.withdrawalsEpochFour > 0
+                wd.withdrawalsPerEpoch[0] + wd.withdrawalsPerEpoch[1] + wd.withdrawalsPerEpoch[2]
+                    + wd.withdrawalsPerEpoch[3] > 0
             ) {
                 uint16 epochDiff = epochNow - wd.epochLU;
                 uint256 totalClaimable = 0;
 
                 // Epochs one, two, three and four in the struct are always relative
                 // to epochLU, so the amounts are "shifted" by the number of epochs that passed
-                // since epochLU, on each update. If some amounts shifts beyond epoch one, it is mature,
+                // since epochLU, on each update. If some amount shifts beyond epoch one, it is mature,
                 // so GEAR is sent to the user.
 
-                if (epochDiff == 1) {
-                    totalClaimable = wd.withdrawalsEpochOne;
-                    wd.withdrawalsEpochOne = wd.withdrawalsEpochTwo;
-                    wd.withdrawalsEpochTwo = wd.withdrawalsEpochThree;
-                    wd.withdrawalsEpochThree = wd.withdrawalsEpochFour;
-                    wd.withdrawalsEpochFour = 0;
-                } else if (epochDiff == 2) {
-                    totalClaimable = wd.withdrawalsEpochOne + wd.withdrawalsEpochTwo;
-                    wd.withdrawalsEpochOne = wd.withdrawalsEpochThree;
-                    wd.withdrawalsEpochTwo = wd.withdrawalsEpochFour;
-                    wd.withdrawalsEpochThree = 0;
-                    wd.withdrawalsEpochFour = 0;
-                } else if (epochDiff == 3) {
-                    totalClaimable = wd.withdrawalsEpochOne + wd.withdrawalsEpochTwo + wd.withdrawalsEpochThree;
-                    wd.withdrawalsEpochOne = wd.withdrawalsEpochFour;
-                    wd.withdrawalsEpochTwo = 0;
-                    wd.withdrawalsEpochThree = 0;
-                    wd.withdrawalsEpochFour = 0;
-                } else if (epochDiff > 3) {
-                    totalClaimable = wd.withdrawalsEpochOne + wd.withdrawalsEpochTwo + wd.withdrawalsEpochThree
-                        + wd.withdrawalsEpochFour;
-                    wd.withdrawalsEpochOne = 0;
-                    wd.withdrawalsEpochTwo = 0;
-                    wd.withdrawalsEpochThree = 0;
-                    wd.withdrawalsEpochFour = 0;
+                for (uint256 i = 0; i < 4;) {
+                    if (i < epochDiff) {
+                        totalClaimable += wd.withdrawalsPerEpoch[i];
+                    }
+
+                    if (epochDiff < 4 && i < 4 - epochDiff) {
+                        wd.withdrawalsPerEpoch[i] = wd.withdrawalsPerEpoch[i + epochDiff];
+                    } else {
+                        wd.withdrawalsPerEpoch[i] = 0;
+                    }
+
+                    unchecked {
+                        ++i;
+                    }
                 }
 
                 if (totalClaimable > 0) {
-                    gear.transfer(user, totalClaimable);
-                    emit GearWithdrawalClaimed(user, totalClaimable);
+                    gear.transfer(to, totalClaimable);
+                    emit GearWithdrawalClaimed(user, to, totalClaimable);
                 }
 
                 voteLockData[user].totalStaked -= totalClaimable.toUint96();
@@ -190,14 +188,18 @@ contract vlGEAR is ACLNonReentrantTrait, IvlGEAR {
         for (uint256 i = 0; i < len;) {
             MultiVote memory currentVote = votes[i];
 
-            if (!allowedVotingContract[currentVote.votingContract]) {
-                revert VotingContractNotAllowedException();
-            }
-
             if (currentVote.isIncrease) {
+                if (allowedVotingContract[currentVote.votingContract] != VotingContractStatus.ALLOWED) {
+                    revert VotingContractNotAllowedException();
+                }
+
                 IVotingContract(currentVote.votingContract).vote(user, currentVote.voteAmount, currentVote.extraData);
                 vld.available -= currentVote.voteAmount;
             } else {
+                if (allowedVotingContract[currentVote.votingContract] == VotingContractStatus.NOT_ALLOWED) {
+                    revert VotingContractNotAllowedException();
+                }
+
                 IVotingContract(currentVote.votingContract).unvote(user, currentVote.voteAmount, currentVote.extraData);
                 vld.available += currentVote.voteAmount;
             }
@@ -216,8 +218,11 @@ contract vlGEAR is ACLNonReentrantTrait, IvlGEAR {
 
     /// @dev Sets the status of contract as an allowed voting contract
     /// @param votingContract Address to set the status for
-    /// @param status The new status of the contract
-    function setVotingContractStatus(address votingContract, bool status) external configuratorOnly {
+    /// @param status The new status of the contract:
+    ///               * NOT_ALLOWED - cannot vote or unvote
+    ///               * ALLOWED - can both vote and unvote
+    ///               * UNVOTE_ONLY - can only unvote
+    function setVotingContractStatus(address votingContract, VotingContractStatus status) external configuratorOnly {
         allowedVotingContract[votingContract] = status;
     }
 }
