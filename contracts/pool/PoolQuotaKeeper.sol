@@ -384,7 +384,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         return totalQuotas[token].rate;
     }
 
-    function _addQuotaToken(address token, uint16 _rate) external gaugeOnly {
+    function addQuotaToken(address token) external gaugeOnly {
         TokenQuotaParams storage qp = totalQuotas[token];
         if (qp.cumulativeIndexLU_RAY != 0) {
             revert TokenQuotaIsAlreadyAdded();
@@ -394,11 +394,7 @@ contract PoolQuotaKeeper is IPoolQuotaKeeper, ACLNonReentrantTrait {
         emit QuotaTokenAdded(token);
 
         qp.cumulativeIndexLU_RAY = uint192(RAY);
-        qp.rate = _rate;
-
-        // TODO: add here code to make updateQuotasRate correctly working
-        // _updateQuotaRate(token, _rate);
-        // pool.updateQuotas();
+        qp.rate = 0;
     }
 
     function quotedTokens() external view override returns (address[] memory) {

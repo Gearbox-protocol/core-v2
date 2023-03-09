@@ -97,7 +97,7 @@ contract BotList is ACLNonReentrantTrait, IBotList {
 
         uint72 newRemainingFunds = botFunding[msg.sender][bot].remainingFunds - decreaseAmount;
 
-        botFunding[msg.sender][bot].remainingFunds -= newRemainingFunds;
+        botFunding[msg.sender][bot].remainingFunds = newRemainingFunds;
         payable(msg.sender).sendValue(decreaseAmount);
 
         emit BotFundingChanged(msg.sender, bot, newRemainingFunds);

@@ -102,4 +102,6 @@ interface IPoolQuotaKeeper is IPoolQuotaKeeperEvents, IPoolQuotaKeeperExceptions
     function accrueQuotaInterest(address creditAccount, TokenLT[] memory tokens)
         external
         returns (uint256 caQuotaInterestChange);
+
+    function addQuotaToken(address token) external;
 }
