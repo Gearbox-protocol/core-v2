@@ -9,7 +9,7 @@ import {CreditManagerOpts, CollateralToken} from "../../credit/CreditConfigurato
 import {IWETH} from "../../interfaces/external/IWETH.sol";
 import {QuotaRateUpdate} from "../../interfaces/IPoolQuotaKeeper.sol";
 
-import {PercentageMath, PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
 
 import "../../libraries/Constants.sol";
 

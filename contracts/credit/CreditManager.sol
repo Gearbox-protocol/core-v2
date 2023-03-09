@@ -25,7 +25,7 @@ import {IVersion} from "../interfaces/IVersion.sol";
 
 // CONSTANTS
 import {RAY} from "../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
 import {
     DEFAULT_FEE_INTEREST,
     DEFAULT_FEE_LIQUIDATION,

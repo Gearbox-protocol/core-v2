@@ -35,10 +35,10 @@ struct QuotaRateParams {
 }
 
 struct Stake {
-    uint96 staked;
-    uint96 unstaking;
-    uint96 voted;
-    uint16 unstakedInEpoch;
+    uint96 staked; // ready to withdraw
+    uint96 voted; // locked
+    uint96 unstaking; // bucket #1
+    uint16 unstakedInEpoch; // epooch for #1
 }
 
 /// @title Gauge fore new 4626 pools

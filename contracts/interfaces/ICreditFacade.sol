@@ -381,7 +381,7 @@ interface ICreditFacade is ICreditFacadeEvents, ICreditFacadeExceptions, IVersio
      * More info: https://dev.gearbox.fi/developers/credit/economy#health-factor
      *
      * @param creditAccount Credit account address
-     * @return hf = Health factor in bp (see PERCENTAGE FACTOR in PercentageMath.sol)
+     * @return hf = Health factor in bp (see PERCENTAGE FACTOR in Constants.sol)
      */
     function calcCreditAccountHealthFactor(address creditAccount) external view returns (uint256 hf);
 

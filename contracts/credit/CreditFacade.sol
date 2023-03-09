@@ -25,7 +25,7 @@ import {IBotList} from "../interfaces/IBotList.sol";
 // CONSTANTS
 
 import {LEVERAGE_DECIMALS} from "../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
 
 // EXCEPTIONS
 import {ZeroAddressException} from "../interfaces/IErrors.sol";
@@ -1145,7 +1145,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
      * More info: https://dev.gearbox.fi/developers/credit/economy#health-factor
      *
      * @param creditAccount Credit account address
-     * @return hf = Health factor in bp (see PERCENTAGE FACTOR in PercentageMath.sol)
+     * @return hf = Health factor in bp (see PERCENTAGE FACTOR in Constants.sol)
      */
     function calcCreditAccountHealthFactor(address creditAccount) public view override returns (uint256 hf) {
         (, uint256 twv) = calcTotalValue(creditAccount); // F:[FA-42]

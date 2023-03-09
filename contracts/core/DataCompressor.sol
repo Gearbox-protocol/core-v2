@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 pragma experimental ABIEncoderV2;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {PercentageMath, PERCENTAGE_FACTOR} from "../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
 
 import {IDataCompressor} from "../interfaces/IDataCompressor.sol";
 import {ICreditManager} from "../interfaces/V1/ICreditManager.sol";
@@ -38,8 +38,6 @@ import {ZeroAddressException} from "../interfaces/IErrors.sol";
 /// @notice Collects data from various contracts for use in the dApp
 /// Do not use for data from any onchain activities
 contract DataCompressor is IDataCompressor {
-    using PercentageMath for uint256;
-
     /// @dev Address of the AddressProvider
     AddressProvider public immutable addressProvider;
 
@@ -367,7 +365,8 @@ contract DataCompressor is IDataCompressor {
 
         result.depositAPY_RAY = totalLP == 0
             ? result.borrowAPY_RAY
-            : (result.borrowAPY_RAY * result.totalBorrowed).percentMul(PERCENTAGE_FACTOR - result.withdrawFee) / totalLP;
+            : (result.borrowAPY_RAY * result.totalBorrowed) * (PERCENTAGE_FACTOR - result.withdrawFee) / totalLP
+                / PERCENTAGE_FACTOR;
 
         return result;
     }

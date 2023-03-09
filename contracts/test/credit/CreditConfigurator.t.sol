@@ -14,7 +14,7 @@ import {UniversalAdapter} from "../../adapters/UniversalAdapter.sol";
 import {BotList} from "../../support/BotList.sol";
 
 //
-import {PercentageMath, PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
 import "../../libraries/Constants.sol";
 import {AddressList} from "../../libraries/AddressList.sol";
 

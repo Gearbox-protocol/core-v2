@@ -29,7 +29,7 @@ import {CreditFacadeMulticaller, CreditFacadeCalls} from "../../multicall/Credit
 // CONSTANTS
 
 import {LEVERAGE_DECIMALS} from "../../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
 
 // TESTS
 

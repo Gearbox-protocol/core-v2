@@ -25,7 +25,7 @@ import {IPoolService} from "../../interfaces/IPoolService.sol";
 import {IWETH} from "../../interfaces/external/IWETH.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "../mocks/token/ERC20Mock.sol";
-import {PercentageMath, PERCENTAGE_FACTOR} from "../../libraries/PercentageMath.sol";
+import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
 
 // TESTS
 

@@ -52,12 +52,12 @@ contract PoolServiceTestSuite {
 
     constructor(ITokenTestSuite _tokenTestSuite, address _underlying, bool is4626, bool supportQuotas) {
         linearIRModel = new LinearInterestRateModel(
-            8000,
-            9000,
-            200,
-            400,
-            4000,
-            7500,
+            80_00,
+            90_00,
+            2_00,
+            4_00,
+            40_00,
+            75_00,
             false
         );
 
