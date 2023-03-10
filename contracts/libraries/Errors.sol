@@ -10,18 +10,8 @@ library Errors {
     //
     string public constant ZERO_ADDRESS_IS_NOT_ALLOWED = "Z0";
     string public constant NOT_IMPLEMENTED = "NI";
-    string public constant INCORRECT_PATH_LENGTH = "PL";
-    string public constant INCORRECT_ARRAY_LENGTH = "CR";
     string public constant REGISTERED_CREDIT_ACCOUNT_MANAGERS_ONLY = "CP";
     string public constant REGISTERED_POOLS_ONLY = "RP";
-    string public constant INCORRECT_PARAMETER = "IP";
-
-    //
-    // MATH
-    //
-    string public constant MATH_MULTIPLICATION_OVERFLOW = "M1";
-    string public constant MATH_ADDITION_OVERFLOW = "M2";
-    string public constant MATH_DIVISION_BY_ZERO = "M3";
 
     //
     // POOL
@@ -62,19 +52,4 @@ library Errors {
     //
     string public constant ACL_CALLER_NOT_PAUSABLE_ADMIN = "ACL1";
     string public constant ACL_CALLER_NOT_CONFIGURATOR = "ACL2";
-
-    //
-    // WETH GATEWAY
-    //
-    string public constant WG_DESTINATION_IS_NOT_WETH_COMPATIBLE = "WG1";
-    string public constant WG_RECEIVE_IS_NOT_ALLOWED = "WG2";
-    string public constant WG_NOT_ENOUGH_FUNDS = "WG3";
-
-    //
-    // TOKEN DISTRIBUTOR
-    //
-    string public constant TD_WALLET_IS_ALREADY_CONNECTED_TO_VC = "TD1";
-    string public constant TD_INCORRECT_WEIGHTS = "TD2";
-    string public constant TD_NON_ZERO_BALANCE_AFTER_DISTRIBUTION = "TD3";
-    string public constant TD_CONTRIBUTOR_IS_NOT_REGISTERED = "TD4";
 }
