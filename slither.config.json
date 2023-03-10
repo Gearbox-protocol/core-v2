@@ -1,0 +1,4 @@
+{
+  "filter_paths": "test/",
+  "foundry_out_directory": "forge-out/"
+}
