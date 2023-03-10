@@ -6,9 +6,7 @@ pragma solidity ^0.8.10;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IUSDT} from "../interfaces/external/IUSDT.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
-
-import "forge-std/console.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
 contract USDT_Transfer {
     using SafeERC20 for IERC20;

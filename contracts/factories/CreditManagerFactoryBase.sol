@@ -3,13 +3,13 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {ContractsRegister} from "../core/ContractsRegister.sol";
-import {PoolService} from "../pool/PoolService.sol";
+import {ContractsRegister} from "@gearbox-protocol/core-v2/contracts/core/ContractsRegister.sol";
+import {PoolService} from "@gearbox-protocol/core-v2/contracts/pool/PoolService.sol";
 import {CreditManager} from "../credit/CreditManager.sol";
 import {CreditFacade} from "../credit/CreditFacade.sol";
 import {CreditConfigurator, CreditManagerOpts} from "../credit/CreditConfigurator.sol";
 
-import {ContractUpgrader} from "../support/ContractUpgrader.sol";
+import {ContractUpgrader} from "@gearbox-protocol/core-v2/contracts/support/ContractUpgrader.sol";
 
 struct Adapter {
     address adapter;

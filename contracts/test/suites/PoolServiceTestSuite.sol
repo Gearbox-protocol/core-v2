@@ -3,20 +3,20 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {AddressProvider} from "../../core/AddressProvider.sol";
-import {ContractsRegister} from "../../core/ContractsRegister.sol";
-import {ACL} from "../../core/ACL.sol";
-import {DieselToken} from "../../tokens/DieselToken.sol";
+import {AddressProvider} from "@gearbox-protocol/core-v2/contracts/core/AddressProvider.sol";
+import {ContractsRegister} from "@gearbox-protocol/core-v2/contracts/core/ContractsRegister.sol";
+import {ACL} from "@gearbox-protocol/core-v2/contracts/core/ACL.sol";
+import {DieselToken} from "@gearbox-protocol/core-v2/contracts/tokens/DieselToken.sol";
 
 import {IPool4626, Pool4626Opts} from "../../interfaces/IPool4626.sol";
-import {TestPoolService} from "../mocks/pool/TestPoolService.sol";
+import {TestPoolService} from "@gearbox-protocol/core-v2/contracts/test/mocks/pool/TestPoolService.sol";
 import {Tokens} from "../config/Tokens.sol";
 
 import {LinearInterestRateModel} from "../../pool/LinearInterestRateModel.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CreditManagerMockForPoolTest} from "../mocks/pool/CreditManagerMockForPoolTest.sol";
-import {WETHMock} from "../mocks/token/WETHMock.sol";
+import {WETHMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/token/WETHMock.sol";
 import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 
 import "../lib/constants.sol";

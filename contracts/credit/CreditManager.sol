@@ -12,20 +12,20 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 
 // INTERFACES
-import {IAccountFactory} from "../interfaces/IAccountFactory.sol";
-import {ICreditAccount} from "../interfaces/ICreditAccount.sol";
-import {IPoolService} from "../interfaces/IPoolService.sol";
+import {IAccountFactory} from "@gearbox-protocol/core-v2/contracts/interfaces/IAccountFactory.sol";
+import {ICreditAccount} from "@gearbox-protocol/core-v2/contracts/interfaces/ICreditAccount.sol";
+import {IPoolService} from "@gearbox-protocol/core-v2/contracts/interfaces/IPoolService.sol";
 import {IPool4626} from "../interfaces/IPool4626.sol";
 import {IWETHGateway} from "../interfaces/IWETHGateway.sol";
 import {ICreditManagerV2, ClosureAction, CollateralTokenData} from "../interfaces/ICreditManagerV2.sol";
-import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
-import {IPriceOracleV2} from "../interfaces/IPriceOracle.sol";
+import {IAddressProvider} from "@gearbox-protocol/core-v2/contracts/interfaces/IAddressProvider.sol";
+import {IPriceOracleV2} from "@gearbox-protocol/core-v2/contracts/interfaces/IPriceOracle.sol";
 import {IPoolQuotaKeeper, QuotaUpdate, TokenLT, QuotaStatusChange} from "../interfaces/IPoolQuotaKeeper.sol";
-import {IVersion} from "../interfaces/IVersion.sol";
+import {IVersion} from "@gearbox-protocol/core-v2/contracts/interfaces/IVersion.sol";
 
 // CONSTANTS
-import {RAY} from "../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
+import {RAY} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 import {
     DEFAULT_FEE_INTEREST,
     DEFAULT_FEE_LIQUIDATION,
@@ -33,12 +33,10 @@ import {
     LEVERAGE_DECIMALS,
     ALLOWANCE_THRESHOLD,
     UNIVERSAL_CONTRACT
-} from "../libraries/Constants.sol";
+} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
 
 uint256 constant ADDR_BIT_SIZE = 160;
 uint256 constant INDEX_PRECISION = 10 ** 9;
-
-import "forge-std/console.sol";
 
 struct Slot1 {
     /// @dev Interest fee charged by the protocol: fee = interest accrued * feeInterest

@@ -6,13 +6,13 @@ pragma solidity ^0.8.10;
 import {CreditManager} from "../../credit/CreditManager.sol";
 import {CreditFacade} from "../../credit/CreditFacade.sol";
 
-import {AccountFactory} from "../../core/AccountFactory.sol";
+import {AccountFactory} from "@gearbox-protocol/core-v2/contracts/core/AccountFactory.sol";
 
 import {ICreditManagerV2, ICreditManagerV2Events} from "../../interfaces/ICreditManagerV2.sol";
 
-import {AddressProvider} from "../../core/AddressProvider.sol";
-import {IDegenNFT, IDegenNFTExceptions} from "../../interfaces/IDegenNFT.sol";
-import {DegenNFT} from "../../tokens/DegenNFT.sol";
+import {AddressProvider} from "@gearbox-protocol/core-v2/contracts/core/AddressProvider.sol";
+import {IDegenNFT, IDegenNFTExceptions} from "@gearbox-protocol/core-v2/contracts/interfaces/IDegenNFT.sol";
+import {DegenNFT} from "@gearbox-protocol/core-v2/contracts/tokens/DegenNFT.sol";
 
 import "../lib/constants.sol";
 import {CreditFacadeTestHelper} from "../helpers/CreditFacadeTestHelper.sol";

@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {IAddressProvider} from "../../interfaces/IAddressProvider.sol";
-import {ContractsRegister} from "../../core/ContractsRegister.sol";
-import {PauseMulticall} from "../../support/PauseMulticall.sol";
+import {IAddressProvider} from "@gearbox-protocol/core-v2/contracts/interfaces/IAddressProvider.sol";
+import {ContractsRegister} from "@gearbox-protocol/core-v2/contracts/core/ContractsRegister.sol";
+import {PauseMulticall} from "@gearbox-protocol/core-v2/contracts/support/PauseMulticall.sol";
 import {CreditManager, UNIVERSAL_CONTRACT} from "../../credit/CreditManager.sol";
 
 // TESTS

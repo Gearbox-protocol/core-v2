@@ -5,17 +5,17 @@ pragma solidity ^0.8.10;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {WETHMock} from "../mocks/token/WETHMock.sol";
+import {WETHMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/token/WETHMock.sol";
 import {ERC20BlacklistableMock} from "../mocks/token/ERC20Blacklistable.sol";
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import {PriceFeedConfig} from "../../oracles/PriceOracle.sol";
+import {PriceFeedConfig} from "@gearbox-protocol/core-v2/contracts/oracles/PriceOracle.sol";
 
 // MOCKS
-import {ERC20Mock} from "../mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "@gearbox-protocol/core-v2/contracts/test/mocks/token/ERC20Mock.sol";
 import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 
-import {PriceFeedMock} from "../mocks/oracles/PriceFeedMock.sol";
+import {PriceFeedMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/oracles/PriceFeedMock.sol";
 
 import "../lib/test.sol";
 

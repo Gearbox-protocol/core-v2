@@ -13,24 +13,23 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {IWETH} from "../interfaces/external/IWETH.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-import {AddressProvider} from "../core/AddressProvider.sol";
-import {ContractsRegister} from "../core/ContractsRegister.sol";
+import {AddressProvider} from "@gearbox-protocol/core-v2/contracts/core/AddressProvider.sol";
+import {ContractsRegister} from "@gearbox-protocol/core-v2/contracts/core/ContractsRegister.sol";
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
 import {IPool4626, Pool4626Opts} from "../interfaces/IPool4626.sol";
 import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
 
-import {RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "../libraries/Constants.sol";
-import {Errors} from "../libraries/Errors.sol";
+import {RAY, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
+import {Errors} from "@gearbox-protocol/core-v2/contracts/libraries/Errors.sol";
 
 // EXCEPTIONS
 import {ZeroAddressException} from "../interfaces/IErrors.sol";
-
-import "forge-std/console.sol";
 
 struct CreditManagerDebt {
     uint128 totalBorrowed;
@@ -183,7 +182,7 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
     /// @dev See {IERC4626-deposit}.
     function deposit(uint256 assets, address receiver)
         public
-        override(ERC4626, IERC4626)
+        override (ERC4626, IERC4626)
         whenNotPaused // F:[P4-4]
         nonReentrant
         nonZeroAddress(receiver)
@@ -213,7 +212,7 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
     /// In this case, the shares will be minted without requiring any assets to be deposited.
     function mint(uint256 shares, address receiver)
         public
-        override(ERC4626, IERC4626)
+        override (ERC4626, IERC4626)
         whenNotPaused // F:[P4-4]
         nonReentrant
         nonZeroAddress(receiver)
@@ -247,7 +246,7 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
     /// @dev  See {IERC4626-withdraw}.
     function withdraw(uint256 assets, address receiver, address owner)
         public
-        override(ERC4626, IERC4626)
+        override (ERC4626, IERC4626)
         whenNotPaused // F:[P4-4]
         nonReentrant
         nonZeroAddress(receiver)
@@ -261,7 +260,7 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
     /// @dev See {IERC4626-redeem}.
     function redeem(uint256 shares, address receiver, address owner)
         public
-        override(ERC4626, IERC4626)
+        override (ERC4626, IERC4626)
         whenNotPaused // F:[P4-4]
         nonReentrant
         nonZeroAddress(receiver)
@@ -343,47 +342,47 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
     }
 
     /// @dev See {IERC4626-totalAssets}.
-    function totalAssets() public view override(ERC4626, IERC4626) returns (uint256 assets) {
+    function totalAssets() public view override (ERC4626, IERC4626) returns (uint256 assets) {
         return expectedLiquidity();
     }
 
     /// @dev See {IERC4626-maxDeposit}.
-    function maxDeposit(address) public view override(ERC4626, IERC4626) returns (uint256) {
+    function maxDeposit(address) public view override (ERC4626, IERC4626) returns (uint256) {
         return (_expectedLiquidityLimit == type(uint128).max)
             ? type(uint256).max
             : _amountWithFee(_expectedLiquidityLimit - expectedLiquidity());
     }
 
     /// @dev See {IERC4626-previewDeposit}.
-    function previewDeposit(uint256 assets) public view override(ERC4626, IERC4626) returns (uint256) {
+    function previewDeposit(uint256 assets) public view override (ERC4626, IERC4626) returns (uint256) {
         return _convertToShares(_amountMinusFee(assets), Math.Rounding.Down); // TODO: add fee parameter
     }
 
     /// @dev See {IERC4626-maxMint}.
-    function maxMint(address) public view override(ERC4626, IERC4626) returns (uint256) {
+    function maxMint(address) public view override (ERC4626, IERC4626) returns (uint256) {
         uint128 limit = _expectedLiquidityLimit;
         return (limit == type(uint128).max) ? type(uint256).max : previewMint(limit - expectedLiquidity());
     }
 
     ///  @dev See {IERC4626-previewMint}.
-    function previewMint(uint256 shares) public view override(ERC4626, IERC4626) returns (uint256) {
+    function previewMint(uint256 shares) public view override (ERC4626, IERC4626) returns (uint256) {
         return _amountWithFee(_convertToAssets(shares, Math.Rounding.Up)); // We need to round up shares.mulDivUp(totalAssets(), supply);
     }
 
     /// @dev See {IERC4626-maxWithdraw}.
-    function maxWithdraw(address owner) public view override(ERC4626, IERC4626) returns (uint256) {
+    function maxWithdraw(address owner) public view override (ERC4626, IERC4626) returns (uint256) {
         return availableLiquidity().min(previewWithdraw(balanceOf(owner)));
     }
 
     /// @dev See {IERC4626-previewWithdraw}.
-    function previewWithdraw(uint256 assets) public view override(ERC4626, IERC4626) returns (uint256) {
+    function previewWithdraw(uint256 assets) public view override (ERC4626, IERC4626) returns (uint256) {
         return _convertToShares(
             _amountWithFee(assets) * PERCENTAGE_FACTOR / (PERCENTAGE_FACTOR - withdrawFee), Math.Rounding.Up
         );
     }
 
     /// @dev See {IERC4626-maxRedeem}.
-    function maxRedeem(address owner) public view override(ERC4626, IERC4626) returns (uint256 shares) {
+    function maxRedeem(address owner) public view override (ERC4626, IERC4626) returns (uint256 shares) {
         shares = balanceOf(owner);
         uint256 assets = _convertToAssets(shares, Math.Rounding.Down);
         uint256 assetsAvailable = availableLiquidity();
@@ -393,7 +392,7 @@ contract Pool4626 is ERC4626, IPool4626, ACLNonReentrantTrait {
     }
 
     /// @dev See {IERC4626-previewRedeem}.
-    function previewRedeem(uint256 shares) public view override(ERC4626, IERC4626) returns (uint256 assets) {
+    function previewRedeem(uint256 shares) public view override (ERC4626, IERC4626) returns (uint256 assets) {
         assets = _calcDeliveredAsstes(_convertToAssets(shares, Math.Rounding.Down));
     }
 

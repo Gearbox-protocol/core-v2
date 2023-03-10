@@ -9,23 +9,23 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 //  DATA
-import {MultiCall} from "../libraries/MultiCall.sol";
-import {Balance, BalanceOps} from "../libraries/Balances.sol";
+import {MultiCall} from "@gearbox-protocol/core-v2/contracts/libraries/MultiCall.sol";
+import {Balance, BalanceOps} from "@gearbox-protocol/core-v2/contracts/libraries/Balances.sol";
 import {QuotaUpdate} from "../interfaces/IPoolQuotaKeeper.sol";
 
 /// INTERFACES
 import {ICreditFacade, ICreditFacadeExtended, FullCheckParams} from "../interfaces/ICreditFacade.sol";
 import {ICreditManagerV2, ClosureAction} from "../interfaces/ICreditManagerV2.sol";
-import {IPriceOracleV2} from "../interfaces/IPriceOracle.sol";
-import {IDegenNFT} from "../interfaces/IDegenNFT.sol";
-import {IWETH} from "../interfaces/external/IWETH.sol";
+import {IPriceOracleV2} from "@gearbox-protocol/core-v2/contracts/interfaces/IPriceOracle.sol";
+import {IDegenNFT} from "@gearbox-protocol/core-v2/contracts/interfaces/IDegenNFT.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 import {IBlacklistHelper} from "../interfaces/IBlacklistHelper.sol";
 import {IBotList} from "../interfaces/IBotList.sol";
 
 // CONSTANTS
 
-import {LEVERAGE_DECIMALS} from "../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
+import {LEVERAGE_DECIMALS} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
 // EXCEPTIONS
 import {ZeroAddressException} from "../interfaces/IErrors.sol";

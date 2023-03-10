@@ -3,11 +3,11 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {Balance} from "../libraries/Balances.sol";
-import {MultiCall} from "../libraries/MultiCall.sol";
+import {Balance} from "@gearbox-protocol/core-v2/contracts/libraries/Balances.sol";
+import {MultiCall} from "@gearbox-protocol/core-v2/contracts/libraries/MultiCall.sol";
 import {ICreditManagerV2, ICreditManagerV2Exceptions} from "./ICreditManagerV2.sol";
 import {QuotaUpdate} from "./IPoolQuotaKeeper.sol";
-import {IVersion} from "./IVersion.sol";
+import {IVersion} from "@gearbox-protocol/core-v2/contracts/interfaces/IVersion.sol";
 
 struct FullCheckParams {
     uint256[] collateralHints;

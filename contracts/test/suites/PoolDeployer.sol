@@ -3,14 +3,14 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {AddressProvider} from "../../core/AddressProvider.sol";
-import {IPriceOracleV2Ext} from "../../interfaces/IPriceOracle.sol";
-import {PriceFeedConfig} from "../../oracles/PriceOracle.sol";
-import {ACL} from "../../core/ACL.sol";
-import {ContractsRegister} from "../../core/ContractsRegister.sol";
-import {AccountFactory} from "../../core/AccountFactory.sol";
-import {GenesisFactory} from "../../factories/GenesisFactory.sol";
-import {PoolFactory, PoolOpts} from "../../factories/PoolFactory.sol";
+import {AddressProvider} from "@gearbox-protocol/core-v2/contracts/core/AddressProvider.sol";
+import {IPriceOracleV2Ext} from "@gearbox-protocol/core-v2/contracts/interfaces/IPriceOracle.sol";
+import {PriceFeedConfig} from "@gearbox-protocol/core-v2/contracts/oracles/PriceOracle.sol";
+import {ACL} from "@gearbox-protocol/core-v2/contracts/core/ACL.sol";
+import {ContractsRegister} from "@gearbox-protocol/core-v2/contracts/core/ContractsRegister.sol";
+import {AccountFactory} from "@gearbox-protocol/core-v2/contracts/core/AccountFactory.sol";
+import {GenesisFactory} from "@gearbox-protocol/core-v2/contracts/factories/GenesisFactory.sol";
+import {PoolFactory, PoolOpts} from "@gearbox-protocol/core-v2/contracts/factories/PoolFactory.sol";
 
 import {CreditManagerOpts, CollateralToken} from "../../credit/CreditConfigurator.sol";
 import {PoolServiceMock} from "../mocks/pool/PoolServiceMock.sol";

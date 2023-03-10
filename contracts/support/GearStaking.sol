@@ -3,10 +3,10 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.17;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import {IGearToken} from "../interfaces/IGearToken.sol";
-import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
+import {IAddressProvider} from "@gearbox-protocol/core-v2/contracts/interfaces/IAddressProvider.sol";
 import {IVotingContract} from "../interfaces/IVotingContract.sol";
 import {
     IGearStaking,
@@ -24,7 +24,7 @@ contract GearStaking is ACLNonReentrantTrait, IGearStaking {
     using SafeCast for uint256;
 
     /// @dev Address of the GEAR token
-    IGearToken public immutable gear;
+    IERC20 public immutable gear;
 
     /// @dev Mapping of user address to their total staked tokens and tokens available for voting
     mapping(address => UserVoteLockData) internal voteLockData;
@@ -39,7 +39,7 @@ contract GearStaking is ACLNonReentrantTrait, IGearStaking {
     uint256 immutable firstEpochTimestamp;
 
     constructor(address _addressProvider, uint256 _firstEpochTimestamp) ACLNonReentrantTrait(_addressProvider) {
-        gear = IGearToken(IAddressProvider(_addressProvider).getGearToken());
+        gear = IERC20(IAddressProvider(_addressProvider).getGearToken());
         firstEpochTimestamp = _firstEpochTimestamp;
     }
 

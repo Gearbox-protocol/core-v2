@@ -5,12 +5,12 @@ pragma solidity ^0.8.10;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {IWETH} from "../../interfaces/external/IWETH.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 
 import {ITokenTestSuite} from "../interfaces/ITokenTestSuite.sol";
 
 // MOCKS
-import {ERC20Mock} from "../mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "@gearbox-protocol/core-v2/contracts/test/mocks/token/ERC20Mock.sol";
 import "../lib/constants.sol";
 
 contract TokensTestSuiteHelper is DSTest, ITokenTestSuite {

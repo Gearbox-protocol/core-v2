@@ -3,9 +3,10 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {WAD, RAY, PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
+import {WAD, RAY} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
-import {Errors} from "../libraries/Errors.sol";
+import {Errors} from "@gearbox-protocol/core-v2/contracts/libraries/Errors.sol";
 
 /// @title Linear Interest Rate Model
 /// @notice Linear interest rate model, similar which Aave uses
@@ -67,7 +68,6 @@ contract LinearInterestRateModel is IInterestRateModel {
         U_Optimal_inverted_WAD = WAD - U_optimal_WAD;
 
         // Convert percetns to WAD
-        uint256 U_Reserve_wad = WAD * U_reserve / PERCENTAGE_FACTOR;
         U_Reserve_WAD = WAD * U_reserve / PERCENTAGE_FACTOR;
 
         // 1 - UReserve in WAD
