@@ -4,32 +4,35 @@
 pragma solidity ^0.8.10;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IWETH} from "../../interfaces/external/IWETH.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 
 import {CreditFacade} from "../../credit/CreditFacade.sol";
 import {CreditManager} from "../../credit/CreditManager.sol";
 
-import {CreditAccount} from "../../credit/CreditAccount.sol";
-import {AccountFactory} from "../../core/AccountFactory.sol";
+import {CreditAccount} from "@gearbox-protocol/core-v2/contracts/credit/CreditAccount.sol";
+import {AccountFactory} from "@gearbox-protocol/core-v2/contracts/core/AccountFactory.sol";
 
 import {BotList} from "../../support/BotList.sol";
 
 import {ICreditFacade, ICreditFacadeExtended} from "../../interfaces/ICreditFacade.sol";
 import {ICreditManagerV2, ICreditManagerV2Events, ClosureAction} from "../../interfaces/ICreditManagerV2.sol";
 import {ICreditFacadeEvents, ICreditFacadeExceptions} from "../../interfaces/ICreditFacade.sol";
-import {IDegenNFT, IDegenNFTExceptions} from "../../interfaces/IDegenNFT.sol";
+import {IDegenNFT, IDegenNFTExceptions} from "@gearbox-protocol/core-v2/contracts/interfaces/IDegenNFT.sol";
 import {IBlacklistHelper} from "../../interfaces/IBlacklistHelper.sol";
 
 // DATA
-import {MultiCall, MultiCallOps} from "../../libraries/MultiCall.sol";
-import {Balance} from "../../libraries/Balances.sol";
+import {MultiCall, MultiCallOps} from "@gearbox-protocol/core-v2/contracts/libraries/MultiCall.sol";
+import {Balance} from "@gearbox-protocol/core-v2/contracts/libraries/Balances.sol";
 
-import {CreditFacadeMulticaller, CreditFacadeCalls} from "../../multicall/CreditFacadeCalls.sol";
+import {
+    CreditFacadeMulticaller,
+    CreditFacadeCalls
+} from "@gearbox-protocol/core-v2/contracts/multicall/CreditFacadeCalls.sol";
 
 // CONSTANTS
 
-import {LEVERAGE_DECIMALS} from "../../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
+import {LEVERAGE_DECIMALS} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
 // TESTS
 
@@ -43,7 +46,7 @@ import {ICreditManagerV2Exceptions} from "../../interfaces/ICreditManagerV2.sol"
 
 // MOCKS
 import {AdapterMock} from "../mocks/adapters/AdapterMock.sol";
-import {TargetContractMock} from "../mocks/adapters/TargetContractMock.sol";
+import {TargetContractMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/adapters/TargetContractMock.sol";
 import {ERC20BlacklistableMock} from "../mocks/token/ERC20Blacklistable.sol";
 
 // SUITES

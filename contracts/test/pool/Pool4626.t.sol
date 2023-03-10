@@ -9,13 +9,12 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {Pool4626} from "../../pool/Pool4626.sol";
-import {IERC4626Events} from "../../interfaces/IERC4626.sol";
 import {IPool4626Events, Pool4626Opts, IPool4626Exceptions} from "../../interfaces/IPool4626.sol";
 import {IERC4626Events} from "../../interfaces/IERC4626.sol";
 
 import {IInterestRateModel} from "../../interfaces/IInterestRateModel.sol";
 
-import {ACL} from "../../core/ACL.sol";
+import {ACL} from "@gearbox-protocol/core-v2/contracts/core/ACL.sol";
 import {CreditManagerMockForPoolTest} from "../mocks/pool/CreditManagerMockForPoolTest.sol";
 import {
     liquidityProviderInitBalance,
@@ -25,7 +24,7 @@ import {
     PoolServiceTestSuite
 } from "../suites/PoolServiceTestSuite.sol";
 
-import "../../libraries/Errors.sol";
+import "@gearbox-protocol/core-v2/contracts/libraries/Errors.sol";
 
 import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
 import {Tokens} from "../config/Tokens.sol";
@@ -35,7 +34,7 @@ import {ERC20FeeMock} from "../mocks/token/ERC20FeeMock.sol";
 // TEST
 import "../lib/constants.sol";
 import "../lib/StringUtils.sol";
-import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
 import "forge-std/console.sol";
 

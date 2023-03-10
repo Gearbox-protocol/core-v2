@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
-import {WAD, RAY, DEFAULT_FEE_LIQUIDATION, DEFAULT_LIQUIDATION_PREMIUM} from "../../libraries/Constants.sol";
+import {
+    WAD,
+    RAY,
+    DEFAULT_FEE_LIQUIDATION,
+    DEFAULT_LIQUIDATION_PREMIUM
+} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
 import "../lib/test.sol";
 import {CheatCodes, HEVM_ADDRESS} from "../lib/cheatCodes.sol";
 

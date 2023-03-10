@@ -8,15 +8,15 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {AddressProvider} from "./AddressProvider.sol";
-import {ContractsRegister} from "./ContractsRegister.sol";
+import {AddressProvider} from "@gearbox-protocol/core-v2/contracts/core/AddressProvider.sol";
+import {ContractsRegister} from "@gearbox-protocol/core-v2/contracts/core/ContractsRegister.sol";
 
-import {IPoolService} from "../interfaces/IPoolService.sol";
+import {IPoolService} from "@gearbox-protocol/core-v2/contracts/interfaces/IPoolService.sol";
 import {IPool4626} from "../interfaces/IPool4626.sol";
 
-import {IWETH} from "../interfaces/external/IWETH.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 import {IWETHGateway} from "../interfaces/IWETHGateway.sol";
-import {Errors} from "../libraries/Errors.sol";
+import {Errors} from "@gearbox-protocol/core-v2/contracts/libraries/Errors.sol";
 
 /// @title WETHGateway
 /// @notice Used for converting ETH <> WETH

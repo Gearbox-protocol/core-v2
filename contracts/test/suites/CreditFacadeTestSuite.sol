@@ -11,7 +11,7 @@ import {CreditManagerFactoryBase} from "../../factories/CreditManagerFactoryBase
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {DegenNFT} from "../../tokens/DegenNFT.sol";
+import {DegenNFT} from "@gearbox-protocol/core-v2/contracts/tokens/DegenNFT.sol";
 import {BlacklistHelper} from "../../support/BlacklistHelper.sol";
 
 import "../lib/constants.sol";
