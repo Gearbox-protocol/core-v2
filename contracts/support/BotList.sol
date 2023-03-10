@@ -8,10 +8,10 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 import {IBotList, BotFunding} from "../interfaces/IBotList.sol";
-import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
+import {IAddressProvider} from "@gearbox-protocol/core-v2/contracts/interfaces/IAddressProvider.sol";
 
 import {ZeroAddressException, AddressIsNotContractException} from "../interfaces/IErrors.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
 uint256 constant SECONDS_PER_WEEK = 3600 * 24 * 7;
 

@@ -3,7 +3,7 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[solidity]": {
-    "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
+    "editor.defaultFormatter": "JuanBlanco.solidity"
   },
 
   "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -19,6 +19,7 @@
     "@ensdomains/=node_modules/@ensdomains/",
     "@openzeppelin/=node_modules/@openzeppelin/contracts",
     "ds-test/=lib/ds-test/src/",
-    "hardhat/=node_modules/hardhat/"
+    "hardhat/=node_modules/hardhat/",
+    "@gearbox-protocol=node_modules/@gearbox-protocol/"
   ]
 }

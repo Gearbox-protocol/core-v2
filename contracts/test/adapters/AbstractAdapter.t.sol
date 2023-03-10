@@ -5,11 +5,11 @@ pragma solidity ^0.8.17;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {AccountFactory} from "../../core/AccountFactory.sol";
+import {AccountFactory} from "@gearbox-protocol/core-v2/contracts/core/AccountFactory.sol";
 import {CreditFacade} from "../../credit/CreditFacade.sol";
 
-import {ICreditAccount} from "../../interfaces/ICreditAccount.sol";
-import {ICreditFacade, MultiCall} from "../../interfaces/ICreditFacade.sol";
+import {ICreditAccount} from "@gearbox-protocol/core-v2/contracts/interfaces/ICreditAccount.sol";
+import {ICreditFacade, MultiCall} from "@gearbox-protocol/core-v2/contracts/interfaces/ICreditFacade.sol";
 import {ICreditManagerV2, ICreditManagerV2Events} from "../../interfaces/ICreditManagerV2.sol";
 import {ICreditFacadeEvents, ICreditFacadeExceptions} from "../../interfaces/ICreditFacade.sol";
 
@@ -23,7 +23,7 @@ import {ICreditManagerV2Exceptions} from "../../interfaces/ICreditManagerV2.sol"
 
 // MOCKS
 import {AdapterMock} from "../mocks/adapters/AdapterMock.sol";
-import {TargetContractMock} from "../mocks/adapters/TargetContractMock.sol";
+import {TargetContractMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/adapters/TargetContractMock.sol";
 
 // SUITES
 import {TokensTestSuite} from "../suites/TokensTestSuite.sol";

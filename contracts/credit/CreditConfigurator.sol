@@ -15,10 +15,11 @@ import {
     DEFAULT_FEE_LIQUIDATION_EXPIRED,
     DEFAULT_LIQUIDATION_PREMIUM_EXPIRED,
     DEFAULT_LIMIT_PER_BLOCK_MULTIPLIER,
-    UNIVERSAL_CONTRACT
-} from "../libraries/Constants.sol";
-import {WAD} from "../libraries/Constants.sol";
-import {PERCENTAGE_FACTOR} from "../libraries/Constants.sol";
+    UNIVERSAL_CONTRACT,
+    WAD
+} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
 // CONTRACTS
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
@@ -27,9 +28,9 @@ import {CreditManager} from "./CreditManager.sol";
 
 // INTERFACES
 import {ICreditConfigurator, CollateralToken, CreditManagerOpts} from "../interfaces/ICreditConfigurator.sol";
-import {IPriceOracleV2} from "../interfaces/IPriceOracle.sol";
-import {IPoolService} from "../interfaces/IPoolService.sol";
-import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
+import {IPriceOracleV2} from "@gearbox-protocol/core-v2/contracts/interfaces/IPriceOracle.sol";
+import {IPoolService} from "@gearbox-protocol/core-v2/contracts/interfaces/IPoolService.sol";
+import {IAddressProvider} from "@gearbox-protocol/core-v2/contracts/interfaces/IAddressProvider.sol";
 import {IPoolQuotaKeeper} from "../interfaces/IPoolQuotaKeeper.sol";
 
 // EXCEPTIONS

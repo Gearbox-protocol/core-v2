@@ -3,11 +3,11 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {IAddressProvider} from "../../interfaces/IAddressProvider.sol";
-import {ACL} from "../../core/ACL.sol";
+import {IAddressProvider} from "@gearbox-protocol/core-v2/contracts/interfaces/IAddressProvider.sol";
+import {ACL} from "@gearbox-protocol/core-v2/contracts/core/ACL.sol";
 
-import {AccountFactory} from "../../core/AccountFactory.sol";
-import {ICreditAccount} from "../../interfaces/ICreditAccount.sol";
+import {AccountFactory} from "@gearbox-protocol/core-v2/contracts/core/AccountFactory.sol";
+import {ICreditAccount} from "@gearbox-protocol/core-v2/contracts/interfaces/ICreditAccount.sol";
 import {
     ICreditManagerV2,
     ICreditManagerV2Events,
@@ -16,16 +16,16 @@ import {
     CollateralTokenData
 } from "../../interfaces/ICreditManagerV2.sol";
 
-import {IPriceOracleV2, IPriceOracleV2Ext} from "../../interfaces/IPriceOracle.sol";
+import {IPriceOracleV2, IPriceOracleV2Ext} from "@gearbox-protocol/core-v2/contracts/interfaces/IPriceOracle.sol";
 
 import {CreditManager, UNIVERSAL_CONTRACT} from "../../credit/CreditManager.sol";
 
-import {IPoolService} from "../../interfaces/IPoolService.sol";
+import {IPoolService} from "@gearbox-protocol/core-v2/contracts/interfaces/IPoolService.sol";
 
-import {IWETH} from "../../interfaces/external/IWETH.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20Mock} from "../mocks/token/ERC20Mock.sol";
-import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
+import {ERC20Mock} from "@gearbox-protocol/core-v2/contracts/test/mocks/token/ERC20Mock.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
 // TESTS
 
@@ -36,16 +36,19 @@ import {BalanceHelper} from "../helpers/BalanceHelper.sol";
 // EXCEPTIONS
 
 // MOCKS
-import {PriceFeedMock} from "../mocks/oracles/PriceFeedMock.sol";
+import {PriceFeedMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/oracles/PriceFeedMock.sol";
 import {PoolServiceMock} from "../mocks/pool/PoolServiceMock.sol";
-import {TargetContractMock} from "../mocks/adapters/TargetContractMock.sol";
-import {ERC20ApproveRestrictedRevert, ERC20ApproveRestrictedFalse} from "../mocks/token/ERC20ApproveRestricted.sol";
+import {TargetContractMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/adapters/TargetContractMock.sol";
+import {
+    ERC20ApproveRestrictedRevert,
+    ERC20ApproveRestrictedFalse
+} from "@gearbox-protocol/core-v2/contracts/test/mocks/token/ERC20ApproveRestricted.sol";
 
 // SUITES
 import {TokensTestSuite} from "../suites/TokensTestSuite.sol";
 import {Tokens} from "../config/Tokens.sol";
 import {CreditManagerTestSuite} from "../suites/CreditManagerTestSuite.sol";
-import {GenesisFactory} from "../../factories/GenesisFactory.sol";
+import {GenesisFactory} from "@gearbox-protocol/core-v2/contracts/factories/GenesisFactory.sol";
 import {CreditManagerTestInternal} from "../mocks/credit/CreditManagerTestInternal.sol";
 
 import {CreditConfig} from "../config/CreditConfig.sol";

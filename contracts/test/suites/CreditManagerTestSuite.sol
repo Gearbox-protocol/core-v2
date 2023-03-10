@@ -6,12 +6,12 @@ pragma solidity ^0.8.10;
 import {CreditManager} from "../../credit/CreditManager.sol";
 import {CreditManagerOpts, CollateralToken} from "../../credit/CreditConfigurator.sol";
 
-import {IWETH} from "../../interfaces/external/IWETH.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 import {QuotaRateUpdate} from "../../interfaces/IPoolQuotaKeeper.sol";
 
-import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
 
-import "../../libraries/Constants.sol";
+import "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
 
 import "../lib/constants.sol";
 import {CreditManagerTestInternal} from "../mocks/credit/CreditManagerTestInternal.sol";

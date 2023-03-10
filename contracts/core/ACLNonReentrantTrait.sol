@@ -4,8 +4,8 @@
 pragma solidity ^0.8.10;
 
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
-import {AddressProvider} from "./AddressProvider.sol";
-import {IACL} from "../interfaces/IACL.sol";
+import {AddressProvider} from "@gearbox-protocol/core-v2/contracts/core/AddressProvider.sol";
+import {IACL} from "@gearbox-protocol/core-v2/contracts/interfaces/IACL.sol";
 import {
     ZeroAddressException,
     CallerNotConfiguratorException,

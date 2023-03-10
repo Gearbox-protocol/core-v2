@@ -36,5 +36,8 @@
   "lint-staged": {
     "*.sol": "forge fmt",
     "*.{json,md}": "prettier --write"
+  },
+  "dependencies": {
+    "@gearbox-protocol/core-v2": "^1.7.2"
   }
 }

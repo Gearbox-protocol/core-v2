@@ -9,14 +9,14 @@ import {CreditManager} from "../../credit/CreditManager.sol";
 import {CreditConfigurator, CreditManagerOpts, CollateralToken} from "../../credit/CreditConfigurator.sol";
 import {ICreditManagerV2, ICreditManagerV2Events} from "../../interfaces/ICreditManagerV2.sol";
 import {ICreditConfiguratorEvents} from "../../interfaces/ICreditConfigurator.sol";
-import {IAdapter} from "../../interfaces/adapters/IAdapter.sol";
+import {IAdapter} from "@gearbox-protocol/core-v2/contracts/interfaces/adapters/IAdapter.sol";
 import {UniversalAdapter} from "../../adapters/UniversalAdapter.sol";
 import {BotList} from "../../support/BotList.sol";
 
 //
-import {PERCENTAGE_FACTOR} from "../../libraries/Constants.sol";
-import "../../libraries/Constants.sol";
-import {AddressList} from "../../libraries/AddressList.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
+import "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+import {AddressList} from "@gearbox-protocol/core-v2/contracts/libraries/AddressList.sol";
 
 // EXCEPTIONS
 import {ICreditConfiguratorExceptions} from "../../interfaces/ICreditConfigurator.sol";
@@ -37,7 +37,7 @@ import "../lib/constants.sol";
 
 // MOCKS
 import {AdapterMock} from "../mocks/adapters/AdapterMock.sol";
-import {TargetContractMock} from "../mocks/adapters/TargetContractMock.sol";
+import {TargetContractMock} from "@gearbox-protocol/core-v2/contracts/test/mocks/adapters/TargetContractMock.sol";
 
 // SUITES
 import {TokensTestSuite} from "../suites/TokensTestSuite.sol";

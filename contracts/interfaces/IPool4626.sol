@@ -4,7 +4,7 @@
 pragma solidity ^0.8.10;
 
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {IVersion} from "./IVersion.sol";
+import {IVersion} from "@gearbox-protocol/core-v2/contracts/interfaces/IVersion.sol";
 
 struct Pool4626Opts {
     address addressProvider;

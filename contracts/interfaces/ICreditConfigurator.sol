@@ -3,10 +3,10 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import {IAddressProvider} from "./IAddressProvider.sol";
+import {IAddressProvider} from "@gearbox-protocol/core-v2/contracts/interfaces/IAddressProvider.sol";
 import {CreditManager} from "../credit/CreditManager.sol";
 import {CreditFacade} from "../credit/CreditFacade.sol";
-import {IVersion} from "./IVersion.sol";
+import {IVersion} from "@gearbox-protocol/core-v2/contracts/interfaces/IVersion.sol";
 
 /// @dev A struct containing parameters for a recognized collateral token in the system
 struct CollateralToken {

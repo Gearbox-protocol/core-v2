@@ -13,24 +13,23 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {IWETH} from "../interfaces/external/IWETH.sol";
+import {IWETH} from "@gearbox-protocol/core-v2/contracts/interfaces/external/IWETH.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-import {AddressProvider} from "../core/AddressProvider.sol";
-import {ContractsRegister} from "../core/ContractsRegister.sol";
+import {AddressProvider} from "@gearbox-protocol/core-v2/contracts/core/AddressProvider.sol";
+import {ContractsRegister} from "@gearbox-protocol/core-v2/contracts/core/ContractsRegister.sol";
 import {ACLNonReentrantTrait} from "../core/ACLNonReentrantTrait.sol";
 
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
 import {IPool4626, Pool4626Opts} from "../interfaces/IPool4626.sol";
 import {ICreditManagerV2} from "../interfaces/ICreditManagerV2.sol";
 
-import {RAY, PERCENTAGE_FACTOR, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "../libraries/Constants.sol";
-import {Errors} from "../libraries/Errors.sol";
+import {RAY, SECONDS_PER_YEAR, MAX_WITHDRAW_FEE} from "@gearbox-protocol/core-v2/contracts/libraries/Constants.sol";
+import {PERCENTAGE_FACTOR} from "@gearbox-protocol/core-v2/contracts/libraries/PercentageMath.sol";
+import {Errors} from "@gearbox-protocol/core-v2/contracts/libraries/Errors.sol";
 
 // EXCEPTIONS
 import {ZeroAddressException} from "../interfaces/IErrors.sol";
-
-import "forge-std/console.sol";
 
 struct CreditManagerDebt {
     uint128 totalBorrowed;
