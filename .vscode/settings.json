@@ -11,14 +11,8 @@
   "editor.tabSize": 2,
   "eslint.validate": ["javascript", "typescript"],
   "files.eol": "\n",
-  "solidity.formatter": "prettier",
   "solidity.packageDefaultDependenciesContractsDirectory": "contracts",
   "solidity.packageDefaultDependenciesDirectory": "node_modules",
-  "solidity.remappings": [
-    "@chainlink/=node_modules/@chainlink/",
-    "@ensdomains/=node_modules/@ensdomains/",
-    "@openzeppelin/=node_modules/@openzeppelin/contracts",
-    "ds-test/=lib/ds-test/src/",
-    "hardhat/=node_modules/hardhat/"
-  ]
+  "solidity.compileUsingRemoteVersion": "v0.8.10",
+  "solidity.formatter": "prettier"
 }
