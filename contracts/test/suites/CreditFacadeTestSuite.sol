@@ -12,6 +12,7 @@ import { CreditManagerFactoryBase } from "../../factories/CreditManagerFactoryBa
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { DegenNFT } from "../../tokens/DegenNFT.sol";
+import { BlacklistHelper } from "../../support/BlacklistHelper.sol";
 
 import "../lib/constants.sol";
 
@@ -28,6 +29,7 @@ contract CreditFacadeTestSuite is PoolDeployer {
     CreditFacade public creditFacade;
     CreditConfigurator public creditConfigurator;
     DegenNFT public degenNFT;
+    BlacklistHelper public blacklistHelper;
 
     uint128 public minBorrowedAmount;
     uint128 public maxBorrowedAmount;
@@ -100,6 +102,7 @@ contract CreditFacadeTestSuite is PoolDeployer {
         creditFacade = new CreditFacade(
             address(creditManager),
             address(degenNFT),
+            address(0),
             false
         );
 
@@ -116,11 +119,35 @@ contract CreditFacadeTestSuite is PoolDeployer {
         creditFacade = new CreditFacade(
             address(creditManager),
             address(0),
+            address(0),
             true
         );
 
         creditConfigurator.upgradeCreditFacade(address(creditFacade), true);
         creditConfigurator.setExpirationDate(uint40(block.timestamp + 1));
+
+        evm.stopPrank();
+    }
+
+    function testFacadeWithBlacklistHelper() external {
+        blacklistHelper = new BlacklistHelper(
+            address(addressProvider),
+            creditManager.underlying(),
+            DUMB_ADDRESS
+        );
+
+        evm.startPrank(CONFIGURATOR);
+
+        creditFacade = new CreditFacade(
+            address(creditManager),
+            address(0),
+            address(blacklistHelper),
+            false
+        );
+
+        creditConfigurator.upgradeCreditFacade(address(creditFacade), true);
+
+        blacklistHelper.addCreditFacade(address(creditFacade));
 
         evm.stopPrank();
     }

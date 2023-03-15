@@ -56,6 +56,9 @@ interface ICreditFacadeExtended {
 }
 
 interface ICreditFacadeEvents {
+    /// @dev Emits when Blacklist Helper is set for the Credit Facade upon creation
+    event BlacklistHelperSet(address indexed blacklistHelper);
+
     /// @dev Emits when a new Credit Account is opened through the
     ///      Credit Facade
     event OpenCreditAccount(
@@ -82,6 +85,13 @@ interface ICreditFacadeEvents {
         address indexed liquidator,
         address indexed to,
         uint256 remainingFunds
+    );
+
+    /// @dev Emits when remaining funds in underlying currency are sent to
+    ///      the blacklist helper upon blacklisted borrower liquidation
+    event UnderlyingSentToBlacklistHelper(
+        address indexed borrower,
+        uint256 amount
     );
 
     /// @dev Emits when the account owner increases CA's debt
@@ -177,6 +187,10 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     /// @dev Thrown if a Credit Account has enabled forbidden tokens and the owner attempts to perform an action
     ///      that is not allowed with any forbidden tokens enabled
     error ActionProhibitedWithForbiddenTokensException();
+
+    /// @dev Thrown when attempting to perform an action on behalf of a borrower
+    ///      that is blacklisted in the underlying token
+    error NotAllowedForBlacklistedAddressException();
 }
 
 interface ICreditFacade is
@@ -432,4 +446,10 @@ interface ICreditFacade is
 
     /// @dev Address of the underlying asset
     function underlying() external view returns (address);
+
+    /// @dev Address of the blacklist helper or address(0), if underlying is not blacklistable
+    function blacklistHelper() external view returns (address);
+
+    /// @dev Whether the underlying of connected Credit Manager is blacklistable
+    function isBlacklistableUnderlying() external view returns (bool);
 }
