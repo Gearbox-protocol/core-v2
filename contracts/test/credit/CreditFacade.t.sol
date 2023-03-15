@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IWETH } from "../../interfaces/external/IWETH.sol";
 
 import { CreditFacade } from "../../credit/CreditFacade.sol";
+import { CreditManager } from "../../credit/CreditManager.sol";
 
 import { CreditAccount } from "../../credit/CreditAccount.sol";
 import { AccountFactory } from "../../core/AccountFactory.sol";
@@ -15,6 +16,7 @@ import { ICreditFacade, ICreditFacadeExtended } from "../../interfaces/ICreditFa
 import { ICreditManagerV2, ICreditManagerV2Events, ClosureAction } from "../../interfaces/ICreditManagerV2.sol";
 import { ICreditFacadeEvents, ICreditFacadeExceptions } from "../../interfaces/ICreditFacade.sol";
 import { IDegenNFT, IDegenNFTExceptions } from "../../interfaces/IDegenNFT.sol";
+import { IBlacklistHelper } from "../../interfaces/IBlacklistHelper.sol";
 
 // DATA
 import { MultiCall, MultiCallOps } from "../../libraries/MultiCall.sol";
@@ -40,6 +42,7 @@ import { ICreditManagerV2Exceptions } from "../../interfaces/ICreditManagerV2.so
 // MOCKS
 import { AdapterMock } from "../mocks/adapters/AdapterMock.sol";
 import { TargetContractMock } from "../mocks/adapters/TargetContractMock.sol";
+import { ERC20BlacklistableMock } from "../mocks/token/ERC20Blacklistable.sol";
 
 // SUITES
 import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
@@ -67,17 +70,21 @@ contract CreditFacadeTest is
     AdapterMock adapterMock;
 
     function setUp() public {
+        _setUp(Tokens.DAI);
+    }
+
+    function _setUp(Tokens _underlying) internal {
         tokenTestSuite = new TokensTestSuite();
         tokenTestSuite.topUpWETH{ value: 100 * WAD }();
 
         CreditConfig creditConfig = new CreditConfig(
             tokenTestSuite,
-            Tokens.DAI
+            _underlying
         );
 
         cft = new CreditFacadeTestSuite(creditConfig);
 
-        underlying = tokenTestSuite.addressOf(Tokens.DAI);
+        underlying = tokenTestSuite.addressOf(_underlying);
         creditManager = cft.creditManager();
         creditFacade = cft.creditFacade();
         creditConfigurator = cft.creditConfigurator();
@@ -152,7 +159,7 @@ contract CreditFacadeTest is
     /// @dev [FA-1]: constructor reverts for zero address
     function test_FA_01_constructor_reverts_for_zero_address() public {
         evm.expectRevert(ZeroAddressException.selector);
-        new CreditFacade(address(0), address(0), false);
+        new CreditFacade(address(0), address(0), address(0), false);
     }
 
     /// @dev [FA-1A]: constructor sets correct values
@@ -2710,6 +2717,125 @@ contract CreditFacadeTest is
         );
 
         expectTokenIsEnabled(Tokens.USDC, false);
+    }
+
+    /// @dev [FA-56]: liquidateCreditAccount correctly uses BlacklistHelper during liquidations
+    function test_FA_56_liquidateCreditAccount_correctly_handles_blacklisted_borrowers()
+        public
+    {
+        _setUp(Tokens.USDC);
+
+        cft.testFacadeWithBlacklistHelper();
+
+        creditFacade = cft.creditFacade();
+
+        address usdc = tokenTestSuite.addressOf(Tokens.USDC);
+
+        address blacklistHelper = creditFacade.blacklistHelper();
+
+        _openTestCreditAccount();
+
+        uint256 expectedAmount = (2 *
+            USDC_ACCOUNT_AMOUNT *
+            (PERCENTAGE_FACTOR -
+                DEFAULT_LIQUIDATION_PREMIUM -
+                DEFAULT_FEE_LIQUIDATION)) /
+            PERCENTAGE_FACTOR -
+            USDC_ACCOUNT_AMOUNT -
+            1 -
+            1; // NOTE: second -1 because we add 1 to helper balance
+
+        evm.roll(block.number + 1);
+
+        evm.prank(address(creditConfigurator));
+        CreditManager(address(creditManager)).setLiquidationThreshold(usdc, 1);
+
+        ERC20BlacklistableMock(usdc).setBlacklisted(USER, true);
+
+        evm.expectCall(
+            blacklistHelper,
+            abi.encodeWithSelector(
+                IBlacklistHelper.isBlacklisted.selector,
+                usdc,
+                USER
+            )
+        );
+
+        evm.expectCall(
+            address(creditManager),
+            abi.encodeWithSelector(
+                ICreditManagerV2.transferAccountOwnership.selector,
+                USER,
+                blacklistHelper
+            )
+        );
+
+        evm.expectCall(
+            blacklistHelper,
+            abi.encodeWithSelector(
+                IBlacklistHelper.addClaimable.selector,
+                usdc,
+                USER,
+                expectedAmount
+            )
+        );
+
+        evm.expectEmit(true, false, false, true);
+        emit UnderlyingSentToBlacklistHelper(USER, expectedAmount);
+
+        evm.prank(LIQUIDATOR);
+        creditFacade.liquidateCreditAccount(
+            USER,
+            FRIEND,
+            0,
+            true,
+            multicallBuilder()
+        );
+
+        assertEq(
+            IBlacklistHelper(blacklistHelper).claimable(usdc, USER),
+            expectedAmount,
+            "Incorrect claimable amount"
+        );
+
+        evm.prank(USER);
+        IBlacklistHelper(blacklistHelper).claim(usdc, FRIEND2);
+
+        assertEq(
+            tokenTestSuite.balanceOf(Tokens.USDC, FRIEND2),
+            expectedAmount,
+            "Transferred amount incorrect"
+        );
+    }
+
+    /// @dev [FA-57] openCreditAccount reverts on blacklisted borrower
+    function test_FA_57_openCreditAccount_reverts_on_blacklisted_borrower()
+        public
+    {
+        _setUp(Tokens.USDC);
+
+        cft.testFacadeWithBlacklistHelper();
+
+        creditFacade = cft.creditFacade();
+
+        address usdc = tokenTestSuite.addressOf(Tokens.USDC);
+
+        ERC20BlacklistableMock(usdc).setBlacklisted(USER, true);
+
+        evm.expectRevert(NotAllowedForBlacklistedAddressException.selector);
+
+        evm.prank(USER);
+        creditFacade.openCreditAccount(USDC_ACCOUNT_AMOUNT, USER, 100, 0);
+
+        evm.expectRevert(NotAllowedForBlacklistedAddressException.selector);
+
+        evm.prank(USER);
+        creditFacade.openCreditAccountMulticall(
+            USDC_ACCOUNT_AMOUNT,
+            USER,
+            multicallBuilder(),
+            0
+        );
     }
 
     // /// @dev [FA-55]: liquidateCreditAccount works in pause for pausable liquidators

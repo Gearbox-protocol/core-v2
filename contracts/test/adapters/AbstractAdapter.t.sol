@@ -501,6 +501,7 @@ contract AbstractAdapterTest is
         CreditFacade newCreditFacade = new CreditFacade(
             address(creditManager),
             address(0),
+            address(0),
             false
         );
 

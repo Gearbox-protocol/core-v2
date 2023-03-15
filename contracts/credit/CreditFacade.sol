@@ -18,6 +18,7 @@ import { ICreditManagerV2, ClosureAction } from "../interfaces/ICreditManagerV2.
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
 import { IWETH } from "../interfaces/external/IWETH.sol";
+import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
 
 // CONSTANTS
 
@@ -60,6 +61,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Whether the whitelisted mode is active
     bool public immutable whitelisted;
 
+    /// @dev Whether the Credit Manager's underlying has blacklisting
+    bool public immutable isBlacklistableUnderlying;
+
     /// @dev Whether the Credit Facade implements expirable logic
     bool public immutable expirable;
 
@@ -83,6 +87,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Address of the DegenNFT that gatekeeps account openings in whitelisted mode
     address public immutable override degenNFT;
 
+    /// @dev Address of the BlacklistHelper if underlying is blacklistable, otherwise address(0)
+    address public immutable override blacklistHelper;
+
     /// @dev Stores in a compressed state the last block where borrowing happened and the total amount borrowed in that block
     uint256 internal totalBorrowedInBlock;
 
@@ -103,10 +110,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Initializes creditFacade and connects it with CreditManager
     /// @param _creditManager address of Credit Manager
     /// @param _degenNFT address of the DegenNFT or address(0) if whitelisted mode is not used
+    /// @param _blacklistHelper address of the funds recovery contract for blacklistable underlyings.
+    ///                         Must be address(0) is the underlying is not blacklistable
     /// @param _expirable Whether the CreditFacade can expire and implements expiration-related logic
     constructor(
         address _creditManager,
         address _degenNFT,
+        address _blacklistHelper,
         bool _expirable
     ) {
         // Additional check that _creditManager is not address(0)
@@ -118,6 +128,12 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         degenNFT = _degenNFT; // F:[FA-1A]
         whitelisted = _degenNFT != address(0); // F:[FA-1A]
+
+        blacklistHelper = _blacklistHelper;
+        isBlacklistableUnderlying = _blacklistHelper != address(0);
+        if (_blacklistHelper != address(0)) {
+            emit BlacklistHelperSet(_blacklistHelper);
+        }
 
         expirable = _expirable;
     }
@@ -160,7 +176,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _revertIfOutOfBorrowedLimits(borrowedAmount); // F:[FA-11B]
 
         // Checks that the msg.sender can open an account for onBehalfOf
-        _revertIfOpenCreditAccountNotAllowed(onBehalfOf); // F:[FA-4A, 4B]
+        _revertIfOpenCreditAccountNotAllowed(onBehalfOf); // F:[FA-4A, 4B, 57]
 
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3A]
@@ -215,7 +231,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _checkAndUpdateBorrowedBlockLimit(borrowedAmount); // F:[FA-11]
 
         // Checks that the msg.sender can open an account for onBehalfOf
-        _revertIfOpenCreditAccountNotAllowed(onBehalfOf); // F:[FA-4A, 4B]
+        _revertIfOpenCreditAccountNotAllowed(onBehalfOf); // F:[FA-4A, 4B, 57]
 
         // Checks that the borrowed amount is within the borrowing limits
         _revertIfOutOfBorrowedLimits(borrowedAmount); // F:[FA-11B]
@@ -307,6 +323,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ///      only totalValue * liquidationDiscount has to be paid. Since liquidationDiscount < 1, the liquidator can take
     ///      totalValue * (1 - liquidationDiscount) as premium. Also computes the remaining funds to be sent to borrower
     ///      as totalValue * liquidationDiscount - amountToPool.
+    ///    + If borrower happens to be blacklisted in the underlying asset, sends funds to the blacklist helper
+    ///      and marks them as claimable by the borrower.
     ///    + Checks the underlying balance: if it is greater than amountToPool + remainingFunds, transfers the underlying
     ///      from the Credit Account and proceeds. If not, tries to transfer the shortfall from the liquidator.
     ///    + Transfers all enabled assets with non-zero balances to the "to" address, unless they are marked
@@ -357,16 +375,14 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             _checkIfEmergencyLiquidator(false);
         }
 
-        // Liquidates the CA and sends the remaining funds to the borrower
-        uint256 remainingFunds = creditManager.closeCreditAccount(
-            borrower,
-            ClosureAction.LIQUIDATE_ACCOUNT,
+        uint256 remainingFunds = _closeLiquidatedAccount(
             totalValue,
-            msg.sender,
+            borrower,
             to,
             skipTokenMask,
-            convertWETH
-        ); // F:[FA-15]
+            convertWETH,
+            false
+        );
 
         emit LiquidateCreditAccount(borrower, msg.sender, to, remainingFunds); // F:[FA-15]
     }
@@ -420,16 +436,14 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             _checkIfEmergencyLiquidator(false);
         }
 
-        // Liquidates the CA and sends the remaining funds to the borrower
-        uint256 remainingFunds = creditManager.closeCreditAccount(
-            borrower,
-            ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT,
+        uint256 remainingFunds = _closeLiquidatedAccount(
             totalValue,
-            msg.sender,
+            borrower,
             to,
             skipTokenMask,
-            convertWETH
-        ); // F:[FA-49]
+            convertWETH,
+            true
+        );
 
         // Emits event
         emit LiquidateExpiredCreditAccount(
@@ -438,6 +452,89 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             to,
             remainingFunds
         ); // F:[FA-49]
+    }
+
+    /// @dev Closes a liquidated credit account, possibly expired
+    function _closeLiquidatedAccount(
+        uint256 totalValue,
+        address borrower,
+        address to,
+        uint256 skipTokenMask,
+        bool convertWETH,
+        bool expired
+    ) internal returns (uint256 remainingFunds) {
+        uint256 helperBalance = _isBlacklisted(borrower);
+        // If the borrower is blacklisted, transfer the account to a special recovery contract,
+        // so that the attempt to transfer remaining funds to a blacklisted borrower does not
+        // break the liquidation. The borrower can retrieve the funds from the recovery contract afterwards.
+        if (helperBalance > 0) {
+            creditManager.transferAccountOwnership(borrower, blacklistHelper); // F:[FA-56]
+        }
+
+        // Liquidates the CA and sends the remaining funds to the borrower or blacklist helper
+        remainingFunds = creditManager.closeCreditAccount(
+            helperBalance > 0 ? blacklistHelper : borrower,
+            expired
+                ? ClosureAction.LIQUIDATE_EXPIRED_ACCOUNT
+                : ClosureAction.LIQUIDATE_ACCOUNT,
+            totalValue,
+            msg.sender,
+            to,
+            skipTokenMask,
+            convertWETH
+        ); // F:[FA-15,49]
+
+        /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
+        /// borrower can recover funds to a different address
+        if (helperBalance > 0 && remainingFunds > 1) {
+            _increaseClaimableBalance(borrower, helperBalance);
+        }
+    }
+
+    /// @dev Checks whether borrower is blacklisted in the underlying token and, if so,
+    ///      returns non-zero value equal to blacklist helper's balance of underlying
+    //       Zero return value always indicates that borrower is not blacklisted
+    function _isBlacklisted(address borrower)
+        internal
+        view
+        returns (uint256 helperBalance)
+    {
+        if (
+            isBlacklistableUnderlying &&
+            IBlacklistHelper(blacklistHelper).isBlacklisted(
+                underlying,
+                borrower
+            ) // F:[FA-56]
+        ) {
+            // can't realistically overflow
+            unchecked {
+                helperBalance =
+                    IERC20(underlying).balanceOf(blacklistHelper) +
+                    1;
+            }
+        }
+    }
+
+    /// @dev Checks if blacklist helper's balance of underlying increased after liquidation
+    ///      and, if so, increases the borrower's claimable balance by the difference
+    ///      Not relying on `remainingFunds` to support fee-on-transfer tokens
+    function _increaseClaimableBalance(
+        address borrower,
+        uint256 helperBalanceBefore
+    ) internal {
+        uint256 helperBalance = IERC20(underlying).balanceOf(blacklistHelper);
+        if (helperBalance > helperBalanceBefore) {
+            uint256 amount;
+            unchecked {
+                amount = helperBalance - helperBalanceBefore;
+            }
+            IBlacklistHelper(blacklistHelper).addClaimable(
+                underlying,
+                borrower,
+                amount
+            ); // F:[FA-56]
+            emit UnderlyingSentToBlacklistHelper(borrower, amount); // F:[FA-56]
+        }
     }
 
     /// @dev Increases debt for msg.sender's Credit Account
@@ -960,6 +1057,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Checks that this CreditFacade is not expired
         if (_isExpired()) {
             revert OpenAccountNotAllowedAfterExpirationException(); // F: [FA-46]
+        }
+
+        // Checks that the borrower is not blacklisted, if the underlying is blacklistable
+        if (_isBlacklisted(onBehalfOf) != 0) {
+            revert NotAllowedForBlacklistedAddressException(); // F:[FA-57]
         }
 
         // F:[FA-5] covers case when degenNFT == address(0)
