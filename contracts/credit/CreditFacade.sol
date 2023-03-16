@@ -19,6 +19,7 @@ import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
 import { IWETH } from "../interfaces/external/IWETH.sol";
 import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
+import { IPoolService } from "../interfaces/IPoolService.sol";
 
 // CONSTANTS
 
@@ -468,6 +469,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             creditManager.transferAccountOwnership(borrower, blacklistHelper); // F:[FA-56]
         }
 
+        uint256 expectedLiquidity = _getExpectedLiquidity();
+
         // Liquidates the CA and sends the remaining funds to the borrower or blacklist helper
         remainingFunds = creditManager.closeCreditAccount(
             helperBalance > 0 ? blacklistHelper : borrower,
@@ -480,6 +483,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             skipTokenMask,
             convertWETH
         ); // F:[FA-15,49]
+
+        if (expectedLiquidity > _getExpectedLiquidity()) {
+            params.isIncreaseDebtForbidden = true;
+        }
 
         /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
         /// borrower can recover funds to a different address
@@ -1300,6 +1307,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Returns whether the Credit Facade is expired
     function _isExpired() internal view returns (bool isExpired) {
         isExpired = (expirable) && (block.timestamp >= params.expirationDate); // F: [FA-46,47,48]
+    }
+
+    /// @dev Returns the current expected liquidity of the pool
+    function _getExpectedLiquidity()
+        internal
+        view
+        returns (uint256 expectedLiquidity)
+    {
+        return IPoolService(creditManager.pool()).expectedLiquidity();
     }
 
     //

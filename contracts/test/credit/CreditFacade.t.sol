@@ -1105,6 +1105,37 @@ contract CreditFacadeTest is
         );
     }
 
+    function test_FA_15A_liquidateCreditAccount_prohibits_borrowing_on_loss()
+        public
+    {
+        (address creditAccount, ) = _openTestCreditAccount();
+
+        bytes memory DUMB_CALLDATA = _prepareMockCall();
+
+        _makeAccountsLiquitable();
+
+        evm.prank(LIQUIDATOR);
+        creditFacade.liquidateCreditAccount(
+            USER,
+            FRIEND,
+            10,
+            true,
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: DUMB_CALLDATA
+                })
+            )
+        );
+
+        (, bool increaseDebtForbidden, ) = creditFacade.params();
+
+        assertTrue(
+            increaseDebtForbidden,
+            "Increase debt wasn't forbidden after loss"
+        );
+    }
+
     function test_FA_16_liquidateCreditAccount_reverts_on_internal_call_in_multicall_on_closure()
         public
     {
