@@ -10,24 +10,11 @@ struct RevocationPair {
     address token;
 }
 
-interface IUniversalAdapterExceptions {
-    /// @dev Thrown when the Credit Account of msg.sender does not match the provided expected account
-    error UnexpectedCreditAccountException(address expected, address actual);
-}
-
-interface IUniversalAdapter is IAdapter, IUniversalAdapterExceptions {
-    /// @dev Sets allowances to zero for provided spender/token pairs, for msg.sender's CA
-    /// @param revocations Pairs of spenders/tokens to revoke allowances for
+/// @title Universal adapter interface
+/// @notice Implements the initial version of universal adapter, which handles allowance revocations
+interface IUniversalAdapter is IAdapter {
+    /// @notice Revokes allowances for specified spender/token pairs
+    /// @param revocations Spender/token pairs to revoke allowances for
     function revokeAdapterAllowances(RevocationPair[] calldata revocations)
         external;
-
-    /// @dev Sets allowances to zero for the provided spender/token pairs
-    /// Checks that the msg.sender CA matches the expected account, since
-    /// provided revocations are specific to a particular CA
-    /// @param revocations Pairs of spenders/tokens to revoke allowances for
-    /// @param expectedCreditAccount Credit account that msg.sender is expected to have
-    function revokeAdapterAllowances(
-        RevocationPair[] calldata revocations,
-        address expectedCreditAccount
-    ) external;
 }

@@ -2,6 +2,8 @@
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
+
+import { IAddressProvider } from "../IAddressProvider.sol";
 import { ICreditManagerV2 } from "../ICreditManagerV2.sol";
 
 enum AdapterType {
@@ -29,22 +31,26 @@ enum AdapterType {
 }
 
 interface IAdapterExceptions {
-    /// @dev Thrown when the adapter attempts to use a token
-    ///      that is not recognized as collateral in the connected
-    ///      Credit Manager
+    /// @notice Thrown when adapter tries to use a token that's not a collateral token of the connected Credit Manager
     error TokenIsNotInAllowedList(address);
+
+    /// @notice Thrown when caller of a `creditFacadeOnly` function is not the Credit Facade
+    error CreditFacadeOnlyException();
 }
 
 interface IAdapter is IAdapterExceptions {
-    /// @dev Returns the Credit Manager connected to the adapter
+    /// @notice Credit Manager the adapter is connected to
     function creditManager() external view returns (ICreditManagerV2);
 
-    /// @dev Returns the address of the contract the adapter is interacting with
+    /// @notice Address of the contract the adapter is interacting with
     function targetContract() external view returns (address);
 
-    /// @dev Returns the adapter type
+    /// @notice Address provider
+    function addressProvider() external view returns (IAddressProvider);
+
+    /// @notice Adapter type
     function _gearboxAdapterType() external pure returns (AdapterType);
 
-    /// @dev Returns the adapter version
+    /// @notice Adapter version
     function _gearboxAdapterVersion() external pure returns (uint16);
 }

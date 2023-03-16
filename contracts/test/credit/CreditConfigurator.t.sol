@@ -81,7 +81,10 @@ contract CreditConfiguratorTest is
         TARGET_CONTRACT = address(new TargetContractMock());
 
         adapter1 = new AdapterMock(address(creditManager), TARGET_CONTRACT);
-        adapterDifferentCM = new AdapterMock(address(this), TARGET_CONTRACT);
+        adapterDifferentCM = new AdapterMock(
+            address(new CreditFacadeTestSuite(creditConfig).creditManager()),
+            TARGET_CONTRACT
+        );
 
         DUMB_COMPARTIBLE_CONTRACT = address(adapter1);
     }
