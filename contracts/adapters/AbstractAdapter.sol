@@ -163,7 +163,7 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
         bytes memory callData,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        return _executeSwap(tokenIn, tokenOut, callData, disableTokenIn, false); // F: [AA-7, AA-13]
+        return _executeSwap(tokenIn, tokenOut, callData, disableTokenIn); // F: [AA-7, AA-13]
     }
 
     /// @dev Executes a swap operation on the target contract from the Credit Account
@@ -180,7 +180,9 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
         bytes memory callData,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        return _executeSwap(tokenIn, tokenOut, callData, disableTokenIn, true); // F: [AA-7, AA-14]
+        _approveToken(tokenIn, type(uint256).max); // F: [AA-14]
+        result = _executeSwap(tokenIn, tokenOut, callData, disableTokenIn); // F: [AA-7, AA-14]
+        _approveToken(tokenIn, 1); // F: [AA-14]
     }
 
     /// @dev Implementation of `_executeSwap...` operations
@@ -190,19 +192,9 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
         address tokenIn,
         address tokenOut,
         bytes memory callData,
-        bool disableTokenIn,
-        bool allowTokenIn
+        bool disableTokenIn
     ) private returns (bytes memory result) {
-        if (allowTokenIn) {
-            _approveToken(tokenIn, type(uint256).max); // F: [AA-14]
-        }
-
         result = _execute(callData); // F: [AA-13, AA-14]
-
-        if (allowTokenIn) {
-            _approveToken(tokenIn, 1); // F: [AA-14]
-        }
-
         if (disableTokenIn) {
             _disableToken(tokenIn); // F: [AA-13, AA-14]
         }
