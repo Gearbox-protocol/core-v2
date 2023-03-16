@@ -307,23 +307,6 @@ interface ICreditFacade is
         MultiCall[] calldata calls
     ) external payable;
 
-    /// @dev Increases debt for msg.sender's Credit Account
-    /// - Borrows the requested amount from the pool
-    /// - Updates the CA's borrowAmount / cumulativeIndexOpen
-    ///   to correctly compute interest going forward
-    /// - Performs a full collateral check
-    ///
-    /// @param amount Amount to borrow
-    function increaseDebt(uint256 amount) external;
-
-    /// @dev Decrease debt
-    /// - Decreases the debt by paying the requested amount + accrued interest + fees back to the pool
-    /// - It's also include to this payment interest accrued at the moment and fees
-    /// - Updates cunulativeIndex to cumulativeIndex now
-    ///
-    /// @param amount Amount to increase borrowed amount
-    function decreaseDebt(uint256 amount) external;
-
     /// @dev Adds collateral to borrower's credit account
     /// @param onBehalfOf Address of the borrower whose account is funded
     /// @param token Address of a collateral token
@@ -348,24 +331,10 @@ interface ICreditFacade is
         view
         returns (bool);
 
-    /// @dev Sets token allowance from msg.sender's Credit Account to a connected target contract
-    /// @param targetContract Contract to set allowance to. Cannot be in the list of upgradeable contracts
-    /// @param token Token address
-    /// @param amount Allowance amount
-    function approve(
-        address targetContract,
-        address token,
-        uint256 amount
-    ) external;
-
     /// @dev Approves account transfer from another user to msg.sender
     /// @param from Address for which account transfers are allowed/forbidden
     /// @param state True is transfer is allowed, false if forbidden
     function approveAccountTransfer(address from, bool state) external;
-
-    /// @dev Enables token in enabledTokenMask for the Credit Account of msg.sender
-    /// @param token Address of token to enable
-    function enableToken(address token) external;
 
     /// @dev Transfers credit account to another user
     /// By default, this action is forbidden, and the user has to approve transfers from sender to itself

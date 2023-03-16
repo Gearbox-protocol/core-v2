@@ -1266,12 +1266,6 @@ contract CreditConfiguratorTest is
                     );
 
                     evm.prank(CONFIGURATOR);
-                    creditConfigurator.addContractToUpgradeable(DUMB_ADDRESS);
-
-                    evm.prank(CONFIGURATOR);
-                    creditConfigurator.addContractToUpgradeable(DUMB_ADDRESS2);
-
-                    evm.prank(CONFIGURATOR);
                     creditConfigurator.setIncreaseDebtForbidden(isIDF);
 
                     (
@@ -1317,18 +1311,6 @@ contract CreditConfiguratorTest is
                         uint128 maxBorrowedAmount2
                     ) = cf.limits();
 
-                    address upgradeableContract0;
-                    address upgradeableContract1;
-                    {
-                        address[] memory upgradeableContracts = cf
-                            .upgradeableContractsList();
-
-                        if (migrateSettings) {
-                            upgradeableContract0 = upgradeableContracts[0];
-                            upgradeableContract1 = upgradeableContracts[1];
-                        }
-                    }
-
                     assertEq(
                         limitPerBlock2,
                         migrateSettings ? limitPerBlock : 0,
@@ -1355,18 +1337,6 @@ contract CreditConfiguratorTest is
                         expirationDate2,
                         migrateSettings ? expirationDate : 0,
                         "Incorrect expirationDate"
-                    );
-
-                    assertEq(
-                        upgradeableContract0,
-                        migrateSettings ? DUMB_ADDRESS : address(0),
-                        "Upgradeable contract 0 was not transferred"
-                    );
-
-                    assertEq(
-                        upgradeableContract1,
-                        migrateSettings ? DUMB_ADDRESS2 : address(0),
-                        "Upgradeable contract 1 was not transferred"
                     );
                 }
             }
@@ -1484,45 +1454,6 @@ contract CreditConfiguratorTest is
             newExpirationDate,
             "Incorrect new expirationDate"
         );
-    }
-
-    /// @dev [CC-35]: addToUpgradeableContracts adds contract and reverts if zero
-    function test_CC_35_addToUpgradeableContracts_works_correctly() public {
-        evm.prank(CONFIGURATOR);
-        evm.expectRevert(ZeroAddressException.selector);
-        creditConfigurator.addContractToUpgradeable(address(0));
-
-        evm.expectEmit(false, false, false, true);
-        emit AddedToUpgradeable(DUMB_ADDRESS);
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.addContractToUpgradeable(DUMB_ADDRESS);
-
-        address[] memory contracts = creditFacade.upgradeableContractsList();
-
-        assertEq(contracts[0], DUMB_ADDRESS, "Contract was not set");
-    }
-
-    /// @dev [CC-36]: removeFromUpgradeableContracts removes contract and reverts if zero
-    function test_CC_36_removeFromUpgradeableContracts_works_correctly()
-        public
-    {
-        evm.prank(CONFIGURATOR);
-        evm.expectRevert(ZeroAddressException.selector);
-        creditConfigurator.removeContractFromUpgradeable(address(0));
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.addContractToUpgradeable(DUMB_ADDRESS);
-
-        evm.expectEmit(false, false, false, true);
-        emit RemovedFromUpgradeable(DUMB_ADDRESS);
-
-        evm.prank(CONFIGURATOR);
-        creditConfigurator.removeContractFromUpgradeable(DUMB_ADDRESS);
-
-        address[] memory contracts = creditFacade.upgradeableContractsList();
-
-        assertEq(contracts.length, 0, "Contract was not removed");
     }
 
     /// @dev [CC-37]: setMaxEnabledTokens works correctly and emits event

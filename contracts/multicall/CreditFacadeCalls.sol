@@ -51,7 +51,7 @@ library CreditFacadeCalls {
             MultiCall({
                 target: address(creditFacade),
                 callData: abi.encodeWithSelector(
-                    ICreditFacade.increaseDebt.selector,
+                    ICreditFacadeExtended.increaseDebt.selector,
                     amount
                 )
             });
@@ -66,7 +66,7 @@ library CreditFacadeCalls {
             MultiCall({
                 target: address(creditFacade),
                 callData: abi.encodeWithSelector(
-                    ICreditFacade.decreaseDebt.selector,
+                    ICreditFacadeExtended.decreaseDebt.selector,
                     amount
                 )
             });
@@ -81,7 +81,7 @@ library CreditFacadeCalls {
             MultiCall({
                 target: address(creditFacade),
                 callData: abi.encodeWithSelector(
-                    ICreditFacade.enableToken.selector,
+                    ICreditFacadeExtended.enableToken.selector,
                     token
                 )
             });

@@ -93,9 +93,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Stores in a compressed state the last block where borrowing happened and the total amount borrowed in that block
     uint256 internal totalBorrowedInBlock;
 
-    /// @dev Stores a set of contracts which have special restrictions applied for security (such as upgradeable contracts)
-    EnumerableSet.AddressSet internal upgradeableContracts;
-
     /// @dev Contract version
     uint256 public constant override version = 2;
 
@@ -537,33 +534,19 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
     }
 
-    /// @dev Increases debt for msg.sender's Credit Account
-    /// - Borrows the requested amount from the pool
-    /// - Updates the CA's borrowAmount / cumulativeIndexOpen
-    ///   to correctly compute interest going forward
-    /// - Performs a full collateral check
-    ///
+    /// @dev Increases debt for a Credit Account
+    /// @param borrower Owner of the account
+    /// @param creditAccount CA to increase debt for
     /// @param amount Amount to borrow
-    function increaseDebt(uint256 amount) external override nonReentrant {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
-
-        _increaseDebt(msg.sender, creditAccount, amount);
-
-        // Checks that the credit account has enough collateral to cover the new borrowed amount
-        creditManager.fullCollateralCheck(creditAccount); // F:[FA-17]
-    }
-
-    /// @dev IMPLEMENTATION: increaseDebt
     function _increaseDebt(
         address borrower,
         address creditAccount,
         uint256 amount
     ) internal {
         // It is forbidden to take new debt if increaseDebtForbidden mode is enabled
-        if (params.isIncreaseDebtForbidden)
-            revert IncreaseDebtForbiddenException(); // F:[FA-18C]
+        if (params.isIncreaseDebtForbidden) {
+            revert IncreaseDebtForbiddenException();
+        } // F:[FA-18C]
 
         // Checks that the borrowed amount does not violate the per block limit
         _checkAndUpdateBorrowedBlockLimit(amount); // F:[FA-18A]
@@ -612,25 +595,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
     }
 
-    /// @dev Decrease debt
-    /// - Decreases the debt by paying the requested amount + accrued interest + fees back to the pool
-    /// - It's also include to this payment interest accrued at the moment and fees
-    /// - Updates cunulativeIndex to cumulativeIndex now
-    ///
-    /// @param amount Amount to increase borrowed amount
-    function decreaseDebt(uint256 amount) external override nonReentrant {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
-
-        _decreaseDebt(msg.sender, creditAccount, amount); // F:[FA-19]
-
-        // We need this check, cause after paying debt back, it potentially could be
-        // another portfolio structure, which has lower Hf
-        creditManager.fullCollateralCheck(creditAccount); // F:[FA-19]
-    }
-
-    /// @dev IMPLEMENTATION: decreaseDebt
+    /// @dev Decreases debt for a Credit Account
+    /// @param borrower Owner of the account
+    /// @param creditAccount Account to decrease debt for
+    /// @param amount Amount to repay
     function _decreaseDebt(
         address borrower,
         address creditAccount,
@@ -888,7 +856,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // INCREASE DEBT
         //
-        else if (method == ICreditFacade.increaseDebt.selector) {
+        else if (method == ICreditFacadeExtended.increaseDebt.selector) {
             // Sets increaseDebtWasCalled to prevent debt reductions afterwards,
             // as that could be used to get free flash loans
             increaseDebtWasCalled = true; // F:[FA-28]
@@ -900,7 +868,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // DECREASE DEBT
         //
-        else if (method == ICreditFacade.decreaseDebt.selector) {
+        else if (method == ICreditFacadeExtended.decreaseDebt.selector) {
             // it's forbidden to call decreaseDebt after increaseDebt, in the same multicall
             if (increaseDebtWasCalled)
                 revert IncreaseAndDecreaseForbiddenInOneCallException(); // F:[FA-28]
@@ -913,7 +881,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // ENABLE TOKEN
         //
-        else if (method == ICreditFacade.enableToken.selector) {
+        else if (method == ICreditFacadeExtended.enableToken.selector) {
             // Parses token
             address token = abi.decode(callData[4:], (address)); // F: [FA-53]
 
@@ -976,35 +944,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                 ++i;
             }
         }
-    }
-
-    /// @dev Sets token allowance from msg.sender's Credit Account to a connected target contract
-    /// @param targetContract Contract to set allowance to. Cannot be in the list of upgradeable contracts
-    /// @param token Token address
-    /// @param amount Allowance amount
-    function approve(
-        address targetContract,
-        address token,
-        uint256 amount
-    ) external override nonReentrant {
-        // Checks that targetContract is a non-zero address and is not in the upgradeable contracts list
-        // If an upgradeable contract is compromised, and an attacker is able to call transferFrom from it,
-        // they would be able to steal funds from Credit Accounts while circumventing all health checks
-        // Thus, this action is only allowed for immutable and highly secure contracts
-        if (
-            creditManager.contractToAdapter(targetContract) == address(0) ||
-            upgradeableContracts.contains(targetContract)
-        )
-            // F: [FA-51]
-            revert TargetContractNotAllowedException(); // F:[FA-30]
-
-        // Requests Credit Manager to set token allowance from Credit Account to contract
-        creditManager.approveCreditAccount(
-            msg.sender,
-            targetContract,
-            token,
-            amount
-        ); // F:[FA-31]
     }
 
     /// @dev Transfers credit account to another user
@@ -1169,22 +1108,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         emit TransferAccountAllowed(from, msg.sender, state); // F:[FA-38]
     }
 
-    /// @dev Enables token in enabledTokenMask for the Credit Account of msg.sender
-    /// @param token Address of token to enable
-    function enableToken(address token) external override nonReentrant {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[FA-2]
-
-        _enableToken(msg.sender, creditAccount, token);
-
-        // Since this action potentially increases the number of enabled tokens,
-        // the Credit Manager is requested to check that the max limit for enabled tokens
-        // is not violated
-        creditManager.checkAndOptimizeEnabledTokens(creditAccount); // F: [FA-39A]
-    }
-
-    /// @dev IMPLEMENTATION: enableToken
+    /// @dev Enables token in enabledTokenMask for a Credit Account
     /// @param creditAccount Account for which the token is enabled
     /// @param token Collateral token to enabled
     function _enableToken(
@@ -1200,6 +1124,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         emit TokenEnabled(borrower, token);
     }
 
+    /// @dev Disable a token for a Credit Account
+    /// @param borrower Owner of the account
+    /// @param token Token to disable
     function _disableToken(
         address borrower,
         address creditAccount,
@@ -1429,43 +1356,5 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ) external creditConfiguratorOnly {
         limits.minBorrowedAmount = _minBorrowedAmount; // F:
         limits.maxBorrowedAmount = _maxBorrowedAmount; // F:
-    }
-
-    //
-    // CONTRACT WATCHLIST CONFIGURATION AND GETTERS
-    //
-
-    /// @dev Change upgradable contract state (add/remove depending on addOrRemove param).
-    /// Direct approvals are forbidden for contracts marked as "upgradeable" for
-    /// security reasions
-    /// @param addr Address to add to / remove from the list
-    /// @param addOrRemove True to be added, false to be removed
-    /// @notice Upgradeable contracts are contracts with an upgradeable proxy
-    /// Or other practices and patterns potentially detrimental to security
-    /// Contracts from the list have certain restrictions applied to them
-    function setUpgradeable(address addr, bool addOrRemove)
-        external
-        creditConfiguratorOnly
-    {
-        if (addOrRemove) {
-            upgradeableContracts.add(addr); // F: [FA-50]
-        } else {
-            upgradeableContracts.remove(addr); // F: [FA-50]
-        }
-    }
-
-    /// @dev Returns whether the address is in the list of upgradeable contracts
-    /// @param addr Address to check
-    function isUpgradeableContract(address addr) external view returns (bool) {
-        return upgradeableContracts.contains(addr); // F: [FA-50]
-    }
-
-    /// @dev Returns the entire upgradeable contract list
-    function upgradeableContractsList()
-        external
-        view
-        returns (address[] memory)
-    {
-        return upgradeableContracts.values(); // F: [FA-50]
     }
 }
