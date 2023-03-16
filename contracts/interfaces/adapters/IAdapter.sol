@@ -20,7 +20,12 @@ enum AdapterType {
     CONVEX_V1_CLAIM_ZAP,
     LIDO_V1,
     UNIVERSAL,
-    LIDO_WSTETH_V1
+    LIDO_WSTETH_V1,
+    BALANCER_VAULT,
+    AAVE_V2_LENDING_POOL,
+    AAVE_V2_WRAPPED_ATOKEN,
+    COMPOUND_V2_CERC20,
+    COMPOUND_V2_CETHER
 }
 
 interface IAdapterExceptions {
