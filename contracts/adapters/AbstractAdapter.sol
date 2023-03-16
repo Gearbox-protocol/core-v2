@@ -116,27 +116,20 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
     ) internal {
         address creditAccount = _creditAccount(); // F: [AA-7]
         unchecked {
+            uint256 updatedTokens = tokensToEnable | tokensToDisable;
             address token;
-            uint256 i;
-            while (tokensToEnable > 0) {
-                if (tokensToEnable & 1 != 0) {
-                    (token, ) = creditManager.collateralTokensByMask(1 << i);
-                    creditManager.checkAndEnableToken(creditAccount, token); // F: [AA-11]
+            uint256 mask = 1;
+            while (updatedTokens >= mask) {
+                if (updatedTokens & mask != 0) {
+                    (token, ) = creditManager.collateralTokensByMask(mask);
+                    if (tokensToEnable & mask != 0) {
+                        creditManager.checkAndEnableToken(creditAccount, token); // F: [AA-11]
+                    }
+                    if (tokensToDisable & mask != 0) {
+                        creditManager.disableToken(creditAccount, token); // F: [AA-11]
+                    }
                 }
-                tokensToEnable >>= 1;
-                ++i;
-            }
-        }
-        unchecked {
-            address token;
-            uint256 i;
-            while (tokensToDisable > 0) {
-                if (tokensToDisable & 1 != 0) {
-                    (token, ) = creditManager.collateralTokensByMask(1 << i);
-                    creditManager.disableToken(creditAccount, token); // F: [AA-11]
-                }
-                tokensToDisable >>= 1;
-                ++i;
+                mask <<= 1;
             }
         }
     }
