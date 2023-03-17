@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { AccountFactory } from "../../core/AccountFactory.sol";
 import { CreditFacade } from "../../credit/CreditFacade.sol";
+import { CreditManager } from "../../credit/CreditManager.sol";
 
 import { IAddressProvider } from "../../interfaces/IAddressProvider.sol";
 import { ICreditAccount } from "../../interfaces/ICreditAccount.sol";
@@ -420,6 +421,33 @@ contract AbstractAdapterTest is
                         adapterMock.changeEnabledTokens.selector,
                         usdcMask,
                         wethMask
+                    )
+                })
+            )
+        );
+    }
+
+    /// @dev [AA-11A] _changeEnabledTokens terminates correctly
+    function test_AA_11A_changeEnabledTokens_terminates_correctly() public {
+        evm.startPrank(address(creditConfigurator));
+        for (uint256 i = creditManager.collateralTokensCount(); i < 256; i++) {
+            CreditManager(address(creditManager)).addToken(
+                address(uint160(uint256(keccak256(abi.encodePacked(i)))))
+            );
+        }
+        evm.stopPrank();
+
+        _openTestCreditAccount();
+
+        evm.prank(USER);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: abi.encodeWithSelector(
+                        adapterMock.changeEnabledTokens.selector,
+                        1 << 255,
+                        0
                     )
                 })
             )
