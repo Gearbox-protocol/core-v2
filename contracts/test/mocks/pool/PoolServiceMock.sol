@@ -127,8 +127,8 @@ contract PoolServiceMock is IPoolService {
         returns (uint256)
     {}
 
-    function expectedLiquidity() public pure override returns (uint256) {
-        return 0; // T:[MPS-1]
+    function expectedLiquidity() public view override returns (uint256) {
+        return repayLoss > 0 ? 0 : 1; // T:[MPS-1]
     }
 
     function availableLiquidity() public view override returns (uint256) {

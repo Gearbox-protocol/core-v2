@@ -582,9 +582,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         (uint128 minBorrowedAmount, uint128 maxBorrowedAmount) = creditFacade()
             .limits();
 
-        address[] memory upgradeableContracts = creditFacade()
-            .upgradeableContractsList();
-
         bool expirable = creditFacade().expirable();
 
         // Sets Credit Facade to the new address
@@ -595,15 +592,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             _setLimitPerBlock(limitPerBlock); // F:[CC-30]
             _setLimits(minBorrowedAmount, maxBorrowedAmount); // F:[CC-30]
             _setIncreaseDebtForbidden(isIncreaseDebtFobidden); // F:[CC-30]
-
-            // Copies the list of upgradeable contracts
-            for (uint256 i; i < upgradeableContracts.length; ) {
-                _addContractToUpgradeable(upgradeableContracts[i]);
-
-                unchecked {
-                    ++i;
-                }
-            }
 
             // Copies the expiration date if the contract is expirable
             if (expirable) _setExpirationDate(expirationDate); // F: [CC-30]
@@ -695,57 +683,6 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         if (maxBorrowedAmountPerBlock != newLimit) {
             creditFacade().setLimitPerBlock(newLimit); // F:[CC-33]
             emit LimitPerBlockUpdated(newLimit); // F:[CC-1A,33]
-        }
-    }
-
-    /// @dev Add the contract to a list of upgradeable contracts
-    /// @param addr Address of the contract to add to the list
-    /// @notice Upgradeable contracts are contracts with an upgradeable proxy
-    /// Or other practices and patterns potentially detrimental to security
-    /// Contracts from the list have certain restrictions applied to them
-    function addContractToUpgradeable(address addr) external configuratorOnly {
-        _addContractToUpgradeable(addr); // F: [CC-35]
-    }
-
-    /// @dev IMPLEMENTATION: addContractToUpgradeable
-    function _addContractToUpgradeable(address addr) internal {
-        // Checks that the address is not zero address
-        if (addr == address(0)) {
-            revert ZeroAddressException(); // F: [CC-35]
-        }
-
-        bool currentStatus = creditFacade().isUpgradeableContract(addr);
-
-        // Checks that the contract is not in the list already
-        // to avoid redundant events
-        if (!currentStatus) {
-            creditFacade().setUpgradeable(addr, true); // F: [CC-35]
-            emit AddedToUpgradeable(addr); // F: [CC-35]
-        }
-    }
-
-    /// @dev Removes the contract from a list of upgradeable contracts
-    /// @param addr Address of the contract to remove from the list
-    function removeContractFromUpgradeable(address addr)
-        external
-        configuratorOnly
-    {
-        _removeContractFromUpgradeable(addr); // F: [CC-36]
-    }
-
-    /// @dev IMPLEMENTATION: removeContractFromUpgradeable
-    function _removeContractFromUpgradeable(address addr) internal {
-        if (addr == address(0)) {
-            revert ZeroAddressException(); // F: [CC-36]
-        }
-
-        bool currentStatus = creditFacade().isUpgradeableContract(addr);
-
-        // Checks that the contract is in the list already
-        // to avoid redundant events
-        if (currentStatus) {
-            creditFacade().setUpgradeable(addr, false); // F: [CC-36]
-            emit RemovedFromUpgradeable(addr); // F: [CC-36]
         }
     }
 
@@ -845,6 +782,26 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             creditManager.removeEmergencyLiquidator(liquidator); // F: [CC-38]
             emit EmergencyLiquidatorRemoved(liquidator); // F: [CC-38]
         }
+    }
+
+    function setMaxCumulativeLoss(uint128 _maxCumulativeLoss)
+        external
+        configuratorOnly // F: [CC-02]
+    {
+        (, uint128 maxCumulativeLossCurrent) = creditFacade().lossParams();
+
+        if (_maxCumulativeLoss != maxCumulativeLossCurrent) {
+            creditFacade().setMaxCumulativeLoss(_maxCumulativeLoss);
+            emit NewMaxCumulativeLoss(_maxCumulativeLoss);
+        }
+    }
+
+    function resetCumulativeLoss()
+        external
+        configuratorOnly // F: [CC-02]
+    {
+        creditFacade().resetCumulativeLoss();
+        emit CumulativeLossReset();
     }
 
     //

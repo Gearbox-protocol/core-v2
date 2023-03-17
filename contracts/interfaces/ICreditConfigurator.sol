@@ -97,6 +97,12 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when an address is removed from the list of emergency liquidators
     event EmergencyLiquidatorRemoved(address);
+
+    /// @dev Emits when new max cumulative loss is set
+    event NewMaxCumulativeLoss(uint128);
+
+    /// @dev Emits when the current cumulative loss in Credit Facade is reset
+    event CumulativeLossReset();
 }
 
 /// @dev CreditConfigurator Exceptions
@@ -221,17 +227,6 @@ interface ICreditConfigurator is
     /// @dev Sets the maximal borrowed amount per block
     /// @param newLimit The new max borrowed amount per block
     function setLimitPerBlock(uint128 newLimit) external;
-
-    /// @dev Add the contract to a list of upgradeable contracts
-    /// @param addr Address of the contract to add to the list
-    /// @notice Upgradeable contracts are contracts with an upgradeable proxy
-    /// Or other practices and patterns potentially detrimental to security;
-    /// Contracts from the list have certain restrictions applied to them
-    function addContractToUpgradeable(address addr) external;
-
-    /// @dev Removes the contract from a list of upgradeable contracts
-    /// @param addr Address of the contract to remove from the list
-    function removeContractFromUpgradeable(address addr) external;
 
     /// @dev Sets expiration date in a CreditFacade connected
     /// To a CreditManager with an expirable pool
