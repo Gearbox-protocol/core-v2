@@ -97,6 +97,12 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when an address is removed from the list of emergency liquidators
     event EmergencyLiquidatorRemoved(address);
+
+    /// @dev Emits when new max cumulative loss is set
+    event NewMaxCumulativeLoss(uint128);
+
+    /// @dev Emits when the current cumulative loss in Credit Facade is reset
+    event CumulativeLossReset();
 }
 
 /// @dev CreditConfigurator Exceptions

@@ -20,6 +20,7 @@ import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
 import { IWETH } from "../interfaces/external/IWETH.sol";
 import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
+import { IPausable } from "../interfaces/IPausable.sol";
 
 // CONSTANTS
 
@@ -43,6 +44,13 @@ struct Limits {
     uint128 minBorrowedAmount;
     /// @dev Maximum aborrowed amount per credit account
     uint128 maxBorrowedAmount;
+}
+
+struct CumulativeLossParams {
+    /// @dev Current cumulative loss from all bad debt liquidations
+    uint128 currentCumulativeLoss;
+    /// @dev Max cumulative loss accrued before the system is paused
+    uint128 maxCumulativeLoss;
 }
 
 /// @title CreditFacade
@@ -73,6 +81,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Keeps borrowing limits together for storage access optimization
     Limits public override limits;
+
+    /// @dev Keeps parameters that are used to pause the system after too much bad debt over a short period
+    CumulativeLossParams public override lossParams;
 
     /// @dev Address of the underlying token
     address public immutable underlying;
@@ -375,6 +386,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         uint256 remainingFunds = _closeLiquidatedAccount(
             totalValue,
+            creditAccount,
             borrower,
             to,
             skipTokenMask,
@@ -436,6 +448,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         uint256 remainingFunds = _closeLiquidatedAccount(
             totalValue,
+            creditAccount,
             borrower,
             to,
             skipTokenMask,
@@ -455,6 +468,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Closes a liquidated credit account, possibly expired
     function _closeLiquidatedAccount(
         uint256 totalValue,
+        address creditAccount,
         address borrower,
         address to,
         uint256 skipTokenMask,
@@ -469,7 +483,12 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             creditManager.transferAccountOwnership(borrower, blacklistHelper); // F:[FA-56]
         }
 
-        uint256 expectedLiquidity = _getExpectedLiquidity();
+        (
+            uint256 expectedLiquidityBefore,
+            uint256 availableLiquidityBefore
+        ) = _getLiquidity();
+        (, uint256 borrowAmountWithInterest, ) = creditManager
+            .calcCreditAccountAccruedInterest(creditAccount);
 
         // Liquidates the CA and sends the remaining funds to the borrower or blacklist helper
         remainingFunds = creditManager.closeCreditAccount(
@@ -484,8 +503,39 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             convertWETH
         ); // F:[FA-15,49]
 
-        if (expectedLiquidity > _getExpectedLiquidity()) {
-            params.isIncreaseDebtForbidden = true;
+        (
+            uint256 expectedLiquidityAfter,
+            uint256 availableLiquidityAfter
+        ) = _getLiquidity();
+
+        if (
+            expectedLiquidityBefore > expectedLiquidityAfter ||
+            (availableLiquidityAfter <
+                availableLiquidityBefore + borrowAmountWithInterest)
+        ) {
+            uint256 expectedLoss = expectedLiquidityBefore >
+                expectedLiquidityAfter
+                ? expectedLiquidityBefore - expectedLiquidityAfter
+                : 0;
+            uint256 availableLoss = availableLiquidityAfter <
+                availableLiquidityBefore + borrowAmountWithInterest
+                ? availableLiquidityBefore +
+                    borrowAmountWithInterest -
+                    availableLiquidityAfter
+                : 0;
+
+            uint256 loss = expectedLoss > availableLoss
+                ? expectedLoss
+                : availableLoss;
+
+            params.isIncreaseDebtForbidden = true; // F: [FA-15A]
+
+            lossParams.currentCumulativeLoss += uint128(loss);
+            if (
+                lossParams.currentCumulativeLoss > lossParams.maxCumulativeLoss
+            ) {
+                _pauseCreditManager(); // F: [FA-15B]
+            }
         }
 
         /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
@@ -1147,6 +1197,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         } // F: [FA-54]
     }
 
+    /// @dev Pauses the Credit Manager
+    function _pauseCreditManager() internal {
+        IPausable(address(creditManager)).pause();
+    }
+
     //
     // GETTERS
     //
@@ -1309,13 +1364,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         isExpired = (expirable) && (block.timestamp >= params.expirationDate); // F: [FA-46,47,48]
     }
 
-    /// @dev Returns the current expected liquidity of the pool
-    function _getExpectedLiquidity()
+    /// @dev Returns the current expected and available liquidity of the pool
+    function _getLiquidity()
         internal
         view
-        returns (uint256 expectedLiquidity)
+        returns (uint256 expectedLiquidity, uint256 availableLiquidity)
     {
-        return IPoolService(creditManager.pool()).expectedLiquidity();
+        IPoolService pool = IPoolService(creditManager.pool());
+
+        return (pool.expectedLiquidity(), pool.availableLiquidity());
     }
 
     //
@@ -1372,5 +1429,18 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ) external creditConfiguratorOnly {
         limits.minBorrowedAmount = _minBorrowedAmount; // F:
         limits.maxBorrowedAmount = _maxBorrowedAmount; // F:
+    }
+
+    /// @dev Sets the max cumulative loss that can be accrued before pausing the Credit Manager
+    function setMaxCumulativeLoss(uint128 _maxCumulativeLoss)
+        external
+        creditConfiguratorOnly
+    {
+        lossParams.maxCumulativeLoss = _maxCumulativeLoss;
+    }
+
+    /// @dev Resets the current cumulative loss value
+    function resetCumulativeLoss() external creditConfiguratorOnly {
+        lossParams.currentCumulativeLoss = 0;
     }
 }

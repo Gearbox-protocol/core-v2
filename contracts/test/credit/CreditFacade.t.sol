@@ -99,6 +99,11 @@ contract CreditFacadeTest is
 
         evm.label(address(adapterMock), "AdapterMock");
         evm.label(address(targetMock), "TargetContractMock");
+
+        evm.startPrank(CONFIGURATOR);
+        cft.acl().addPausableAdmin(address(creditFacade));
+        creditConfigurator.setMaxCumulativeLoss(type(uint128).max);
+        evm.stopPrank();
     }
 
     ///
@@ -1105,6 +1110,7 @@ contract CreditFacadeTest is
         );
     }
 
+    /// @dev [FA-15A]: Borrowing is prohibited after a liquidation with loss
     function test_FA_15A_liquidateCreditAccount_prohibits_borrowing_on_loss()
         public
     {
@@ -1133,6 +1139,39 @@ contract CreditFacadeTest is
         assertTrue(
             increaseDebtForbidden,
             "Increase debt wasn't forbidden after loss"
+        );
+    }
+
+    /// @dev [FA-15B]: Credit Manager is paused after too much cumulative loss from liquidations
+    function test_FA_15B_liquidateCreditAccount_stops_CreditManager_on_too_much_loss()
+        public
+    {
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setMaxCumulativeLoss(1);
+
+        (address creditAccount, ) = _openTestCreditAccount();
+
+        bytes memory DUMB_CALLDATA = _prepareMockCall();
+
+        _makeAccountsLiquitable();
+
+        evm.prank(LIQUIDATOR);
+        creditFacade.liquidateCreditAccount(
+            USER,
+            FRIEND,
+            10,
+            true,
+            multicallBuilder(
+                MultiCall({
+                    target: address(adapterMock),
+                    callData: DUMB_CALLDATA
+                })
+            )
+        );
+
+        assertTrue(
+            CreditManager(address(creditManager)).paused(),
+            "Credit manager was not paused"
         );
     }
 

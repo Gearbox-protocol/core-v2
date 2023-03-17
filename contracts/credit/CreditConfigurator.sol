@@ -784,6 +784,26 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         }
     }
 
+    function setMaxCumulativeLoss(uint128 _maxCumulativeLoss)
+        external
+        configuratorOnly // F: [CC-02]
+    {
+        (, uint128 maxCumulativeLossCurrent) = creditFacade().lossParams();
+
+        if (_maxCumulativeLoss != maxCumulativeLossCurrent) {
+            creditFacade().setMaxCumulativeLoss(_maxCumulativeLoss);
+            emit NewMaxCumulativeLoss(_maxCumulativeLoss);
+        }
+    }
+
+    function resetCumulativeLoss()
+        external
+        configuratorOnly // F: [CC-02]
+    {
+        creditFacade().resetCumulativeLoss();
+        emit CumulativeLossReset();
+    }
+
     //
     // GETTERS
     //

@@ -475,6 +475,12 @@ contract CreditConfiguratorTest is
         evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.setLimitPerBlock(0);
 
+        evm.expectRevert(CallerNotConfiguratorException.selector);
+        creditConfigurator.setMaxCumulativeLoss(0);
+
+        evm.expectRevert(CallerNotConfiguratorException.selector);
+        creditConfigurator.resetCumulativeLoss();
+
         evm.stopPrank();
     }
 

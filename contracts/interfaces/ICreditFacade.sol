@@ -410,6 +410,11 @@ interface ICreditFacade is
         view
         returns (uint128 minBorrowedAmount, uint128 maxBorrowedAmount);
 
+    function lossParams()
+        external
+        view
+        returns (uint128 currentCumulativeLoss, uint128 maxCumulativeLoss);
+
     /// @dev Address of the DegenNFT that gatekeeps account openings in whitelisted mode
     function degenNFT() external view returns (address);
 
