@@ -2,257 +2,202 @@
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
+
+import { ACLTrait } from "../core/ACLTrait.sol";
 import { IAdapter } from "../interfaces/adapters/IAdapter.sol";
+import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
+import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
+import { IPoolService } from "../interfaces/IPoolService.sol";
 import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
-abstract contract AbstractAdapter is IAdapter {
-    using Address for address;
-
+/// @title Abstract adapter
+/// @dev Inheriting adapters MUST use provided internal functions to perform all operations with credit accounts
+abstract contract AbstractAdapter is IAdapter, ACLTrait {
+    /// @notice Credit Manager the adapter is connected to
     ICreditManagerV2 public immutable override creditManager;
+
+    /// @notice Address provider
+    IAddressProvider public immutable override addressProvider;
+
+    /// @notice Address of the contract the adapter is interacting with
     address public immutable override targetContract;
 
-    constructor(address _creditManager, address _targetContract) {
-        if (_creditManager == address(0) || _targetContract == address(0))
-            revert ZeroAddressException(); // F:[AA-2]
+    /// @notice Constructor
+    /// @param _creditManager Credit Manager to connect this adapter to
+    /// @param _targetContract Address of the contract this adapter should interact with
+    constructor(address _creditManager, address _targetContract)
+        ACLTrait(
+            address(
+                IPoolService(ICreditManagerV2(_creditManager).pool())
+                    .addressProvider()
+            )
+        )
+    {
+        if (_targetContract == address(0)) {
+            revert ZeroAddressException(); // F: [AA-2]
+        }
 
-        creditManager = ICreditManagerV2(_creditManager); // F:[AA-1]
-        targetContract = _targetContract; // F:[AA-1]
+        creditManager = ICreditManagerV2(_creditManager); // F: [AA-1]
+        addressProvider = IAddressProvider(
+            IPoolService(creditManager.pool()).addressProvider()
+        ); // F: [AA-1]
+        targetContract = _targetContract; // F: [AA-1]
     }
 
-    /// @dev Approves a token from the Credit Account to the target contract
+    /// @dev Reverts if the caller of the function is not the Credit Facade
+    /// @dev Adapter functions are only allowed to be called from within the multicall
+    ///      Since at this point Credit Account is owned by the Credit Facade, all functions
+    ///      of inheriting adapters that perform actions on account MUST have this modifier
+    modifier creditFacadeOnly() {
+        if (msg.sender != _creditFacade()) {
+            revert CreditFacadeOnlyException(); // F: [AA-5]
+        }
+        _;
+    }
+
+    /// @dev Returns the Credit Facade connected to the Credit Manager
+    function _creditFacade() internal view returns (address) {
+        return creditManager.creditFacade(); // F: [AA-3]
+    }
+
+    /// @dev Returns the Credit Account currently owned by the Credit Facade
+    /// @dev Inheriting adapters MUST use this function to find the account address
+    function _creditAccount() internal view returns (address) {
+        return creditManager.getCreditAccountOrRevert(_creditFacade()); // F: [AA-4]
+    }
+
+    /// @dev Checks if token is registered as collateral token in the Credit Manager
+    /// @param token Token to check
+    /// @return tokenMask Collateral token mask
+    function _checkToken(address token)
+        internal
+        view
+        returns (uint256 tokenMask)
+    {
+        tokenMask = creditManager.tokenMasksMap(token); // F: [AA-6]
+        if (tokenMask == 0) {
+            revert TokenIsNotInAllowedList(token); // F: [AA-6]
+        }
+    }
+
+    /// @dev Approves the target contract to spend given token from the Credit Account
     /// @param token Token to be approved
     /// @param amount Amount to be approved
     function _approveToken(address token, uint256 amount) internal {
         creditManager.approveCreditAccount(
-            msg.sender,
+            _creditFacade(),
             targetContract,
             token,
             amount
-        );
+        ); // F: [AA-7, AA-8]
     }
 
-    /// @dev Sends CallData to call the target contract from the Credit Account
-    /// @param callData Data to be sent to the target contract
+    /// @dev Enables a token in the Credit Account
+    /// @param token Address of the token to enable
+    function _enableToken(address token) internal {
+        creditManager.checkAndEnableToken(_creditAccount(), token); // F: [AA-7, AA-9]
+    }
+
+    /// @dev Disables a token in the Credit Account
+    /// @param token Address of the token to disable
+    function _disableToken(address token) internal {
+        creditManager.disableToken(_creditAccount(), token); // F: [AA-7, AA-10]
+    }
+
+    /// @dev Changes enabled tokens in the Credit Account
+    /// @param tokensToEnable Bitmask of tokens that should be enabled
+    /// @param tokensToDisable Bitmask of tokens that should be disabled
+    /// @dev This function might be useful for adapters that work with limited set of tokens, whose masks can be
+    ///      determined in the adapter constructor, thus saving gas by avoiding querying them during execution
+    ///      and combining multiple enable/disable operations into a single one
+    function _changeEnabledTokens(
+        uint256 tokensToEnable,
+        uint256 tokensToDisable
+    ) internal {
+        address creditAccount = _creditAccount(); // F: [AA-7]
+        unchecked {
+            uint256 updatedTokens = tokensToEnable | tokensToDisable;
+            address token;
+            uint256 mask = 1;
+            while (updatedTokens >= mask) {
+                if (updatedTokens & mask != 0) {
+                    (token, ) = creditManager.collateralTokensByMask(mask);
+                    if (tokensToEnable & mask != 0) {
+                        creditManager.checkAndEnableToken(creditAccount, token); // F: [AA-11]
+                    }
+                    if (tokensToDisable & mask != 0) {
+                        creditManager.disableToken(creditAccount, token); // F: [AA-11]
+                    }
+                }
+                mask <<= 1;
+            }
+        }
+    }
+
+    /// @dev Executes an arbitrary call from the Credit Account to the target contract
+    /// @param callData Data to call the target contract with
+    /// @return result Call output
     function _execute(bytes memory callData)
         internal
         returns (bytes memory result)
     {
-        result = creditManager.executeOrder(
-            msg.sender,
-            targetContract,
-            callData
-        );
+        return
+            creditManager.executeOrder(
+                _creditFacade(),
+                targetContract,
+                callData
+            ); // F: [AA-7, AA-12]
     }
 
-    /// @dev Calls a target contract with maximal allowance and performs a fast check after
-    /// @param creditAccount A credit account from which a call is made
-    /// @param tokenIn The token that the interaction is expected to spend
-    /// @param tokenOut The token that the interaction is expected to produce
-    /// @param callData Data to call targetContract with
-    /// @param allowTokenIn Whether the input token must be approved beforehand
-    /// @param disableTokenIn Whether the input token should be disable afterwards (for interaction that spend the entire balance)
-    /// @notice Must only be used for highly secure and immutable protocols, such as Uniswap & Curve
-    function _executeMaxAllowanceFastCheck(
-        address creditAccount,
+    /// @dev Executes a swap operation on the target contract from the Credit Account
+    ///      without explicit approval to spend `tokenIn`
+    /// @param tokenIn The token that the call is expected to spend
+    /// @param tokenOut The token that the call is expected to produce
+    /// @param callData Data to call the target contract with
+    /// @param disableTokenIn Whether the input token should be disabled afterwards
+    ///        (for operations that spend the entire balance)
+    /// @return result Call output
+    function _executeSwapNoApprove(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
-        bool allowTokenIn,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        address creditFacade = creditManager.creditFacade();
-
-        uint256 balanceInBefore;
-        uint256 balanceOutBefore;
-
-        if (msg.sender != creditFacade) {
-            balanceInBefore = IERC20(tokenIn).balanceOf(creditAccount); // F:[AA-4A]
-            balanceOutBefore = IERC20(tokenOut).balanceOf(creditAccount); // F:[AA-4A]
-        }
-
-        if (allowTokenIn) {
-            _approveToken(tokenIn, type(uint256).max);
-        }
-
-        result = creditManager.executeOrder(
-            msg.sender,
-            targetContract,
-            callData
-        );
-
-        if (allowTokenIn) {
-            _approveToken(tokenIn, type(uint256).max);
-        }
-
-        _fastCheck(
-            creditAccount,
-            creditFacade,
-            tokenIn,
-            tokenOut,
-            balanceInBefore,
-            balanceOutBefore,
-            disableTokenIn
-        );
+        return _executeSwap(tokenIn, tokenOut, callData, disableTokenIn); // F: [AA-7, AA-13]
     }
 
-    /// @dev Wrapper for _executeMaxAllowanceFastCheck that computes the Credit Account on the spot
-    /// See params and other details above
-    function _executeMaxAllowanceFastCheck(
+    /// @dev Executes a swap operation on the target contract from the Credit Account
+    ///      with maximal `tokenIn` allowance, and then sets the allowance to 1
+    /// @param tokenIn The token that the call is expected to spend
+    /// @param tokenOut The token that the call is expected to produce
+    /// @param callData Data to call the target contract with
+    /// @param disableTokenIn Whether the input token should be disabled afterwards
+    ///        (for operations that spend the entire balance)
+    /// @return result Call output
+    function _executeSwapSafeApprove(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
-        bool allowTokenIn,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        ); // F:[AA-3]
-
-        result = _executeMaxAllowanceFastCheck(
-            creditAccount,
-            tokenIn,
-            tokenOut,
-            callData,
-            allowTokenIn,
-            disableTokenIn
-        );
+        _approveToken(tokenIn, type(uint256).max); // F: [AA-14]
+        result = _executeSwap(tokenIn, tokenOut, callData, disableTokenIn); // F: [AA-7, AA-14]
+        _approveToken(tokenIn, 1); // F: [AA-14]
     }
 
-    /// @dev Calls a target contract with maximal allowance, then sets allowance to 1 and performs a fast check
-    /// @param creditAccount A credit account from which a call is made
-    /// @param tokenIn The token that the interaction is expected to spend
-    /// @param tokenOut The token that the interaction is expected to produce
-    /// @param callData Data to call targetContract with
-    /// @param allowTokenIn Whether the input token must be approved beforehand
-    /// @param disableTokenIn Whether the input token should be disable afterwards (for interaction that spend the entire balance)
-    function _safeExecuteFastCheck(
-        address creditAccount,
+    /// @dev Implementation of `_executeSwap...` operations
+    /// @dev Kept private as only the internal wrappers are intended to be used
+    ///      by inheritors
+    function _executeSwap(
         address tokenIn,
         address tokenOut,
         bytes memory callData,
-        bool allowTokenIn,
         bool disableTokenIn
-    ) internal returns (bytes memory result) {
-        address creditFacade = creditManager.creditFacade();
-
-        uint256 balanceInBefore;
-        uint256 balanceOutBefore;
-
-        if (msg.sender != creditFacade) {
-            balanceInBefore = IERC20(tokenIn).balanceOf(creditAccount);
-            balanceOutBefore = IERC20(tokenOut).balanceOf(creditAccount); // F:[AA-4A]
+    ) private returns (bytes memory result) {
+        result = _execute(callData); // F: [AA-13, AA-14]
+        if (disableTokenIn) {
+            _disableToken(tokenIn); // F: [AA-13, AA-14]
         }
-
-        if (allowTokenIn) {
-            _approveToken(tokenIn, type(uint256).max);
-        }
-
-        result = creditManager.executeOrder(
-            msg.sender,
-            targetContract,
-            callData
-        );
-
-        if (allowTokenIn) {
-            _approveToken(tokenIn, 1);
-        }
-
-        _fastCheck(
-            creditAccount,
-            creditFacade,
-            tokenIn,
-            tokenOut,
-            balanceInBefore,
-            balanceOutBefore,
-            disableTokenIn
-        );
-    }
-
-    /// @dev Wrapper for _safeExecuteFastCheck that computes the Credit Account on the spot
-    /// See params and other details above
-    function _safeExecuteFastCheck(
-        address tokenIn,
-        address tokenOut,
-        bytes memory callData,
-        bool allowTokenIn,
-        bool disableTokenIn
-    ) internal returns (bytes memory result) {
-        address creditAccount = creditManager.getCreditAccountOrRevert(
-            msg.sender
-        );
-
-        result = _safeExecuteFastCheck(
-            creditAccount,
-            tokenIn,
-            tokenOut,
-            callData,
-            allowTokenIn,
-            disableTokenIn
-        );
-    }
-
-    //
-    // HEALTH CHECK FUNCTIONS
-    //
-
-    /// @dev Performs a fast check during ordinary adapter call, or skips
-    /// it for multicalls (since a full collateral check is always performed after a multicall)
-    /// @param creditAccount Credit Account for which the fast check is performed
-    /// @param creditFacade CreditFacade currently associated with CreditManager
-    /// @param tokenIn Token that is spent by the operation
-    /// @param tokenOut Token that is received as a result of operation
-    /// @param balanceInBefore Balance of tokenIn before the operation
-    /// @param balanceOutBefore Balance of tokenOut before the operation
-    /// @param disableTokenIn Whether tokenIn needs to be disabled (required for multicalls, where the fast check is skipped)
-    function _fastCheck(
-        address creditAccount,
-        address creditFacade,
-        address tokenIn,
-        address tokenOut,
-        uint256 balanceInBefore,
-        uint256 balanceOutBefore,
-        bool disableTokenIn
-    ) private {
-        if (msg.sender != creditFacade) {
-            creditManager.fastCollateralCheck(
-                creditAccount,
-                tokenIn,
-                tokenOut,
-                balanceInBefore,
-                balanceOutBefore
-            );
-        } else {
-            if (disableTokenIn)
-                creditManager.disableToken(creditAccount, tokenIn);
-            creditManager.checkAndEnableToken(creditAccount, tokenOut);
-        }
-    }
-
-    /// @dev Performs a full collateral check during ordinary adapter call, or skips
-    /// it for multicalls (since a full collateral check is always performed after a multicall)
-    /// @param creditAccount Credit Account for which the full check is performed
-    function _fullCheck(address creditAccount) internal {
-        address creditFacade = creditManager.creditFacade();
-
-        if (msg.sender != creditFacade) {
-            creditManager.fullCollateralCheck(creditAccount);
-        }
-    }
-
-    /// @dev Performs a enabled token optimization on account or skips
-    /// it for multicalls (since a full collateral check is always performed after a multicall,
-    /// and includes enabled token optimization by default)
-    /// @param creditAccount Credit Account for which the full check is performed
-    /// @notice Used when new tokens are added on an account but no tokens are subtracted
-    ///         (e.g., claiming rewards)
-    function _checkAndOptimizeEnabledTokens(address creditAccount) internal {
-        address creditFacade = creditManager.creditFacade();
-
-        if (msg.sender != creditFacade) {
-            creditManager.checkAndOptimizeEnabledTokens(creditAccount);
-        }
+        _enableToken(tokenOut); // F: [AA-13, AA-14]
     }
 }
