@@ -191,6 +191,9 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     /// @dev Thrown when attempting to perform an action on behalf of a borrower
     ///      that is blacklisted in the underlying token
     error NotAllowedForBlacklistedAddressException();
+
+    /// @dev Thrown when the pool receives less funds than borrowAmountWithInterest on account closure
+    error LiquiditySanityCheckException();
 }
 
 interface ICreditFacade is

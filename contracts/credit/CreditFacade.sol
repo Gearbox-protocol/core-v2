@@ -324,6 +324,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (calls.length != 0)
             _multicall(calls, msg.sender, creditAccount, true, false); // F:[FA-2, 12, 13]
 
+        uint256 availableLiquidityBefore = _getAvailableLiquidity();
+        (, uint256 borrowAmountWithInterest, ) = creditManager
+            .calcCreditAccountAccruedInterest(creditAccount);
+
         // Requests the Credit manager to close the Credit Account
         creditManager.closeCreditAccount(
             msg.sender,
@@ -334,6 +338,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             skipTokenMask,
             false
         ); // F:[FA-2, 12]
+
+        uint256 availableLiquidityAfter = _getAvailableLiquidity();
+
+        if (
+            availableLiquidityAfter <
+            availableLiquidityBefore + borrowAmountWithInterest
+        ) {
+            revert LiquiditySanityCheckException();
+        }
 
         // Emits a CloseCreditAccount event
         emit CloseCreditAccount(msg.sender, to); // F:[FA-12]
@@ -432,7 +445,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             borrower,
             to,
             skipTokenMask,
-            false,
             false
         );
 
@@ -518,7 +530,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             borrower,
             to,
             skipTokenMask,
-            false,
             true
         );
 
@@ -538,7 +549,6 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         address borrower,
         address to,
         uint256 skipTokenMask,
-        bool convertWETH,
         bool expired
     ) internal returns (uint256 remainingFunds) {
         uint256 helperBalance = _isBlacklisted(borrower);
@@ -566,7 +576,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             msg.sender,
             to,
             skipTokenMask,
-            convertWETH
+            false
         ); // F:[FA-15,49]
 
         (
@@ -1439,6 +1449,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         IPoolService pool = IPoolService(creditManager.pool());
 
         return (pool.expectedLiquidity(), pool.availableLiquidity());
+    }
+
+    /// @dev Returns the current available liquidity of the pool
+    function _getAvailableLiquidity() internal view returns (uint256) {
+        return IPoolService(creditManager.pool()).availableLiquidity();
     }
 
     //
