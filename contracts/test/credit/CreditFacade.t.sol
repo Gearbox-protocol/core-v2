@@ -946,7 +946,7 @@ contract CreditFacadeTest is
                 USER,
                 FRIEND,
                 10,
-                true
+                false
             )
         );
 
@@ -1088,7 +1088,7 @@ contract CreditFacadeTest is
                 LIQUIDATOR,
                 FRIEND,
                 10,
-                true
+                false
             )
         );
 
@@ -2632,7 +2632,7 @@ contract CreditFacadeTest is
                 LIQUIDATOR,
                 FRIEND,
                 10,
-                true
+                false
             )
         );
 

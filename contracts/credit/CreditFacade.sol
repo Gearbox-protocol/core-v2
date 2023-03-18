@@ -273,6 +273,17 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         creditManager.fullCollateralCheck(creditAccount); // F:[FA-8, 9]
     }
 
+    /// @dev A version of `closeCreditAccount` with convertWETH parameter that is ignored.
+    ///      Used for backward compatibility.
+    function closeCreditAccount(
+        address to,
+        uint256 skipTokenMask,
+        bool convertWETH,
+        MultiCall[] calldata calls
+    ) external payable override nonReentrant {
+        _closeCreditAccount(to, skipTokenMask, calls);
+    }
+
     /// @dev Runs a batch of transactions within a multicall and closes the account
     /// - Wraps ETH to WETH and sends it msg.sender if value > 0
     /// - Executes the multicall - the main purpose of a multicall when closing is to convert all assets to underlying
@@ -282,19 +293,25 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ///      from the Credit Account and proceeds. If not, tries to transfer the shortfall from msg.sender.
     ///    + Transfers all enabled assets with non-zero balances to the "to" address, unless they are marked
     ///      to be skipped in skipTokenMask
-    ///    + If convertWETH is true, converts WETH into ETH before sending to the recipient
     /// - Emits a CloseCreditAccount event
     ///
     /// @param to Address to send funds to during account closing
     /// @param skipTokenMask Uint-encoded bit mask where 1's mark tokens that shouldn't be transferred
-    /// @param convertWETH If true, converts WETH into ETH before sending to "to"
     /// @param calls The array of MultiCall structs encoding the operations to execute before closing the account.
     function closeCreditAccount(
         address to,
         uint256 skipTokenMask,
-        bool convertWETH,
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
+        _closeCreditAccount(to, skipTokenMask, calls);
+    }
+
+    /// @dev IMPLEMENTATION: closeCreditAccount
+    function _closeCreditAccount(
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) internal {
         // Check for existing CA
         address creditAccount = creditManager.getCreditAccountOrRevert(
             msg.sender
@@ -315,7 +332,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             msg.sender,
             to,
             skipTokenMask,
-            convertWETH
+            false
         ); // F:[FA-2, 12]
 
         // Emits a CloseCreditAccount event
@@ -341,13 +358,22 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ///    + Transfers all enabled assets with non-zero balances to the "to" address, unless they are marked
     ///      to be skipped in skipTokenMask. If the liquidator is confident that all assets were converted
     ///      during the multicall, they can set the mask to uint256.max - 1, to only transfer the underlying
-    ///    + If convertWETH is true, converts WETH into ETH before sending
     /// - Emits LiquidateCreditAccount event
     ///
     /// @param to Address to send funds to after liquidation
     /// @param skipTokenMask Uint-encoded bit mask where 1's mark tokens that shouldn't be transferred
-    /// @param convertWETH If true, converts WETH into ETH before sending to "to"
     /// @param calls The array of MultiCall structs encoding the operations to execute before liquidating the account.
+    function liquidateCreditAccount(
+        address borrower,
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) external payable override nonReentrant {
+        _liquidateCreditAccount(borrower, to, skipTokenMask, calls);
+    }
+
+    /// @dev A version of `liquidateCreditAccount` with convertWETH parameter that is ignored.
+    ///      Used for backward compatibility.
     function liquidateCreditAccount(
         address borrower,
         address to,
@@ -355,6 +381,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         bool convertWETH,
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
+        _liquidateCreditAccount(borrower, to, skipTokenMask, calls);
+    }
+
+    /// @dev IMPLEMENTATION: liquidateCreditAccount
+    function _liquidateCreditAccount(
+        address borrower,
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) internal {
         // Checks that the CA exists to revert early for late liquidations and save gas
         address creditAccount = creditManager.getCreditAccountOrRevert(
             borrower
@@ -396,7 +432,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             borrower,
             to,
             skipTokenMask,
-            convertWETH,
+            false,
             false
         );
 
@@ -413,9 +449,19 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// is expired.
     /// @param to Address to send funds to after liquidation
     /// @param skipTokenMask Uint-encoded bit mask where 1's mark tokens that shouldn't be transferred
-    /// @param convertWETH If true, converts WETH into ETH before sending to "to"
     /// @param calls The array of MultiCall structs encoding the operations to execute before liquidating the account.
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/credit/liquidation#liquidating-accounts-by-expiration
+    function liquidateExpiredCreditAccount(
+        address borrower,
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) external payable override nonReentrant {
+        _liquidateExpiredCreditAccount(borrower, to, skipTokenMask, calls);
+    }
+
+    /// @dev A version of `liquidateExpiredCreditAccount` with convertWETH parameter that is ignored.
+    ///      Used for backward compatibility.
     function liquidateExpiredCreditAccount(
         address borrower,
         address to,
@@ -423,6 +469,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         bool convertWETH,
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
+        _liquidateExpiredCreditAccount(borrower, to, skipTokenMask, calls);
+    }
+
+    /// @dev IMPLEMENTATION: liquidateExpiredCreditAccount
+    function _liquidateExpiredCreditAccount(
+        address borrower,
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) internal {
         // Checks that the CA exists to revert early for late liquidations and save gas
         address creditAccount = creditManager.getCreditAccountOrRevert(
             borrower
@@ -462,7 +518,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             borrower,
             to,
             skipTokenMask,
-            convertWETH,
+            false,
             true
         );
 
