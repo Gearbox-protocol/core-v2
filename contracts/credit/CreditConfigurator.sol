@@ -577,7 +577,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             uint128 limitPerBlock,
             bool isIncreaseDebtFobidden,
             uint40 expirationDate,
-            uint16 emergencyLiquidationPremium
+            uint16 emergencyLiquidationDiscount
         ) = creditFacade().params();
 
         (uint128 minBorrowedAmount, uint128 maxBorrowedAmount) = creditFacade()
@@ -593,7 +593,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             _setLimitPerBlock(limitPerBlock); // F:[CC-30]
             _setLimits(minBorrowedAmount, maxBorrowedAmount); // F:[CC-30]
             _setIncreaseDebtForbidden(isIncreaseDebtFobidden); // F:[CC-30]
-            _setEmergencyLiquidationPremium(emergencyLiquidationPremium); // F: [CC-30]
+            _setEmergencyLiquidationDiscount(emergencyLiquidationDiscount); // F: [CC-30]
 
             // Copies the expiration date if the contract is expirable
             if (expirable) _setExpirationDate(expirationDate); // F: [CC-30]
@@ -809,24 +809,24 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     }
 
     /// @dev Sets the premium paid the emergency liquidator during pauses
-    function setEmergencyLiquidationPremium(uint16 _newPremium)
+    function setEmergencyLiquidationDiscount(uint16 _newPremium)
         external
         configuratorOnly // F: [CC-02]
     {
-        _setEmergencyLiquidationPremium(_newPremium);
+        _setEmergencyLiquidationDiscount(_newPremium);
     }
 
-    /// @dev IMPLEMENTATION: setEmergencyLiquidationPremium
-    function _setEmergencyLiquidationPremium(uint16 _newPremium) internal {
+    /// @dev IMPLEMENTATION: setEmergencyLiquidationDiscount
+    function _setEmergencyLiquidationDiscount(uint16 _newPremium) internal {
         if (_newPremium >= PERCENTAGE_FACTOR) {
             revert IncorrectFeesException(); // F: [CC-42]
         }
 
-        (, , , uint16 emergencyLiquidationPremium) = creditFacade().params();
+        (, , , uint16 emergencyLiquidationDiscount) = creditFacade().params();
 
-        if (_newPremium != emergencyLiquidationPremium) {
-            creditFacade().setEmergencyLiqudationPremium(_newPremium); // F: [CC-42]
-            emit NewEmergencyLiquidationPremium(_newPremium); // F: [CC-42]
+        if (_newPremium != emergencyLiquidationDiscount) {
+            creditFacade().setEmergencyLiquidationDiscount(_newPremium); // F: [CC-42]
+            emit NewemergencyLiquidationDiscount(_newPremium); // F: [CC-42]
         }
     }
 

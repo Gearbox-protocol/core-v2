@@ -335,7 +335,7 @@ contract CreditConfiguratorTest is
             uint128 maxBorrowedAmountPerBlock,
             bool isIncreaseDebtForbidden,
             uint40 expirationDate,
-            uint16 emergencyLiquidationPremium
+            uint16 emergencyLiquidationDiscount
         ) = creditFacade.params();
 
         assertEq(
@@ -352,7 +352,7 @@ contract CreditConfiguratorTest is
         assertEq(expirationDate, 0, "Incorrect expiration date");
 
         assertEq(
-            emergencyLiquidationPremium,
+            emergencyLiquidationDiscount,
             0,
             "Incorrect emergency liquidation premium"
         );
@@ -489,7 +489,7 @@ contract CreditConfiguratorTest is
         creditConfigurator.resetCumulativeLoss();
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
-        creditConfigurator.setEmergencyLiquidationPremium(0);
+        creditConfigurator.setEmergencyLiquidationDiscount(0);
 
         evm.stopPrank();
     }
@@ -1288,7 +1288,7 @@ contract CreditConfiguratorTest is
                         uint128 limitPerBlock,
                         bool isIncreaseDebtFobidden,
                         uint40 expirationDate,
-                        uint16 emergencyLiquidationPremium
+                        uint16 emergencyLiquidationDiscount
                     ) = creditFacade.params();
                     (
                         uint128 minBorrowedAmount,
@@ -1322,7 +1322,7 @@ contract CreditConfiguratorTest is
                         uint128 limitPerBlock2,
                         bool isIncreaseDebtFobidden2,
                         uint40 expirationDate2,
-                        uint16 emergencyLiquidationPremium2
+                        uint16 emergencyLiquidationDiscount2
                     ) = cf.params();
                     (
                         uint128 minBorrowedAmount2,
@@ -1358,8 +1358,8 @@ contract CreditConfiguratorTest is
                     );
 
                     assertEq(
-                        emergencyLiquidationPremium2,
-                        migrateSettings ? emergencyLiquidationPremium : 0
+                        emergencyLiquidationDiscount2,
+                        migrateSettings ? emergencyLiquidationDiscount : 0
                     );
                 }
             }
@@ -1606,22 +1606,22 @@ contract CreditConfiguratorTest is
         }
     }
 
-    /// @dev [CC-42]: setEmergencyLiquidationPremium works correctly
-    function test_CC_42_setEmergencyLiquidationPremium_is_correct() public {
+    /// @dev [CC-42]: setEmergencyLiquidationDiscount works correctly
+    function test_CC_42_setEmergencyLiquidationDiscount_is_correct() public {
         evm.prank(CONFIGURATOR);
         evm.expectRevert(IncorrectFeesException.selector);
-        creditConfigurator.setEmergencyLiquidationPremium(10001);
+        creditConfigurator.setEmergencyLiquidationDiscount(10001);
 
         evm.expectEmit(false, false, false, true);
-        emit NewEmergencyLiquidationPremium(100);
+        emit NewemergencyLiquidationDiscount(100);
 
         evm.prank(CONFIGURATOR);
-        creditConfigurator.setEmergencyLiquidationPremium(100);
+        creditConfigurator.setEmergencyLiquidationDiscount(100);
 
-        (, , , uint16 emergencyLiquidationPremium) = creditFacade.params();
+        (, , , uint16 emergencyLiquidationDiscount) = creditFacade.params();
 
         assertEq(
-            emergencyLiquidationPremium,
+            emergencyLiquidationDiscount,
             100,
             "Incorrect new emergency liquidation premium"
         );

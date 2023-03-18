@@ -413,7 +413,7 @@ interface ICreditFacade is
     /// @return maxBorrowedAmountPerBlock Maximal amount of new debt that can be taken per block
     /// @return isIncreaseDebtForbidden True if increasing debt is forbidden
     /// @return expirationDate Timestamp of the next expiration (for expirable Credit Facades only)
-    /// @return emergencyLiquidationPremium Premium for liquidations when the system is paused
+    /// @return emergencyLiquidationDiscount Premium for liquidations when the system is paused
     function params()
         external
         view
@@ -421,7 +421,7 @@ interface ICreditFacade is
             uint128 maxBorrowedAmountPerBlock,
             bool isIncreaseDebtForbidden,
             uint40 expirationDate,
-            uint16 emergencyLiquidationPremium
+            uint16 emergencyLiquidationDiscount
         );
 
     /// @return minBorrowedAmount Minimal borrowed amount per credit account
