@@ -37,6 +37,8 @@ struct Params {
     bool isIncreaseDebtForbidden;
     /// @dev Timestamp of the next expiration (for expirable Credit Facades only)
     uint40 expirationDate;
+    /// @dev Liquidation premium for emergency liquidator
+    uint16 emergencyLiquidationPremium;
 }
 
 struct Limits {
@@ -381,6 +383,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             _multicall(calls, borrower, creditAccount, true, false); // F:[FA-15]
 
         if (emergencyLiquidation) {
+            totalValue =
+                (totalValue *
+                    (PERCENTAGE_FACTOR - params.emergencyLiquidationPremium)) /
+                PERCENTAGE_FACTOR;
             _checkIfEmergencyLiquidator(false);
         }
 
@@ -443,6 +449,10 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             _multicall(calls, borrower, creditAccount, true, false); // F:[FA-49]
 
         if (emergencyLiquidation) {
+            totalValue =
+                (totalValue *
+                    (PERCENTAGE_FACTOR - params.emergencyLiquidationPremium)) /
+                PERCENTAGE_FACTOR;
             _checkIfEmergencyLiquidator(false);
         }
 
@@ -1442,5 +1452,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Resets the current cumulative loss value
     function resetCumulativeLoss() external creditConfiguratorOnly {
         lossParams.currentCumulativeLoss = 0;
+    }
+
+    /// @dev Sets the new emergency liquidation premium value
+    function setEmergencyLiqudationPremium(uint16 newPremium)
+        external
+        creditConfiguratorOnly
+    {
+        params.emergencyLiquidationPremium = newPremium;
     }
 }

@@ -334,7 +334,8 @@ contract CreditConfiguratorTest is
         (
             uint128 maxBorrowedAmountPerBlock,
             bool isIncreaseDebtForbidden,
-            uint40 expirationDate
+            uint40 expirationDate,
+            uint16 emergencyLiquidationPremium
         ) = creditFacade.params();
 
         assertEq(
@@ -349,6 +350,12 @@ contract CreditConfiguratorTest is
         );
 
         assertEq(expirationDate, 0, "Incorrect expiration date");
+
+        assertEq(
+            emergencyLiquidationPremium,
+            0,
+            "Incorrect emergency liquidation premium"
+        );
     }
 
     /// @dev [CC-1A]: constructor emits all events
@@ -480,6 +487,9 @@ contract CreditConfiguratorTest is
 
         evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.resetCumulativeLoss();
+
+        evm.expectRevert(CallerNotConfiguratorException.selector);
+        creditConfigurator.setEmergencyLiquidationPremium(0);
 
         evm.stopPrank();
     }
@@ -991,7 +1001,7 @@ contract CreditConfiguratorTest is
         evm.prank(CONFIGURATOR);
         creditConfigurator.setLimits(maxBorrowedAmount, minBorrowedAmount);
 
-        (uint128 blockLimit, , ) = creditFacade.params();
+        (uint128 blockLimit, , , ) = creditFacade.params();
         evm.expectRevert(IncorrectLimitsException.selector);
 
         evm.prank(CONFIGURATOR);
@@ -1277,7 +1287,8 @@ contract CreditConfiguratorTest is
                     (
                         uint128 limitPerBlock,
                         bool isIncreaseDebtFobidden,
-                        uint40 expirationDate
+                        uint40 expirationDate,
+                        uint16 emergencyLiquidationPremium
                     ) = creditFacade.params();
                     (
                         uint128 minBorrowedAmount,
@@ -1310,7 +1321,8 @@ contract CreditConfiguratorTest is
                     (
                         uint128 limitPerBlock2,
                         bool isIncreaseDebtFobidden2,
-                        uint40 expirationDate2
+                        uint40 expirationDate2,
+                        uint16 emergencyLiquidationPremium2
                     ) = cf.params();
                     (
                         uint128 minBorrowedAmount2,
@@ -1343,6 +1355,11 @@ contract CreditConfiguratorTest is
                         expirationDate2,
                         migrateSettings ? expirationDate : 0,
                         "Incorrect expirationDate"
+                    );
+
+                    assertEq(
+                        emergencyLiquidationPremium2,
+                        migrateSettings ? emergencyLiquidationPremium : 0
                     );
                 }
             }
@@ -1379,7 +1396,7 @@ contract CreditConfiguratorTest is
                 evm.prank(CONFIGURATOR);
                 creditConfigurator.setIncreaseDebtForbidden(initialIDF);
 
-                (, bool isIncreaseDebtFobidden, ) = creditFacade.params();
+                (, bool isIncreaseDebtFobidden, , ) = creditFacade.params();
 
                 if (isIncreaseDebtFobidden != isIDF) {
                     evm.expectEmit(false, false, false, true);
@@ -1389,7 +1406,7 @@ contract CreditConfiguratorTest is
                 evm.prank(CONFIGURATOR);
                 creditConfigurator.setIncreaseDebtForbidden(isIDF);
 
-                (, isIncreaseDebtFobidden, ) = creditFacade.params();
+                (, isIncreaseDebtFobidden, , ) = creditFacade.params();
 
                 assertTrue(
                     isIncreaseDebtFobidden == isIDF,
@@ -1417,7 +1434,7 @@ contract CreditConfiguratorTest is
         evm.prank(CONFIGURATOR);
         creditConfigurator.setLimitPerBlock(newLimitBlock);
 
-        (uint128 maxBorrowedAmountPerBlock, , ) = creditFacade.params();
+        (uint128 maxBorrowedAmountPerBlock, , , ) = creditFacade.params();
 
         assertEq(
             maxBorrowedAmountPerBlock,
@@ -1433,7 +1450,7 @@ contract CreditConfiguratorTest is
         cct.testFacadeWithExpiration();
         creditFacade = cct.creditFacade();
 
-        (, , uint40 expirationDate) = creditFacade.params();
+        (, , uint40 expirationDate, ) = creditFacade.params();
 
         evm.prank(CONFIGURATOR);
         evm.expectRevert(IncorrectExpirationDateException.selector);
@@ -1453,7 +1470,7 @@ contract CreditConfiguratorTest is
         evm.prank(CONFIGURATOR);
         creditConfigurator.setExpirationDate(newExpirationDate);
 
-        (, , expirationDate) = creditFacade.params();
+        (, , expirationDate, ) = creditFacade.params();
 
         assertEq(
             expirationDate,
@@ -1587,5 +1604,26 @@ contract CreditConfiguratorTest is
                 ++i;
             }
         }
+    }
+
+    /// @dev [CC-42]: setEmergencyLiquidationPremium works correctly
+    function test_CC_42_setEmergencyLiquidationPremium_is_correct() public {
+        evm.prank(CONFIGURATOR);
+        evm.expectRevert(IncorrectFeesException.selector);
+        creditConfigurator.setEmergencyLiquidationPremium(10001);
+
+        evm.expectEmit(false, false, false, true);
+        emit NewEmergencyLiquidationPremium(100);
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setEmergencyLiquidationPremium(100);
+
+        (, , , uint16 emergencyLiquidationPremium) = creditFacade.params();
+
+        assertEq(
+            emergencyLiquidationPremium,
+            100,
+            "Incorrect new emergency liquidation premium"
+        );
     }
 }
