@@ -839,7 +839,7 @@ contract CreditFacadeTest is
     function test_FA_11A_openCreditAccount_reverts_if_met_borrowed_limit_per_block()
         public
     {
-        (uint128 blockLimit, , ) = creditFacade.params();
+        (uint128 blockLimit, , , ) = creditFacade.params();
 
         evm.expectRevert(BorrowedBlockLimitException.selector);
 
@@ -946,7 +946,7 @@ contract CreditFacadeTest is
                 USER,
                 FRIEND,
                 10,
-                true
+                false
             )
         );
 
@@ -1088,7 +1088,7 @@ contract CreditFacadeTest is
                 LIQUIDATOR,
                 FRIEND,
                 10,
-                true
+                false
             )
         );
 
@@ -1134,7 +1134,7 @@ contract CreditFacadeTest is
             )
         );
 
-        (, bool increaseDebtForbidden, ) = creditFacade.params();
+        (, bool increaseDebtForbidden, , ) = creditFacade.params();
 
         assertTrue(
             increaseDebtForbidden,
@@ -1283,7 +1283,7 @@ contract CreditFacadeTest is
     function test_FA_18A_increaseDebt_revets_if_more_than_block_limit() public {
         _openTestCreditAccount();
 
-        (uint128 limit, , ) = creditFacade.params();
+        (uint128 limit, , , ) = creditFacade.params();
 
         evm.expectRevert(BorrowedBlockLimitException.selector);
 
@@ -2632,7 +2632,7 @@ contract CreditFacadeTest is
                 LIQUIDATOR,
                 FRIEND,
                 10,
-                true
+                false
             )
         );
 

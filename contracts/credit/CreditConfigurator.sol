@@ -414,7 +414,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         // Performs sanity checks on limits:
         // maxBorrowedAmount must not be less than minBorrowedAmount
         // maxBorrowedAmount must not be larger than maximal borrowed amount per block
-        (uint128 blockLimit, , ) = creditFacade().params();
+        (uint128 blockLimit, , , ) = creditFacade().params();
         if (
             _minBorrowedAmount > _maxBorrowedAmount ||
             _maxBorrowedAmount > blockLimit
@@ -576,7 +576,8 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         (
             uint128 limitPerBlock,
             bool isIncreaseDebtFobidden,
-            uint40 expirationDate
+            uint40 expirationDate,
+            uint16 emergencyLiquidationDiscount
         ) = creditFacade().params();
 
         (uint128 minBorrowedAmount, uint128 maxBorrowedAmount) = creditFacade()
@@ -592,6 +593,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             _setLimitPerBlock(limitPerBlock); // F:[CC-30]
             _setLimits(minBorrowedAmount, maxBorrowedAmount); // F:[CC-30]
             _setIncreaseDebtForbidden(isIncreaseDebtFobidden); // F:[CC-30]
+            _setEmergencyLiquidationDiscount(emergencyLiquidationDiscount); // F: [CC-30]
 
             // Copies the expiration date if the contract is expirable
             if (expirable) _setExpirationDate(expirationDate); // F: [CC-30]
@@ -652,7 +654,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
     /// @dev IMPLEMENTATION: setIncreaseDebtForbidden
     function _setIncreaseDebtForbidden(bool _mode) internal {
-        (, bool isIncreaseDebtForbidden, ) = creditFacade().params(); // F:[CC-32]
+        (, bool isIncreaseDebtForbidden, , ) = creditFacade().params(); // F:[CC-32]
 
         // Checks that the mode is actually changed to avoid redundant events
         if (_mode != isIncreaseDebtForbidden) {
@@ -672,7 +674,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
     /// @dev IMPLEMENTATION: _setLimitPerBlock
     function _setLimitPerBlock(uint128 newLimit) internal {
-        (uint128 maxBorrowedAmountPerBlock, , ) = creditFacade().params();
+        (uint128 maxBorrowedAmountPerBlock, , , ) = creditFacade().params();
         (, uint128 maxBorrowedAmount) = creditFacade().limits();
 
         // Performs a sanity check that the new limit is not less
@@ -699,7 +701,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
     /// @dev IMPLEMENTATION: setExpirationDate
     function _setExpirationDate(uint40 newExpirationDate) internal {
-        (, , uint40 expirationDate) = creditFacade().params();
+        (, , uint40 expirationDate, ) = creditFacade().params();
 
         // Sanity checks on the new expiration date
         // The new expiration date must be later than the previous one
@@ -784,6 +786,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         }
     }
 
+    /// @dev Sets the max cumulative loss, which is a threshold of total loss that triggers a system pause
     function setMaxCumulativeLoss(uint128 _maxCumulativeLoss)
         external
         configuratorOnly // F: [CC-02]
@@ -796,12 +799,35 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         }
     }
 
+    /// @dev Resets the current cumulative loss
     function resetCumulativeLoss()
         external
         configuratorOnly // F: [CC-02]
     {
         creditFacade().resetCumulativeLoss();
         emit CumulativeLossReset();
+    }
+
+    /// @dev Sets the premium paid the emergency liquidator during pauses
+    function setEmergencyLiquidationDiscount(uint16 _newPremium)
+        external
+        configuratorOnly // F: [CC-02]
+    {
+        _setEmergencyLiquidationDiscount(_newPremium);
+    }
+
+    /// @dev IMPLEMENTATION: setEmergencyLiquidationDiscount
+    function _setEmergencyLiquidationDiscount(uint16 _newPremium) internal {
+        if (_newPremium >= PERCENTAGE_FACTOR) {
+            revert IncorrectFeesException(); // F: [CC-42]
+        }
+
+        (, , , uint16 emergencyLiquidationDiscount) = creditFacade().params();
+
+        if (_newPremium != emergencyLiquidationDiscount) {
+            creditFacade().setEmergencyLiquidationDiscount(_newPremium); // F: [CC-42]
+            emit NewemergencyLiquidationDiscount(_newPremium); // F: [CC-42]
+        }
     }
 
     //

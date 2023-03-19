@@ -191,6 +191,9 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     /// @dev Thrown when attempting to perform an action on behalf of a borrower
     ///      that is blacklisted in the underlying token
     error NotAllowedForBlacklistedAddressException();
+
+    /// @dev Thrown when the pool receives less funds than borrowAmountWithInterest on account closure
+    error LiquiditySanityCheckException();
 }
 
 interface ICreditFacade is
@@ -240,13 +243,18 @@ interface ICreditFacade is
     ///      from the Credit Account and proceeds. If not, tries to transfer the shortfall from msg.sender.
     ///    + Transfers all enabled assets with non-zero balances to the "to" address, unless they are marked
     ///      to be skipped in skipTokenMask
-    ///    + If convertWETH is true, converts WETH into ETH before sending to the recipient
     /// - Emits a CloseCreditAccount event
     ///
     /// @param to Address to send funds to during account closing
     /// @param skipTokenMask Uint-encoded bit mask where 1's mark tokens that shouldn't be transferred
-    /// @param convertWETH If true, converts WETH into ETH before sending to "to"
     /// @param calls The array of MultiCall structs encoding the operations to execute before closing the account.
+    function closeCreditAccount(
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) external payable;
+
+    /// @dev Backward compatible version of `closeCreditAccount`, where convertWETH remains but is ignored
     function closeCreditAccount(
         address to,
         uint256 skipTokenMask,
@@ -271,13 +279,18 @@ interface ICreditFacade is
     ///    + Transfers all enabled assets with non-zero balances to the "to" address, unless they are marked
     ///      to be skipped in skipTokenMask. If the liquidator is confident that all assets were converted
     ///      during the multicall, they can set the mask to uint256.max - 1, to only transfer the underlying
-    ///    + If convertWETH is true, converts WETH into ETH before sending
     /// - Emits LiquidateCreditAccount event
     ///
     /// @param to Address to send funds to after liquidation
     /// @param skipTokenMask Uint-encoded bit mask where 1's mark tokens that shouldn't be transferred
-    /// @param convertWETH If true, converts WETH into ETH before sending to "to"
     /// @param calls The array of MultiCall structs encoding the operations to execute before liquidating the account.
+    function liquidateCreditAccount(
+        address borrower,
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) external payable;
+
     function liquidateCreditAccount(
         address borrower,
         address to,
@@ -296,9 +309,15 @@ interface ICreditFacade is
     /// is expired.
     /// @param to Address to send funds to after liquidation
     /// @param skipTokenMask Uint-encoded bit mask where 1's mark tokens that shouldn't be transferred
-    /// @param convertWETH If true, converts WETH into ETH before sending to "to"
     /// @param calls The array of MultiCall structs encoding the operations to execute before liquidating the account.
     /// @notice See more at https://dev.gearbox.fi/docs/documentation/credit/liquidation#liquidating-accounts-by-expiration
+    function liquidateExpiredCreditAccount(
+        address borrower,
+        address to,
+        uint256 skipTokenMask,
+        MultiCall[] calldata calls
+    ) external payable;
+
     function liquidateExpiredCreditAccount(
         address borrower,
         address to,
@@ -394,13 +413,15 @@ interface ICreditFacade is
     /// @return maxBorrowedAmountPerBlock Maximal amount of new debt that can be taken per block
     /// @return isIncreaseDebtForbidden True if increasing debt is forbidden
     /// @return expirationDate Timestamp of the next expiration (for expirable Credit Facades only)
+    /// @return emergencyLiquidationDiscount Premium for liquidations when the system is paused
     function params()
         external
         view
         returns (
             uint128 maxBorrowedAmountPerBlock,
             bool isIncreaseDebtForbidden,
-            uint40 expirationDate
+            uint40 expirationDate,
+            uint16 emergencyLiquidationDiscount
         );
 
     /// @return minBorrowedAmount Minimal borrowed amount per credit account

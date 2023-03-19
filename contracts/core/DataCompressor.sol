@@ -384,7 +384,7 @@ contract DataCompressor is IDataCompressor {
             result.creditFacade = address(creditFacade);
             result.creditConfigurator = creditManagerV2.creditConfigurator();
             result.degenNFT = creditFacade.degenNFT();
-            (, result.isIncreaseDebtForbidden, ) = creditFacade.params(); // V2 only: true if increasing debt is forbidden
+            (, result.isIncreaseDebtForbidden, , ) = creditFacade.params(); // V2 only: true if increasing debt is forbidden
             result.forbiddenTokenMask = creditManagerV2.forbiddenTokenMask(); // V2 only: mask which forbids some particular tokens
             result.maxEnabledTokensLength = creditManagerV2
                 .maxAllowedEnabledTokenLength(); // V2 only: a limit on enabled tokens imposed for security

@@ -103,6 +103,9 @@ interface ICreditConfiguratorEvents {
 
     /// @dev Emits when the current cumulative loss in Credit Facade is reset
     event CumulativeLossReset();
+
+    /// @dev Emits when the emergency liquidation premium is set
+    event NewemergencyLiquidationDiscount(uint16);
 }
 
 /// @dev CreditConfigurator Exceptions
