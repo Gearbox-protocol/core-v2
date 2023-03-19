@@ -18,7 +18,7 @@ import { TokensTestSuite } from "../suites/TokensTestSuite.sol";
 
 // EXCEPTIONS
 
-import { ZeroAddressException, CallerNotConfiguratorException, NotImplementedException } from "../../interfaces/IErrors.sol";
+import { ZeroAddressException, CallerNotControllerException, NotImplementedException } from "../../interfaces/IErrors.sol";
 
 import { IPriceOracleV2Exceptions } from "../../interfaces/IPriceOracle.sol";
 
@@ -92,11 +92,11 @@ contract LPPriceFeedTest is
         );
     }
 
-    /// @dev [LPF-4]: setLimiter reverts for non-configurator or value = 0
-    function test_LPF_04_setLimiter_reverts_for_non_configurator_or_with_zero_value()
+    /// @dev [LPF-4]: setLimiter reverts for non-controller or value = 0
+    function test_LPF_04_setLimiter_reverts_for_non_controller_or_with_zero_value()
         public
     {
-        evm.expectRevert(CallerNotConfiguratorException.selector);
+        evm.expectRevert(CallerNotControllerException.selector);
         pf.setLimiter(44);
 
         evm.expectRevert(IncorrectLimitsException.selector);

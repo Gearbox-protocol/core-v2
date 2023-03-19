@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 
 import { ILPPriceFeed } from "../interfaces/ILPPriceFeed.sol";
 import { PriceFeedChecker } from "./PriceFeedChecker.sol";
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
 import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
 
 // EXCEPTIONS
@@ -14,7 +14,11 @@ import { NotImplementedException } from "../interfaces/IErrors.sol";
 /// @title Abstract PriceFeed for an LP token
 /// @notice For most pools/vaults, the LP token price depends on Chainlink prices of pool assets and the pool's
 /// internal exchange rate.
-abstract contract LPPriceFeed is ILPPriceFeed, PriceFeedChecker, ACLTrait {
+abstract contract LPPriceFeed is
+    ILPPriceFeed,
+    PriceFeedChecker,
+    ACLNonReentrantTrait
+{
     /// @dev The lower bound for the contract's token-to-underlying exchange rate.
     /// @notice Used to protect against LP token / share price manipulation.
     uint256 public lowerBound;
@@ -36,7 +40,7 @@ abstract contract LPPriceFeed is ILPPriceFeed, PriceFeedChecker, ACLTrait {
         address addressProvider,
         uint256 _delta,
         string memory _description
-    ) ACLTrait(addressProvider) {
+    ) ACLNonReentrantTrait(addressProvider) {
         description = _description; // F:[LPF-1]
         delta = _delta; // F:[LPF-1]
     }
@@ -81,7 +85,7 @@ abstract contract LPPriceFeed is ILPPriceFeed, PriceFeedChecker, ACLTrait {
     function setLimiter(uint256 _lowerBound)
         external
         override
-        configuratorOnly // F:[LPF-4]
+        controllerOnly // F:[LPF-4]
     {
         _setLimiter(_lowerBound); // F:[LPF-4,5]
     }

@@ -8,6 +8,8 @@ pragma solidity ^0.8.10;
  * @notice this contract is used to test LPPriceFeeds
  */
 contract AddressProviderACLMock {
+    address public owner;
+
     address public getACL;
     mapping(address => bool) public isConfigurator;
 
@@ -15,6 +17,7 @@ contract AddressProviderACLMock {
     mapping(address => address) public priceFeeds;
 
     constructor() {
+        owner = msg.sender;
         getACL = address(this);
         getPriceOracle = address(this);
         isConfigurator[msg.sender] = true;
