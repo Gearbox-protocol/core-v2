@@ -69,7 +69,7 @@ contract UniversalAdapter is AbstractAdapter, IUniversalAdapter {
     //     address to,
     //     uint256 amount
     // ) external creditFacadeOnly {
-    //     _checkToken(token);
+    //     _getMaskOrRevert(token);
     //     creditManager.executeOrder(
     //         _creditFacade(),
     //         token,

@@ -66,10 +66,11 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
         return creditManager.getCreditAccountOrRevert(_creditFacade()); // F: [AA-4]
     }
 
-    /// @dev Checks if token is registered as collateral token in the Credit Manager
-    /// @param token Token to check
+    /// @dev Returns collateral token mask of given token in the Credit Manager
+    /// @param token Token to get the mask for
     /// @return tokenMask Collateral token mask
-    function _checkToken(address token)
+    /// @dev Reverts if token is not registered as collateral token in the Credit Manager
+    function _getMaskOrRevert(address token)
         internal
         view
         returns (uint256 tokenMask)
@@ -166,7 +167,7 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
         bytes memory callData,
         bool disableTokenIn
     ) internal returns (bytes memory result) {
-        _checkToken(tokenIn); // F: [AA-15]
+        _getMaskOrRevert(tokenIn); // F: [AA-15]
         result = _executeSwap(tokenIn, tokenOut, callData, disableTokenIn); // F: [AA-7, AA-13]
     }
 
