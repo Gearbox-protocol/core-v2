@@ -870,6 +870,121 @@ contract CreditFacadeTest is
         creditFacade.openCreditAccount(maxBorrowedAmount + 1, USER, 100, 0);
     }
 
+    /// @dev [FA-11C]: Debt increase functions revert if the total debt limit is breached
+    function test_FA_11C_openCreditAccount_increaseDebt_revert_on_more_debt_than_limit()
+        public
+    {
+        MultiCall[] memory calls;
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setTotalDebtLimit(uint128(WAD));
+
+        evm.expectRevert(BorrowAmountOutOfLimitsException.selector);
+
+        evm.prank(USER);
+        creditFacade.openCreditAccount(
+            DAI_ACCOUNT_AMOUNT,
+            USER,
+            200,
+            REFERRAL_CODE
+        );
+
+        evm.expectRevert(BorrowAmountOutOfLimitsException.selector);
+
+        evm.prank(USER);
+        creditFacade.openCreditAccountMulticall(
+            DAI_ACCOUNT_AMOUNT,
+            USER,
+            calls,
+            0
+        );
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setTotalDebtLimit(type(uint128).max);
+
+        evm.prank(USER);
+        creditFacade.openCreditAccount(
+            DAI_ACCOUNT_AMOUNT,
+            USER,
+            200,
+            REFERRAL_CODE
+        );
+
+        (uint128 totalDebt, ) = creditFacade.totalDebt();
+
+        assertEq(totalDebt, DAI_ACCOUNT_AMOUNT * 2, "Incorrect total debt");
+
+        tokenTestSuite.mint(underlying, FRIEND, type(uint96).max);
+
+        tokenTestSuite.approve(underlying, FRIEND, address(creditManager));
+
+        calls = multicallBuilder(
+            MultiCall({
+                target: address(creditFacade),
+                callData: abi.encodeWithSelector(
+                    ICreditFacade.addCollateral.selector,
+                    FRIEND,
+                    underlying,
+                    DAI_ACCOUNT_AMOUNT
+                )
+            })
+        );
+
+        evm.prank(FRIEND);
+        creditFacade.openCreditAccountMulticall(
+            DAI_ACCOUNT_AMOUNT,
+            FRIEND,
+            calls,
+            0
+        );
+
+        (totalDebt, ) = creditFacade.totalDebt();
+
+        assertEq(totalDebt, DAI_ACCOUNT_AMOUNT * 3, "Incorrect total debt");
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setTotalDebtLimit(uint128(WAD));
+
+        evm.expectRevert(BorrowAmountOutOfLimitsException.selector);
+
+        evm.prank(USER);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeWithSelector(
+                        ICreditFacadeExtended.increaseDebt.selector,
+                        512
+                    )
+                })
+            )
+        );
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setTotalDebtLimit(type(uint128).max);
+
+        evm.prank(USER);
+        creditFacade.multicall(
+            multicallBuilder(
+                MultiCall({
+                    target: address(creditFacade),
+                    callData: abi.encodeWithSelector(
+                        ICreditFacadeExtended.increaseDebt.selector,
+                        512
+                    )
+                })
+            )
+        );
+
+        (totalDebt, ) = creditFacade.totalDebt();
+
+        assertEq(
+            totalDebt,
+            DAI_ACCOUNT_AMOUNT * 3 + 512,
+            "Incorrect total debt"
+        );
+    }
+
     //
     // CLOSE CREDIT ACCOUNT
     //
@@ -960,6 +1075,10 @@ contract CreditFacadeTest is
         creditFacade.closeCreditAccount(FRIEND, 10, true, calls);
 
         assertEq0(targetMock.callData(), DUMB_CALLDATA, "Incorrect calldata");
+
+        (uint128 totalDebt, ) = creditFacade.totalDebt();
+
+        assertEq(totalDebt, 0, "Incorrect total debt");
     }
 
     /// @dev [FA-13]: closeCreditAccount reverts on internal calls in multicall
@@ -1108,6 +1227,10 @@ contract CreditFacadeTest is
                 })
             )
         );
+
+        (uint128 totalDebt, ) = creditFacade.totalDebt();
+
+        assertEq(totalDebt, 0, "Incorrect total debt");
     }
 
     /// @dev [FA-15A]: Borrowing is prohibited after a liquidation with loss
@@ -1427,6 +1550,10 @@ contract CreditFacadeTest is
                 })
             )
         );
+
+        (uint128 totalDebt, ) = creditFacade.totalDebt();
+
+        assertEq(totalDebt, DAI_ACCOUNT_AMOUNT - 512, "Incorrect total debt");
     }
 
     /// @dev [FA-20]:decreaseDebt revets if less than minBorrowedAmount
@@ -2657,6 +2784,10 @@ contract CreditFacadeTest is
                 })
             )
         );
+
+        (uint128 totalDebt, ) = creditFacade.totalDebt();
+
+        assertEq(totalDebt, 0, "Incorrect total debt");
     }
 
     ///

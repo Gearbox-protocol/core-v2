@@ -491,6 +491,9 @@ contract CreditConfiguratorTest is
         evm.expectRevert(CallerNotConfiguratorException.selector);
         creditConfigurator.setEmergencyLiquidationDiscount(0);
 
+        evm.expectRevert(CallerNotConfiguratorException.selector);
+        creditConfigurator.setTotalDebtLimit(0);
+
         evm.stopPrank();
     }
 
@@ -1366,6 +1369,49 @@ contract CreditConfiguratorTest is
         }
     }
 
+    function test_CC_30A_upgradeCreditFacade_correctly_handles_totalDebt()
+        public
+    {
+        for (uint256 ms = 0; ms < 2; ms++) {
+            bool migrateSettings = ms != 0;
+
+            setUp();
+
+            CreditFacade cf = new CreditFacade(
+                address(creditManager),
+                address(0),
+                address(0),
+                false
+            );
+
+            evm.prank(address(creditConfigurator));
+            creditFacade.setTotalDebtParams(uint128(WAD), uint128(2 * WAD));
+
+            (uint128 totalDebtCurrent, uint128 totalDebtLimit) = creditFacade
+                .totalDebt();
+
+            evm.prank(CONFIGURATOR);
+            creditConfigurator.upgradeCreditFacade(
+                address(cf),
+                migrateSettings
+            );
+
+            (uint128 totalDebtCurrent2, uint128 totalDebtLimit2) = cf
+                .totalDebt();
+
+            assertEq(
+                totalDebtCurrent,
+                totalDebtCurrent2,
+                "Incorrect total debt current"
+            );
+
+            assertEq(
+                totalDebtLimit2,
+                migrateSettings ? totalDebtLimit : type(uint128).max
+            );
+        }
+    }
+
     /// @dev [CC-31]: uupgradeCreditConfigurator upgrades creditConfigurator
     function test_CC_31_upgradeCreditConfigurator_upgrades_creditConfigurator()
         public
@@ -1613,7 +1659,7 @@ contract CreditConfiguratorTest is
         creditConfigurator.setEmergencyLiquidationDiscount(10001);
 
         evm.expectEmit(false, false, false, true);
-        emit NewemergencyLiquidationDiscount(100);
+        emit NewEmergencyLiquidationDiscount(100);
 
         evm.prank(CONFIGURATOR);
         creditConfigurator.setEmergencyLiquidationDiscount(100);
@@ -1625,5 +1671,18 @@ contract CreditConfiguratorTest is
             100,
             "Incorrect new emergency liquidation premium"
         );
+    }
+
+    /// @dev [CC-43]: setTotalDebtLimit works correctly
+    function test_CC_43_setTotalDebtLimit_is_correct() public {
+        evm.expectEmit(false, false, false, true);
+        emit NewTotalDebtLimit(uint128(WAD));
+
+        evm.prank(CONFIGURATOR);
+        creditConfigurator.setTotalDebtLimit(uint128(WAD));
+
+        (, uint128 totalDebtLimit) = creditFacade.totalDebt();
+
+        assertEq(totalDebtLimit, WAD, "Total debt limit incorrect");
     }
 }

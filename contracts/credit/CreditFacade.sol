@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 //  DATA
 import { MultiCall } from "../libraries/MultiCall.sol";
@@ -55,6 +56,13 @@ struct CumulativeLossParams {
     uint128 maxCumulativeLoss;
 }
 
+struct TotalDebt {
+    /// @dev Current total borrowing
+    uint128 currentTotalDebt;
+    /// @dev Total borrowing limit
+    uint128 totalDebtLimit;
+}
+
 /// @title CreditFacade
 /// @notice User interface for interacting with Credit Manager.
 /// @dev CreditFacade provides an interface between the user and the Credit Manager. Direct interactions
@@ -65,6 +73,7 @@ struct CumulativeLossParams {
 contract CreditFacade is ICreditFacade, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Address for address;
+    using SafeCast for uint256;
 
     /// @dev Credit Manager connected to this Credit Facade
     ICreditManagerV2 public immutable creditManager;
@@ -86,6 +95,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Keeps parameters that are used to pause the system after too much bad debt over a short period
     CumulativeLossParams public override lossParams;
+
+    TotalDebt public override totalDebt;
 
     /// @dev Address of the underlying token
     address public immutable underlying;
@@ -147,6 +158,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         }
 
         expirable = _expirable;
+
+        totalDebt.totalDebtLimit = type(uint128).max;
     }
 
     // Notice: ETH interactions
@@ -191,6 +204,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // Wraps ETH and sends it back to msg.sender
         _wrapETH(); // F:[FA-3A]
+
+        // Checks that the total debt limit is not exceeded and increases total debt
+        _checkAndUpdateTotalDebt(borrowedAmount, true); // F: [FA-11C]
 
         // Gets the LT of the underlying
         (, uint256 ltu) = creditManager.collateralTokens(0); // F:[FA-6]
@@ -249,6 +265,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // Wraps ETH and sends it back to msg.sender address
         _wrapETH(); // F:[FA-3B]
+
+        // Checks that the total debt limit is not exceeded and increases total debt
+        _checkAndUpdateTotalDebt(borrowedAmount, true); // F: [FA-11C]
 
         // Requests the Credit Manager to open a Credit Account
         address creditAccount = creditManager.openCreditAccount(
@@ -325,8 +344,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             _multicall(calls, msg.sender, creditAccount, true, false); // F:[FA-2, 12, 13]
 
         uint256 availableLiquidityBefore = _getAvailableLiquidity();
-        (, uint256 borrowAmountWithInterest, ) = creditManager
-            .calcCreditAccountAccruedInterest(creditAccount);
+        (
+            uint256 borrowedAmount,
+            uint256 borrowAmountWithInterest,
+
+        ) = creditManager.calcCreditAccountAccruedInterest(creditAccount);
 
         // Requests the Credit manager to close the Credit Account
         creditManager.closeCreditAccount(
@@ -347,6 +369,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         ) {
             revert LiquiditySanityCheckException();
         }
+
+        // Decreases the total debt
+        _checkAndUpdateTotalDebt(borrowedAmount, false);
 
         // Emits a CloseCreditAccount event
         emit CloseCreditAccount(msg.sender, to); // F:[FA-12]
@@ -561,8 +586,11 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             uint256 expectedLiquidityBefore,
             uint256 availableLiquidityBefore
         ) = _getLiquidity();
-        (, uint256 borrowAmountWithInterest, ) = creditManager
-            .calcCreditAccountAccruedInterest(creditAccount);
+        (
+            uint256 borrowedAmount,
+            uint256 borrowAmountWithInterest,
+
+        ) = creditManager.calcCreditAccountAccruedInterest(creditAccount);
 
         // Liquidates the CA and sends the remaining funds to the borrower or blacklist helper
         remainingFunds = creditManager.closeCreditAccount(
@@ -604,13 +632,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
             params.isIncreaseDebtForbidden = true; // F: [FA-15A]
 
-            lossParams.currentCumulativeLoss += uint128(loss);
+            lossParams.currentCumulativeLoss += loss.toUint128();
             if (
                 lossParams.currentCumulativeLoss > lossParams.maxCumulativeLoss
             ) {
                 _pauseCreditManager(); // F: [FA-15B]
             }
         }
+
+        // Decreases the total debt
+        _checkAndUpdateTotalDebt(borrowedAmount, false);
 
         /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
         /// borrower can recover funds to a different address
@@ -686,6 +717,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // is prohibited when forbidden tokens are enabled on the account
         _checkForbiddenTokens(creditAccount);
 
+        // Checks that the total debt limit is not exceeded and increases total debt
+        _checkAndUpdateTotalDebt(amount, true); // F: [FA-11C]
+
         // Requests the Credit Manager to borrow additional funds from the pool
         uint256 newBorrowedAmount = creditManager.manageDebt(
             creditAccount,
@@ -744,6 +778,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
         // Checks that the new borrowed amount is within limits
         _revertIfOutOfBorrowedLimits(newBorrowedAmount); // F:[FA-20]
+
+        // Decreases total debt
+        _checkAndUpdateTotalDebt(amount, false);
 
         // Emits an event
         emit DecreaseBorrowedAmount(borrower, amount); // F:[FA-19]
@@ -1186,7 +1223,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
                 if (newLimit > _limitPerBlock)
                     revert BorrowedBlockLimitException(); // F:[FA-18]
 
-                _updateTotalBorrowedInBlock(uint128(newLimit)); // F:[FA-37]
+                _updateTotalBorrowedInBlock(newLimit.toUint128()); // F:[FA-37]
             }
         }
     }
@@ -1206,6 +1243,22 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     function _checkIfEmergencyLiquidator(bool state) internal returns (bool) {
         return creditManager.checkEmergencyPausable(msg.sender, state);
+    }
+
+    /// @dev Updates total debt and checks that it does not exceed the limit
+    function _checkAndUpdateTotalDebt(uint256 delta, bool isIncrease) internal {
+        TotalDebt memory td = totalDebt;
+
+        if (isIncrease) {
+            td.currentTotalDebt += delta.toUint128();
+            if (td.currentTotalDebt > td.totalDebtLimit) {
+                revert BorrowAmountOutOfLimitsException();
+            }
+        } else {
+            td.currentTotalDebt -= delta.toUint128();
+        }
+
+        totalDebt = td;
     }
 
     /// @dev Returns the last block where debt was taken,
@@ -1483,6 +1536,15 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         creditConfiguratorOnly // F:[FA-44]
     {
         params.maxBorrowedAmountPerBlock = newLimit;
+    }
+
+    /// @dev Sets the total debt limit and the current total debt value (used for Credit Facade migration)
+    function setTotalDebtParams(uint128 newCurrentTotalDebt, uint128 newLimit)
+        external
+        creditConfiguratorOnly
+    {
+        totalDebt.currentTotalDebt = newCurrentTotalDebt;
+        totalDebt.totalDebtLimit = newLimit;
     }
 
     /// @dev Sets Credit Facade expiration date
