@@ -769,6 +769,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         address creditAccount,
         uint256 amount
     ) internal {
+        (uint256 borrowedAmountBefore, , ) = creditManager
+            .calcCreditAccountAccruedInterest(creditAccount);
+
         // Requests the creditManager to reduce the borrowed sum by amount
         uint256 newBorrowedAmount = creditManager.manageDebt(
             creditAccount,
@@ -780,7 +783,12 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _revertIfOutOfBorrowedLimits(newBorrowedAmount); // F:[FA-20]
 
         // Decreases total debt
-        _checkAndUpdateTotalDebt(amount, false);
+        // Since part of the amount can be used to repay interest,
+        // we need to compute the difference between the old and new borrowed amount
+        _checkAndUpdateTotalDebt(
+            borrowedAmountBefore - newBorrowedAmount,
+            false
+        );
 
         // Emits an event
         emit DecreaseBorrowedAmount(borrower, amount); // F:[FA-19]
@@ -1247,18 +1255,20 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Updates total debt and checks that it does not exceed the limit
     function _checkAndUpdateTotalDebt(uint256 delta, bool isIncrease) internal {
-        TotalDebt memory td = totalDebt;
+        if (delta > 0) {
+            TotalDebt memory td = totalDebt;
 
-        if (isIncrease) {
-            td.currentTotalDebt += delta.toUint128();
-            if (td.currentTotalDebt > td.totalDebtLimit) {
-                revert BorrowAmountOutOfLimitsException();
+            if (isIncrease) {
+                td.currentTotalDebt += delta.toUint128();
+                if (td.currentTotalDebt > td.totalDebtLimit) {
+                    revert BorrowAmountOutOfLimitsException();
+                }
+            } else {
+                td.currentTotalDebt -= delta.toUint128();
             }
-        } else {
-            td.currentTotalDebt -= delta.toUint128();
-        }
 
-        totalDebt = td;
+            totalDebt = td;
+        }
     }
 
     /// @dev Returns the last block where debt was taken,
