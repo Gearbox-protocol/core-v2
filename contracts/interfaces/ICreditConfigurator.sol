@@ -105,7 +105,10 @@ interface ICreditConfiguratorEvents {
     event CumulativeLossReset();
 
     /// @dev Emits when the emergency liquidation premium is set
-    event NewemergencyLiquidationDiscount(uint16);
+    event NewEmergencyLiquidationDiscount(uint16);
+
+    /// @dev Emits when a new total debt limit is set
+    event NewTotalDebtLimit(uint128);
 }
 
 /// @dev CreditConfigurator Exceptions

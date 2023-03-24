@@ -583,6 +583,9 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         (uint128 minBorrowedAmount, uint128 maxBorrowedAmount) = creditFacade()
             .limits();
 
+        (uint128 totalDebtCurrent, uint128 totalDebtLimit) = creditFacade()
+            .totalDebt();
+
         bool expirable = creditFacade().expirable();
 
         // Sets Credit Facade to the new address
@@ -594,9 +597,12 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             _setLimits(minBorrowedAmount, maxBorrowedAmount); // F:[CC-30]
             _setIncreaseDebtForbidden(isIncreaseDebtFobidden); // F:[CC-30]
             _setEmergencyLiquidationDiscount(emergencyLiquidationDiscount); // F: [CC-30]
+            _setTotalDebtParams(totalDebtCurrent, totalDebtLimit); // F: [CC-30A]
 
             // Copies the expiration date if the contract is expirable
             if (expirable) _setExpirationDate(expirationDate); // F: [CC-30]
+        } else {
+            _setTotalDebtParams(totalDebtCurrent, type(uint128).max); // F: [CC-30A]
         }
 
         emit CreditFacadeUpgraded(_creditFacade); // F:[CC-30]
@@ -826,8 +832,37 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
 
         if (_newPremium != emergencyLiquidationDiscount) {
             creditFacade().setEmergencyLiquidationDiscount(_newPremium); // F: [CC-42]
-            emit NewemergencyLiquidationDiscount(_newPremium); // F: [CC-42]
+            emit NewEmergencyLiquidationDiscount(_newPremium); // F: [CC-42]
         }
+    }
+
+    /// @dev Sets a new total debt limit
+    function setTotalDebtLimit(uint128 newLimit)
+        external
+        configuratorOnly // F: [CC-02]
+    {
+        _setTotalDebtLimit(newLimit);
+    }
+
+    /// @dev IMPLEMENTATION: setTotalDebtLimit
+    function _setTotalDebtLimit(uint128 newLimit) internal {
+        (
+            uint128 totalDebtCurrent,
+            uint128 totalDebtLimitCurrent
+        ) = creditFacade().totalDebt();
+
+        if (newLimit != totalDebtLimitCurrent) {
+            creditFacade().setTotalDebtParams(totalDebtCurrent, newLimit); // F: [CC-43]
+            emit NewTotalDebtLimit(newLimit); // F: [CC-43]
+        }
+    }
+
+    /// @dev Sets both the total debt and total debt limit
+    ///      Used only during Credit Facade migration
+    function _setTotalDebtParams(uint128 newCurrentTotalDebt, uint128 newLimit)
+        internal
+    {
+        creditFacade().setTotalDebtParams(newCurrentTotalDebt, newLimit);
     }
 
     //
