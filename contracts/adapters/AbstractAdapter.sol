@@ -77,7 +77,7 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
     {
         tokenMask = creditManager.tokenMasksMap(token); // F: [AA-6]
         if (tokenMask == 0) {
-            revert TokenIsNotInAllowedList(token); // F: [AA-6]
+            revert TokenNotAllowedException(); // F: [AA-6]
         }
     }
 
