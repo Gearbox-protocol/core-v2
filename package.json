@@ -36,6 +36,7 @@
     "*.{sol,json,md}": "prettier --write"
   },
   "dependencies": {
+    "forge-std": "foundry-rs/forge-std",
     "solmate": "^6.7.0"
   }
 }
