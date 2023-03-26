@@ -34,5 +34,8 @@
   "prettier": "@gearbox-protocol/prettier-config",
   "lint-staged": {
     "*.{sol,json,md}": "prettier --write"
+  },
+  "dependencies": {
+    "solmate": "^6.7.0"
   }
 }
