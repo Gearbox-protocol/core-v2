@@ -582,10 +582,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             creditManager.transferAccountOwnership(borrower, blacklistHelper); // F:[FA-56]
         }
 
-        (
-            uint256 expectedLiquidityBefore,
-            uint256 availableLiquidityBefore
-        ) = _getLiquidity();
+        uint256 availableLiquidityBefore = _getAvailableLiquidity();
+
         (
             uint256 borrowedAmount,
             uint256 borrowAmountWithInterest,
@@ -605,31 +603,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             false
         ); // F:[FA-15,49]
 
-        (
-            uint256 expectedLiquidityAfter,
-            uint256 availableLiquidityAfter
-        ) = _getLiquidity();
+        uint256 availableLiquidityAfter = _getAvailableLiquidity();
 
-        if (
-            expectedLiquidityBefore > expectedLiquidityAfter ||
-            (availableLiquidityAfter <
-                availableLiquidityBefore + borrowAmountWithInterest)
-        ) {
-            uint256 expectedLoss = expectedLiquidityBefore >
-                expectedLiquidityAfter
-                ? expectedLiquidityBefore - expectedLiquidityAfter
-                : 0;
-            uint256 availableLoss = availableLiquidityAfter <
-                availableLiquidityBefore + borrowAmountWithInterest
-                ? availableLiquidityBefore +
-                    borrowAmountWithInterest -
-                    availableLiquidityAfter
-                : 0;
+        uint256 loss = availableLiquidityAfter <
+            availableLiquidityBefore + borrowAmountWithInterest
+            ? availableLiquidityBefore +
+                borrowAmountWithInterest -
+                availableLiquidityAfter
+            : 0;
 
-            uint256 loss = expectedLoss > availableLoss
-                ? expectedLoss
-                : availableLoss;
-
+        if (loss > 0) {
             params.isIncreaseDebtForbidden = true; // F: [FA-15A]
 
             lossParams.currentCumulativeLoss += loss.toUint128();
@@ -1501,20 +1484,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         isExpired = (expirable) && (block.timestamp >= params.expirationDate); // F: [FA-46,47,48]
     }
 
-    /// @dev Returns the current expected and available liquidity of the pool
-    function _getLiquidity()
-        internal
-        view
-        returns (uint256 expectedLiquidity, uint256 availableLiquidity)
-    {
-        IPoolService pool = IPoolService(creditManager.pool());
-
-        return (pool.expectedLiquidity(), pool.availableLiquidity());
-    }
-
     /// @dev Returns the current available liquidity of the pool
     function _getAvailableLiquidity() internal view returns (uint256) {
-        return IPoolService(creditManager.pool()).availableLiquidity();
+        return IERC20(underlying).balanceOf(creditManager.pool());
     }
 
     //
