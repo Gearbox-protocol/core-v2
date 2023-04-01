@@ -115,6 +115,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Address of the BlacklistHelper if underlying is blacklistable, otherwise address(0)
     address public immutable override blacklistHelper;
 
+    /// @dev Address of the pool connected to the Credit Manager
+    address public immutable pool;
+
     /// @dev Stores in a compressed state the last block where borrowing happened and the total amount borrowed in that block
     uint256 internal totalBorrowedInBlock;
 
@@ -147,6 +150,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         creditManager = ICreditManagerV2(_creditManager); // F:[FA-1A]
         underlying = ICreditManagerV2(_creditManager).underlying(); // F:[FA-1A]
         wethAddress = ICreditManagerV2(_creditManager).wethAddress(); // F:[FA-1A]
+        pool = ICreditManagerV2(_creditManager).pool();
 
         degenNFT = _degenNFT; // F:[FA-1A]
         whitelisted = _degenNFT != address(0); // F:[FA-1A]
@@ -1486,7 +1490,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
 
     /// @dev Returns the current available liquidity of the pool
     function _getAvailableLiquidity() internal view returns (uint256) {
-        return IERC20(underlying).balanceOf(creditManager.pool());
+        return IERC20(underlying).balanceOf(pool);
     }
 
     //
