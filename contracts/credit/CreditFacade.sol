@@ -115,6 +115,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     /// @dev Address of the BlacklistHelper if underlying is blacklistable, otherwise address(0)
     address public immutable override blacklistHelper;
 
+    /// @dev Address of the pool connected to the Credit Manager
+    address public immutable pool;
+
     /// @dev Stores in a compressed state the last block where borrowing happened and the total amount borrowed in that block
     uint256 internal totalBorrowedInBlock;
 
@@ -147,6 +150,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         creditManager = ICreditManagerV2(_creditManager); // F:[FA-1A]
         underlying = ICreditManagerV2(_creditManager).underlying(); // F:[FA-1A]
         wethAddress = ICreditManagerV2(_creditManager).wethAddress(); // F:[FA-1A]
+        pool = ICreditManagerV2(_creditManager).pool();
 
         degenNFT = _degenNFT; // F:[FA-1A]
         whitelisted = _degenNFT != address(0); // F:[FA-1A]
@@ -582,10 +586,8 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             creditManager.transferAccountOwnership(borrower, blacklistHelper); // F:[FA-56]
         }
 
-        (
-            uint256 expectedLiquidityBefore,
-            uint256 availableLiquidityBefore
-        ) = _getLiquidity();
+        uint256 availableLiquidityBefore = _getAvailableLiquidity();
+
         (
             uint256 borrowedAmount,
             uint256 borrowAmountWithInterest,
@@ -605,31 +607,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             false
         ); // F:[FA-15,49]
 
-        (
-            uint256 expectedLiquidityAfter,
-            uint256 availableLiquidityAfter
-        ) = _getLiquidity();
+        uint256 availableLiquidityAfter = _getAvailableLiquidity();
 
-        if (
-            expectedLiquidityBefore > expectedLiquidityAfter ||
-            (availableLiquidityAfter <
-                availableLiquidityBefore + borrowAmountWithInterest)
-        ) {
-            uint256 expectedLoss = expectedLiquidityBefore >
-                expectedLiquidityAfter
-                ? expectedLiquidityBefore - expectedLiquidityAfter
-                : 0;
-            uint256 availableLoss = availableLiquidityAfter <
-                availableLiquidityBefore + borrowAmountWithInterest
-                ? availableLiquidityBefore +
-                    borrowAmountWithInterest -
-                    availableLiquidityAfter
-                : 0;
+        uint256 loss = availableLiquidityAfter <
+            availableLiquidityBefore + borrowAmountWithInterest
+            ? availableLiquidityBefore +
+                borrowAmountWithInterest -
+                availableLiquidityAfter
+            : 0;
 
-            uint256 loss = expectedLoss > availableLoss
-                ? expectedLoss
-                : availableLoss;
-
+        if (loss > 0) {
             params.isIncreaseDebtForbidden = true; // F: [FA-15A]
 
             lossParams.currentCumulativeLoss += loss.toUint128();
@@ -1501,20 +1488,9 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         isExpired = (expirable) && (block.timestamp >= params.expirationDate); // F: [FA-46,47,48]
     }
 
-    /// @dev Returns the current expected and available liquidity of the pool
-    function _getLiquidity()
-        internal
-        view
-        returns (uint256 expectedLiquidity, uint256 availableLiquidity)
-    {
-        IPoolService pool = IPoolService(creditManager.pool());
-
-        return (pool.expectedLiquidity(), pool.availableLiquidity());
-    }
-
     /// @dev Returns the current available liquidity of the pool
     function _getAvailableLiquidity() internal view returns (uint256) {
-        return IPoolService(creditManager.pool()).availableLiquidity();
+        return IERC20(underlying).balanceOf(pool);
     }
 
     //
