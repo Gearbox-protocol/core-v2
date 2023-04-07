@@ -467,6 +467,11 @@
     "@ethersproject/properties" "^5.7.0"
     "@ethersproject/strings" "^5.7.0"
 
+"@gearbox-protocol/integration-types@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@gearbox-protocol/integration-types/-/integration-types-1.1.0.tgz#ebc79e4683c915b177cbae9a3cf240de288f122a"
+  integrity sha512-dEaAy2XhP7aAxZaSHIFysa6x0L0jCQbDL6OhlYN0UAmUEIzsfCLecb5KY/woK3kKmC07tYsis21VulSY0Y68Hw==
+
 "@gearbox-protocol/prettier-config@^1.5.0":
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/@gearbox-protocol/prettier-config/-/prettier-config-1.5.0.tgz#4df8e9fd2305fee6ab8c1417a02e31343836932a"
