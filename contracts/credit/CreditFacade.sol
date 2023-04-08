@@ -11,7 +11,7 @@ import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 //  DATA
 import { MultiCall } from "../libraries/MultiCall.sol";
-import { Balance, BalanceOps } from "../libraries/Balances.sol";
+import { Balance } from "../libraries/Balances.sol";
 
 /// INTERFACES
 import { ICreditFacade, ICreditFacadeExtended } from "../interfaces/ICreditFacade.sol";
@@ -20,7 +20,6 @@ import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
 import { IWETH } from "../interfaces/external/IWETH.sol";
 import { IBlacklistHelper } from "../interfaces/IBlacklistHelper.sol";
-import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IPausable } from "../interfaces/IPausable.sol";
 
 // CONSTANTS
@@ -45,7 +44,7 @@ struct Params {
 struct Limits {
     /// @dev Minimal borrowed amount per credit account
     uint128 minBorrowedAmount;
-    /// @dev Maximum aborrowed amount per credit account
+    /// @dev Maximum borrowed amount per credit account
     uint128 maxBorrowedAmount;
 }
 
@@ -64,12 +63,11 @@ struct TotalDebt {
 }
 
 /// @title CreditFacade
-/// @notice User interface for interacting with Credit Manager.
-/// @dev CreditFacade provides an interface between the user and the Credit Manager. Direct interactions
-/// with the Credit Manager are forbidden. There are two ways the Credit Manager can be interacted with:
-/// - Through CreditFacade, which provides all the required account management function: open / close / liquidate / manageDebt,
-/// as well as Multicalls that allow to perform multiple actions within a single transaction, with a single health check
-/// - Through adapters, which call the Credit Manager directly, but only allow interactions with specific target contracts
+/// @notice User interface for interacting with Credit Manager
+/// @dev Direct interaction with the Credit Manager is forbidden, but Credit Facade provides all the needed
+///      account management functions: open / close / liquidate / addCollateral / manageDebt / multicall.
+///      The latter allows to perform multiple actions within a single transaction, followed by a single
+///      collateral check in the end.
 contract CreditFacade is ICreditFacade, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Address for address;
@@ -296,12 +294,12 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         creditManager.fullCollateralCheck(creditAccount); // F:[FA-8, 9]
     }
 
-    /// @dev A version of `closeCreditAccount` with convertWETH parameter that is ignored.
+    /// @dev A version of `closeCreditAccount` with `convertWETH` parameter that is ignored.
     ///      Used for backward compatibility.
     function closeCreditAccount(
         address to,
         uint256 skipTokenMask,
-        bool convertWETH,
+        bool,
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
         _closeCreditAccount(to, skipTokenMask, calls);
@@ -414,13 +412,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _liquidateCreditAccount(borrower, to, skipTokenMask, calls);
     }
 
-    /// @dev A version of `liquidateCreditAccount` with convertWETH parameter that is ignored.
+    /// @dev A version of `liquidateCreditAccount` with `convertWETH` parameter that is ignored.
     ///      Used for backward compatibility.
     function liquidateCreditAccount(
         address borrower,
         address to,
         uint256 skipTokenMask,
-        bool convertWETH,
+        bool,
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
         _liquidateCreditAccount(borrower, to, skipTokenMask, calls);
@@ -500,13 +498,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         _liquidateExpiredCreditAccount(borrower, to, skipTokenMask, calls);
     }
 
-    /// @dev A version of `liquidateExpiredCreditAccount` with convertWETH parameter that is ignored.
+    /// @dev A version of `liquidateExpiredCreditAccount` with `convertWETH` parameter that is ignored.
     ///      Used for backward compatibility.
     function liquidateExpiredCreditAccount(
         address borrower,
         address to,
         uint256 skipTokenMask,
-        bool convertWETH,
+        bool,
         MultiCall[] calldata calls
     ) external payable override nonReentrant {
         _liquidateExpiredCreditAccount(borrower, to, skipTokenMask, calls);
@@ -538,7 +536,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         // Wraps ETH and sends it back to msg.sender address
         _wrapETH();
 
-        // Checks if the liquidsation during pause
+        // Checks if the liquidation is done while the contract is paused
         bool emergencyLiquidation = _checkIfEmergencyLiquidator(true);
 
         if (calls.length != 0)
@@ -625,12 +623,13 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
             ) {
                 _pauseCreditManager(); // F: [FA-15B]
             }
+            emit IncurLossOnLiquidation(loss);
         }
 
         // Decreases the total debt
         _checkAndUpdateTotalDebt(borrowedAmount, false);
 
-        /// Credit Facade increases the borrower's claimable balance in BlacklistHelper, so the
+        /// Credit Facade increases borrower's claimable balance in BlacklistHelper, so the
         /// borrower can recover funds to a different address
         if (helperBalance > 0 && remainingFunds > 1) {
             _increaseClaimableBalance(borrower, helperBalance);
@@ -672,7 +671,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         if (helperBalance > helperBalanceBefore) {
             uint256 amount;
             unchecked {
-                amount = helperBalance - helperBalanceBefore;
+                amount = helperBalance - helperBalanceBefore + 1;
             }
             IBlacklistHelper(blacklistHelper).addClaimable(
                 underlying,
@@ -860,8 +859,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     ///   the Credit Account by msg.sender
     /// - Executes the provided list of calls:
     ///   + if targetContract == address(this), parses call data in the struct and calls the appropriate function (see _processCreditFacadeMulticall below)
-    ///   + if targetContract == adapter, calls the adapter with call data as provided. Adapters skip health checks when Credit Facade is the msg.sender,
-    ///     as it performs the necessary health checks on its own
+    ///   + if targetContract == adapter, calls the adapter with call data as provided.
     /// @param borrower Owner of the Credit Account
     /// @param creditAccount Credit Account address
     /// @param isClosure Whether the multicall is being invoked during a closure action. Calls to Credit Facade are forbidden inside

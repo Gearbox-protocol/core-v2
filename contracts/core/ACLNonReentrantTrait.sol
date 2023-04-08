@@ -74,7 +74,7 @@ abstract contract ACLNonReentrantTrait is Pausable {
         _;
     }
 
-    /// @dev  Reverts if msg.sender is not configurator
+    /// @dev  Reverts if msg.sender is not external controller (if it is set) or configurator
     modifier controllerOnly() {
         if (externalController) {
             if (msg.sender != controller) {
