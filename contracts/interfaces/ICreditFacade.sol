@@ -128,6 +128,9 @@ interface ICreditFacadeEvents {
 
     /// @dev Emits when the account owner disables a token on their CA
     event TokenDisabled(address indexed borrower, address indexed token);
+
+    /// @dev Emits when pool incurs loss on account liquidation and facade forbids borrowing
+    event IncurLossOnLiquidation(uint256 loss);
 }
 
 interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
@@ -254,7 +257,8 @@ interface ICreditFacade is
         MultiCall[] calldata calls
     ) external payable;
 
-    /// @dev Backward compatible version of `closeCreditAccount`, where convertWETH remains but is ignored
+    /// @dev A version of `closeCreditAccount` with `convertWETH` parameter that is ignored.
+    ///      Used for backward compatibility.
     function closeCreditAccount(
         address to,
         uint256 skipTokenMask,
@@ -291,6 +295,8 @@ interface ICreditFacade is
         MultiCall[] calldata calls
     ) external payable;
 
+    /// @dev A version of `liquidateCreditAccount` with `convertWETH` parameter that is ignored.
+    ///      Used for backward compatibility.
     function liquidateCreditAccount(
         address borrower,
         address to,
@@ -318,6 +324,8 @@ interface ICreditFacade is
         MultiCall[] calldata calls
     ) external payable;
 
+    /// @dev A version of `liquidateExpiredCreditAccount` with `convertWETH` parameter that is ignored.
+    ///      Used for backward compatibility.
     function liquidateExpiredCreditAccount(
         address borrower,
         address to,

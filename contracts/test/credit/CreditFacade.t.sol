@@ -1237,11 +1237,14 @@ contract CreditFacadeTest is
     function test_FA_15A_liquidateCreditAccount_prohibits_borrowing_on_loss()
         public
     {
-        (address creditAccount, ) = _openTestCreditAccount();
+        _openTestCreditAccount();
 
         bytes memory DUMB_CALLDATA = _prepareMockCall();
 
         _makeAccountsLiquitable();
+
+        evm.expectEmit(false, false, false, false);
+        emit IncurLossOnLiquidation(0);
 
         evm.prank(LIQUIDATOR);
         creditFacade.liquidateCreditAccount(
@@ -1272,7 +1275,7 @@ contract CreditFacadeTest is
         evm.prank(CONFIGURATOR);
         creditConfigurator.setMaxCumulativeLoss(1);
 
-        (address creditAccount, ) = _openTestCreditAccount();
+        _openTestCreditAccount();
 
         bytes memory DUMB_CALLDATA = _prepareMockCall();
 
@@ -2898,8 +2901,7 @@ contract CreditFacadeTest is
                 DEFAULT_FEE_LIQUIDATION)) /
             PERCENTAGE_FACTOR -
             USDC_ACCOUNT_AMOUNT -
-            1 -
-            1; // NOTE: second -1 because we add 1 to helper balance
+            1;
 
         evm.roll(block.number + 1);
 

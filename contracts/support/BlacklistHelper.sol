@@ -98,7 +98,7 @@ contract BlacklistHelper is ACLTrait, IBlacklistHelper {
     /// @param to Recipient address
     function claim(address underlying, address to) external override {
         uint256 amount = claimable[underlying][msg.sender];
-        if (amount < 2) {
+        if (amount < 1) {
             revert NothingToClaimException(); // F:[BH-5]
         }
         claimable[underlying][msg.sender] = 0; // F:[BH-5]
