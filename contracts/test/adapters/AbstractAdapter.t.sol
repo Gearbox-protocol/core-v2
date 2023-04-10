@@ -103,6 +103,9 @@ contract AbstractAdapterTest is
 
     /// @dev [AA-1]: AbstractAdapter constructor sets correct values
     function test_AA_01_constructor_sets_correct_values() public {
+        IAddressProvider addressProvider = IPoolService(creditManager.pool())
+            .addressProvider();
+
         assertEq(
             address(adapterMock.creditManager()),
             address(creditManager),
@@ -111,7 +114,7 @@ contract AbstractAdapterTest is
 
         assertEq(
             address(adapterMock.addressProvider()),
-            address(IPoolService(creditManager.pool()).addressProvider()),
+            address(addressProvider),
             "Incorrect address provider"
         );
 
@@ -120,11 +123,17 @@ contract AbstractAdapterTest is
             address(targetMock),
             "Incorrect target contract"
         );
+
+        assertEq(
+            address(adapterMock._acl()),
+            addressProvider.getACL(),
+            "Incorrect ACL"
+        );
     }
 
     /// @dev [AA-2]: AbstractAdapter constructor reverts when passed zero-address as target contract
     function test_AA_02_constructor_reverts_on_zero_address() public {
-        evm.expectRevert();
+        evm.expectRevert(ZeroAddressException.selector);
         new AdapterMock(address(0), address(0));
 
         evm.expectRevert(ZeroAddressException.selector);
@@ -665,7 +674,9 @@ contract AbstractAdapterTest is
                 }
 
                 evm.prank(USER);
-                evm.expectRevert(TokenNotAllowedException.selector);
+                evm.expectRevert(
+                    IAdapterExceptions.TokenNotAllowedException.selector
+                );
                 creditFacade.multicall(
                     multicallBuilder(
                         MultiCall({
@@ -676,5 +687,16 @@ contract AbstractAdapterTest is
                 );
             }
         }
+    }
+
+    /// @dev [AA-16]: `configuratorOnly` function reverts if called not by configurator
+    function test_AA_16_configuratorOnly_function_reverts_if_called_not_by_configurator()
+        public
+    {
+        evm.expectRevert(
+            IAdapterExceptions.CallerNotConfiguratorException.selector
+        );
+        evm.prank(USER);
+        adapterMock.configure();
     }
 }

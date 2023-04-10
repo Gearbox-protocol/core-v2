@@ -3,6 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
+import { IACL } from "../IACL.sol";
 import { IAddressProvider } from "../IAddressProvider.sol";
 import { ICreditManagerV2 } from "../ICreditManagerV2.sol";
 
@@ -38,6 +39,9 @@ interface IAdapterExceptions {
 
     /// @notice Thrown when caller of a `creditFacadeOnly` function is not the Credit Facade
     error CreditFacadeOnlyException();
+
+    /// @notice Thrown when caller of a `configuratorOnly` function is not configurator
+    error CallerNotConfiguratorException();
 }
 
 interface IAdapter is IAdapterExceptions {
@@ -49,6 +53,9 @@ interface IAdapter is IAdapterExceptions {
 
     /// @notice Address provider
     function addressProvider() external view returns (IAddressProvider);
+
+    /// @notice ACL contract to check rights
+    function _acl() external view returns (IACL);
 
     /// @notice Adapter type
     function _gearboxAdapterType() external pure returns (AdapterType);
