@@ -6,6 +6,8 @@ pragma solidity ^0.8.10;
 import { IAddressProvider } from "../IAddressProvider.sol";
 import { ICreditManagerV2 } from "../ICreditManagerV2.sol";
 
+// NOTE: new values must always be added at the end of the enum
+
 enum AdapterType {
     ABSTRACT,
     UNISWAP_V2_ROUTER,
