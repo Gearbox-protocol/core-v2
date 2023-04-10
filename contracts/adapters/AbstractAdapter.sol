@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ACLTrait } from "../core/ACLTrait.sol";
+import { IACL } from "../interfaces/IACL.sol";
 import { IAdapter } from "../interfaces/adapters/IAdapter.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
@@ -12,7 +12,7 @@ import { ZeroAddressException } from "../interfaces/IErrors.sol";
 
 /// @title Abstract adapter
 /// @dev Inheriting adapters MUST use provided internal functions to perform all operations with credit accounts
-abstract contract AbstractAdapter is IAdapter, ACLTrait {
+abstract contract AbstractAdapter is IAdapter {
     /// @notice Credit Manager the adapter is connected to
     ICreditManagerV2 public immutable override creditManager;
 
@@ -22,18 +22,14 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
     /// @notice Address of the contract the adapter is interacting with
     address public immutable override targetContract;
 
+    /// @notice ACL contract to check rights
+    IACL public immutable override _acl;
+
     /// @notice Constructor
     /// @param _creditManager Credit Manager to connect this adapter to
     /// @param _targetContract Address of the contract this adapter should interact with
-    constructor(address _creditManager, address _targetContract)
-        ACLTrait(
-            address(
-                IPoolService(ICreditManagerV2(_creditManager).pool())
-                    .addressProvider()
-            )
-        )
-    {
-        if (_targetContract == address(0)) {
+    constructor(address _creditManager, address _targetContract) {
+        if (_creditManager == address(0) || _targetContract == address(0)) {
             revert ZeroAddressException(); // F: [AA-2]
         }
 
@@ -42,9 +38,18 @@ abstract contract AbstractAdapter is IAdapter, ACLTrait {
             IPoolService(creditManager.pool()).addressProvider()
         ); // F: [AA-1]
         targetContract = _targetContract; // F: [AA-1]
+
+        _acl = IACL(addressProvider.getACL()); // F: [AA-1]
     }
 
-    /// @dev Reverts if the caller of the function is not the Credit Facade
+    /// @notice Reverts if caller of the function is not configurator
+    modifier configuratorOnly() {
+        if (!_acl.isConfigurator(msg.sender))
+            revert CallerNotConfiguratorException(); // F: [AA-16]
+        _;
+    }
+
+    /// @notice Reverts if caller of the function is not the Credit Facade
     /// @dev Adapter functions are only allowed to be called from within the multicall
     ///      Since at this point Credit Account is owned by the Credit Facade, all functions
     ///      of inheriting adapters that perform actions on account MUST have this modifier

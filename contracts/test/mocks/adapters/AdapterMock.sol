@@ -19,6 +19,8 @@ contract AdapterMock is AbstractAdapter {
         AbstractAdapter(_creditManager, _targetContract)
     {}
 
+    function configure() external view configuratorOnly {}
+
     function creditFacade() external view returns (address) {
         return _creditFacade();
     }
