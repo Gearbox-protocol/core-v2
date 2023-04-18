@@ -461,3 +461,17 @@ interface ICreditFacade is
     /// @dev Whether the underlying of connected Credit Manager is blacklistable
     function isBlacklistableUnderlying() external view returns (bool);
 }
+
+interface ICreditFacadeV2 {
+    /// @return maxBorrowedAmountPerBlock Maximal amount of new debt that can be taken per block
+    /// @return isIncreaseDebtForbidden True if increasing debt is forbidden
+    /// @return expirationDate Timestamp of the next expiration (for expirable Credit Facades only)
+    function params()
+        external
+        view
+        returns (
+            uint128 maxBorrowedAmountPerBlock,
+            bool isIncreaseDebtForbidden,
+            uint40 expirationDate
+        );
+}

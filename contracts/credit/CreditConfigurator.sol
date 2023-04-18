@@ -22,6 +22,7 @@ import { ICreditConfigurator, CollateralToken, CreditManagerOpts } from "../inte
 import { IPriceOracleV2 } from "../interfaces/IPriceOracle.sol";
 import { IPoolService } from "../interfaces/IPoolService.sol";
 import { IAddressProvider } from "../interfaces/IAddressProvider.sol";
+import { ICreditFacadeV2 } from "../interfaces/ICreditFacade.sol";
 
 // EXCEPTIONS
 import { ZeroAddressException, AddressIsNotContractException, IncorrectPriceFeedException, IncorrectTokenContractException, CallerNotPausableAdminException, CallerNotUnPausableAdminException } from "../interfaces/IErrors.sol";
@@ -50,7 +51,7 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
     EnumerableSet.AddressSet private allowedContractsSet;
 
     /// @dev Contract version
-    uint256 public constant version = 2;
+    uint256 public constant version = 2_10;
 
     /// @dev Constructor has a special role in credit management deployment
     /// This is where the initial configuration is performed.
@@ -571,20 +572,43 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
         // Sanity checks that the address is a contract and has correct Credit Manager
         _revertIfContractIncompatible(_creditFacade); // F:[CC-29]
 
+        uint256 oldFacadeVersion = creditFacade().version();
+
         // Retrieves all parameters in case they need
         // to be migrated
-        (
-            uint128 limitPerBlock,
-            bool isIncreaseDebtFobidden,
-            uint40 expirationDate,
-            uint16 emergencyLiquidationDiscount
-        ) = creditFacade().params();
+
+        uint128 limitPerBlock;
+        bool isIncreaseDebtFobidden;
+        uint40 expirationDate;
+        uint16 emergencyLiquidationDiscount;
+
+        if (oldFacadeVersion == 2) {
+            (
+                limitPerBlock,
+                isIncreaseDebtFobidden,
+                expirationDate
+            ) = ICreditFacadeV2(address(creditFacade())).params();
+        } else {
+            (
+                limitPerBlock,
+                isIncreaseDebtFobidden,
+                expirationDate,
+                emergencyLiquidationDiscount
+            ) = creditFacade().params();
+        }
 
         (uint128 minBorrowedAmount, uint128 maxBorrowedAmount) = creditFacade()
             .limits();
 
-        (uint128 totalDebtCurrent, uint128 totalDebtLimit) = creditFacade()
-            .totalDebt();
+        uint128 totalDebtCurrent;
+        uint128 totalDebtLimit;
+
+        if (oldFacadeVersion == 2) {
+            totalDebtCurrent = 0;
+            totalDebtLimit = type(uint128).max;
+        } else {
+            (totalDebtCurrent, totalDebtLimit) = creditFacade().totalDebt();
+        }
 
         bool expirable = creditFacade().expirable();
 
@@ -855,6 +879,16 @@ contract CreditConfigurator is ICreditConfigurator, ACLTrait {
             creditFacade().setTotalDebtParams(totalDebtCurrent, newLimit); // F: [CC-43]
             emit NewTotalDebtLimit(newLimit); // F: [CC-43]
         }
+    }
+
+    /// @dev Sets both total debt params. Should only be used to initialize current total debt when migrating from
+    ///      old versions where current total debt is not available
+    function setTotalDebtParams(uint128 newCurrentTotalDebt, uint128 newLimit)
+        external
+        configuratorOnly
+    {
+        _setTotalDebtParams(newCurrentTotalDebt, newLimit);
+        emit NewTotalDebtLimit(newLimit);
     }
 
     /// @dev Sets both the total debt and total debt limit
