@@ -143,7 +143,7 @@ contract CreditManager is ICreditManagerV2, ACLTrait {
     address public universalAdapter;
 
     /// @dev contract version
-    uint256 public constant override version = 2;
+    uint256 public constant override version = 2_10;
 
     //
     // MODIFIERS

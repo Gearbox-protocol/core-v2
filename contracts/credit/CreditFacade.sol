@@ -120,7 +120,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     uint256 internal totalBorrowedInBlock;
 
     /// @dev Contract version
-    uint256 public constant override version = 2;
+    uint256 public constant override version = 2_10;
 
     /// @dev Restricts actions for users with opened credit accounts only
     modifier creditConfiguratorOnly() {
