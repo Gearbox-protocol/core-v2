@@ -62,6 +62,9 @@ contract DSTest {
     event log_named_bytes(string key, bytes val);
     event log_named_string(string key, string val);
 
+    uint256 private constant UINT256_MAX =
+        115792089237316195423570985008687907853269984665640564039457584007913129639935;
+
     bool public IS_TEST = true;
     bool private _failed;
 
@@ -663,6 +666,84 @@ contract DSTest {
             emit log_named_string("Error", err);
             assertEq(a, b);
         }
+    }
+
+    function assertApproxEqAbs(
+        uint256 a,
+        uint256 b,
+        uint256 maxDelta
+    ) internal virtual {
+        uint256 realDelta = delta(a, b);
+
+        if (realDelta > maxDelta) {
+            emit log("Error: a ~= b not satisfied [uint]");
+            emit log_named_uint("      Left", a);
+            emit log_named_uint("     Right", b);
+            emit log_named_uint(" Max Delta", maxDelta);
+            emit log_named_uint("     Delta", realDelta);
+            fail();
+        }
+    }
+
+    function assertApproxEqAbs(
+        uint256 a,
+        uint256 b,
+        uint256 maxDelta,
+        string memory err
+    ) internal virtual {
+        uint256 realDelta = delta(a, b);
+
+        if (realDelta > maxDelta) {
+            emit log_named_string("Error", err);
+            assertApproxEqAbs(a, b, maxDelta);
+        }
+    }
+
+    function delta(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a - b : b - a;
+    }
+
+    function _bound(
+        uint256 x,
+        uint256 min,
+        uint256 max
+    ) internal pure virtual returns (uint256 result) {
+        require(
+            min <= max,
+            "StdUtils bound(uint256,uint256,uint256): Max is less than min."
+        );
+        // If x is between min and max, return x directly. This is to ensure that dictionary values
+        // do not get shifted if the min is nonzero. More info: https://github.com/foundry-rs/forge-std/issues/188
+        if (x >= min && x <= max) return x;
+
+        uint256 size = max - min + 1;
+
+        // If the value is 0, 1, 2, 3, wrap that to min, min+1, min+2, min+3. Similarly for the UINT256_MAX side.
+        // This helps ensure coverage of the min/max values.
+        if (x <= 3 && size > x) return min + x;
+        if (x >= UINT256_MAX - 3 && size > UINT256_MAX - x)
+            return max - (UINT256_MAX - x);
+
+        // Otherwise, wrap x into the range [min, max], i.e. the range is inclusive.
+        if (x > max) {
+            uint256 diff = x - max;
+            uint256 rem = diff % size;
+            if (rem == 0) return max;
+            result = min + rem - 1;
+        } else if (x < min) {
+            uint256 diff = min - x;
+            uint256 rem = diff % size;
+            if (rem == 0) return min;
+            result = max - rem + 1;
+        }
+    }
+
+    function bound(
+        uint256 x,
+        uint256 min,
+        uint256 max
+    ) internal view virtual returns (uint256 result) {
+        result = _bound(x, min, max);
     }
 
     function checkEq0(bytes memory a, bytes memory b)

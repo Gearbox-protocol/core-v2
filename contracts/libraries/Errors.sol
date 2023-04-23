@@ -33,6 +33,11 @@ library Errors {
     string public constant POOL_CANT_ADD_CREDIT_MANAGER_TWICE = "PS4";
 
     //
+    // 4626 WRAPEED POOL
+    //
+    string public constant W_POOL_INVALID_UNDERLYING = "WPS0";
+
+    //
     // ACCOUNT FACTORY
     //
     string public constant AF_CANT_CLOSE_CREDIT_ACCOUNT_IN_THE_SAME_BLOCK =

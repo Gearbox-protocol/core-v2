@@ -1,2 +1,4 @@
 @chainlink/=node_modules/@chainlink/
 @openzeppelin/=node_modules/@openzeppelin/
+@solmate/=node_modules/solmate/src/
+@forge-std/=node_modules/forge-std/src/
