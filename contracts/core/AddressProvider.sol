@@ -25,8 +25,10 @@ contract AddressProvider is Claimable, IAddressProvider {
     // Mapping from contract keys to respective addresses
     mapping(bytes32 => address) public addresses;
 
-    // Contract version
-    uint256 public constant version = 2;
+    /// @dev Contract version
+    function version() external view virtual override returns (uint256) {
+        return 2;
+    }
 
     constructor() {
         // @dev Emits first event for contract discovery

@@ -24,6 +24,7 @@
     "@chainlink/contracts": "^0.4.0",
     "@commitlint/cli": "^17.1.2",
     "@commitlint/config-conventional": "^17.1.0",
+    "@gearbox-protocol/integration-types": "^1.2.0",
     "@gearbox-protocol/prettier-config": "^1.5.0",
     "@openzeppelin/contracts": "^4.4.2",
     "husky": "^8.0.1",
