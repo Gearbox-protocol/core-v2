@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 import { IVersion } from "./IVersion.sol";
 import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 
-interface IDegenNFTExceptions {
+interface IDegenNFTV2Exceptions {
     /// @dev Thrown if an access-restricted function was called by non-CreditFacade
     error CreditFacadeOrConfiguratorOnlyException();
 
@@ -19,7 +19,7 @@ interface IDegenNFTExceptions {
     error InsufficientBalanceException();
 }
 
-interface IDegenNFTEvents {
+interface IDegenNFTV2Events {
     /// @dev Minted when new minter set
     event NewMinterSet(address indexed);
 
@@ -30,9 +30,9 @@ interface IDegenNFTEvents {
     event NewCreditFacadeRemoved(address indexed);
 }
 
-interface IDegenNFT is
-    IDegenNFTExceptions,
-    IDegenNFTEvents,
+interface IDegenNFTV2 is
+    IDegenNFTV2Exceptions,
+    IDegenNFTV2Events,
     IVersion,
     IERC721Metadata
 {

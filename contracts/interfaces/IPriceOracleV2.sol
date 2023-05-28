@@ -17,7 +17,7 @@ interface IPriceOracleV2Exceptions {
     error ChainPriceStaleException();
 
     /// @dev Thrown on attempting to get a result for a token that does not have a price feed
-    error PriceOracleNotExistsException();
+    error PriceOracleV2NotExistsException();
 }
 
 /// @title Price oracle interface

@@ -32,8 +32,8 @@ interface IAddressProvider is IAddressProviderEvents, IVersion {
     /// @return Address of WETH Gateway
     function getWETHGateway() external view returns (address);
 
-    /// @return Address of PriceOracle
-    function getPriceOracle() external view returns (address);
+    /// @return Address of PriceOracleV2
+    function getPriceOracleV2() external view returns (address);
 
     /// @return Address of DAO Treasury Multisig
     function getTreasuryContract() external view returns (address);

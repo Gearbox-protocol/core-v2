@@ -6,12 +6,12 @@ pragma solidity ^0.8.10;
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import { IPriceFeedType } from "./IPriceFeedType.sol";
 
-interface ILPPriceFeedEvents {
+interface ILPPriceFeedV2Events {
     /// @dev Emits on updating the virtual price bounds
     event NewLimiterParams(uint256 lowerBound, uint256 upperBound);
 }
 
-interface ILPPriceFeedExceptions {
+interface ILPPriceFeedV2Exceptions {
     /// @dev Thrown on returning a value that violates the current bounds
     error ValueOutOfRangeException();
 
@@ -20,11 +20,11 @@ interface ILPPriceFeedExceptions {
 }
 
 /// @title Interface for LP PriceFeeds with limiter
-interface ILPPriceFeed is
+interface ILPPriceFeedV2 is
     AggregatorV3Interface,
     IPriceFeedType,
-    ILPPriceFeedEvents,
-    ILPPriceFeedExceptions
+    ILPPriceFeedV2Events,
+    ILPPriceFeedV2Exceptions
 {
     /// @dev Sets the lower and upper bounds for virtual price.
     /// @param _lowerBound The new lower bound

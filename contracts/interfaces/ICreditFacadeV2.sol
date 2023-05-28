@@ -8,7 +8,7 @@ import { MultiCall } from "../libraries/MultiCall.sol";
 import { ICreditManagerV2, ICreditManagerV2Exceptions } from "./ICreditManagerV2.sol";
 import { IVersion } from "./IVersion.sol";
 
-interface ICreditFacadeExtended {
+interface ICreditFacadeV2Extended {
     /// @dev Stores expected balances (computed as current balance + passed delta)
     ///      and compare with actual balances at the end of a multicall, reverts
     ///      if at least one is less than expected
@@ -55,7 +55,7 @@ interface ICreditFacadeExtended {
     function decreaseDebt(uint256 amount) external;
 }
 
-interface ICreditFacadeEvents {
+interface ICreditFacadeV2Events {
     /// @dev Emits when Blacklist Helper is set for the Credit Facade upon creation
     event BlacklistHelperSet(address indexed blacklistHelper);
 
@@ -133,7 +133,7 @@ interface ICreditFacadeEvents {
     event IncurLossOnLiquidation(uint256 loss);
 }
 
-interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
+interface ICreditFacadeV2Exceptions is ICreditManagerV2Exceptions {
     /// @dev Thrown if the CreditFacade is not expirable, and an aciton is attempted that
     ///      requires expirability
     error NotAllowedWhenNotExpirableException();
@@ -199,9 +199,9 @@ interface ICreditFacadeExceptions is ICreditManagerV2Exceptions {
     error LiquiditySanityCheckException();
 }
 
-interface ICreditFacade is
-    ICreditFacadeEvents,
-    ICreditFacadeExceptions,
+interface ICreditFacadeV2 is
+    ICreditFacadeV2Events,
+    ICreditFacadeV2Exceptions,
     IVersion
 {
     //
@@ -449,7 +449,7 @@ interface ICreditFacade is
         view
         returns (uint128 currentTotalDebt, uint128 totalDebtLimit);
 
-    /// @dev Address of the DegenNFT that gatekeeps account openings in whitelisted mode
+    /// @dev Address of the DegenNFTV2 that gatekeeps account openings in whitelisted mode
     function degenNFT() external view returns (address);
 
     /// @dev Address of the underlying asset
@@ -462,7 +462,7 @@ interface ICreditFacade is
     function isBlacklistableUnderlying() external view returns (bool);
 }
 
-interface ICreditFacadeV2 {
+interface ICreditFacadeV2V2 {
     /// @return maxBorrowedAmountPerBlock Maximal amount of new debt that can be taken per block
     /// @return isIncreaseDebtForbidden True if increasing debt is forbidden
     /// @return expirationDate Timestamp of the next expiration (for expirable Credit Facades only)

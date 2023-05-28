@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import { AggregatorV2V3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV2V3Interface.sol";
-import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
+import { PERCENTAGE_FACTOR } from "../libraries/Constants.sol";
 import { PriceFeedType, IPriceFeedType } from "../interfaces/IPriceFeedType.sol";
 
 // EXCEPTIONS
