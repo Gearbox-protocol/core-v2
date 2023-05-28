@@ -3,9 +3,9 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-/// @title IVersion
-/// @dev Declares a version function which returns the contract's version
+/// @title Version interface
+/// @notice Defines contract version
 interface IVersion {
-    /// @dev Returns contract version
+    /// @notice Contract version
     function version() external view returns (uint256);
 }
