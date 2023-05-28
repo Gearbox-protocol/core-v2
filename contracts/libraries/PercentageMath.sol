@@ -2,8 +2,8 @@
 pragma solidity ^0.8.10;
 
 import { Errors } from "./Errors.sol";
+import { PERCENTAGE_FACTOR } from "./Constants.sol";
 
-uint16 constant PERCENTAGE_FACTOR = 1e4; //percentage plus two decimals
 uint256 constant HALF_PERCENT = PERCENTAGE_FACTOR / 2;
 
 /**
