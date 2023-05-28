@@ -100,7 +100,7 @@ contract DegenNFTV2 is ERC721, ACLTrait, IDegenNFTV2 {
 
             if (
                 !contractsRegister.isCreditManager(creditManager) ||
-                ICreditFacadeV2(creditFacade_).DegenNFTV2() != address(this) ||
+                ICreditFacadeV2(creditFacade_).degenNFT() != address(this) ||
                 ICreditManagerV2(creditManager).creditFacade() != creditFacade_
             ) revert InvalidCreditFacadeException(); // F:[DNFT-6]
 

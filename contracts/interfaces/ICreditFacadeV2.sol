@@ -450,7 +450,7 @@ interface ICreditFacadeV2 is
         returns (uint128 currentTotalDebt, uint128 totalDebtLimit);
 
     /// @dev Address of the DegenNFTV2 that gatekeeps account openings in whitelisted mode
-    function DegenNFTV2() external view returns (address);
+    function fegenNFT() external view returns (address);
 
     /// @dev Address of the underlying asset
     function underlying() external view returns (address);
