@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "main"
+      - "base"
 
 env:
   HUSKY: 0
