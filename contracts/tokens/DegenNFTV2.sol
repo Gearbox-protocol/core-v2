@@ -16,10 +16,10 @@ import { ACLTrait } from "../core/ACLTrait.sol";
 import { NotImplementedException } from "../interfaces/IErrors.sol";
 
 import { ICreditManagerV2 } from "../interfaces/ICreditManagerV2.sol";
-import { ICreditFacade } from "../interfaces/ICreditFacade.sol";
-import { IDegenNFT } from "../interfaces/IDegenNFT.sol";
+import { ICreditFacadeV2 } from "../interfaces/ICreditFacadeV2.sol";
+import { IDegenNFTV2 } from "../interfaces/IDegenNFTV2.sol";
 
-contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
+contract DegenNFTV2 is ERC721, ACLTrait, IDegenNFTV2 {
     using Address for address;
 
     /// @dev Stores the total number of tokens on holder accounts
@@ -90,7 +90,7 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
             }
 
             address creditManager;
-            try ICreditFacade(creditFacade_).creditManager() returns (
+            try ICreditFacadeV2(creditFacade_).creditManager() returns (
                 ICreditManagerV2 cm
             ) {
                 creditManager = address(cm);
@@ -100,7 +100,7 @@ contract DegenNFT is ERC721, ACLTrait, IDegenNFT {
 
             if (
                 !contractsRegister.isCreditManager(creditManager) ||
-                ICreditFacade(creditFacade_).degenNFT() != address(this) ||
+                ICreditFacadeV2(creditFacade_).DegenNFTV2() != address(this) ||
                 ICreditManagerV2(creditManager).creditFacade() != creditFacade_
             ) revert InvalidCreditFacadeException(); // F:[DNFT-6]
 

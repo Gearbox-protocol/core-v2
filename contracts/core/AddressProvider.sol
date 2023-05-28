@@ -63,14 +63,14 @@ contract AddressProvider is Claimable, IAddressProvider {
         _setAddress(CONTRACTS_REGISTER, _address); // F:[AP-4]
     }
 
-    /// @return Address of PriceOracle
-    function getPriceOracle() external view override returns (address) {
+    /// @return Address of PriceOracleV2
+    function getPriceOracleV2() external view override returns (address) {
         return _getAddress(PRICE_ORACLE); // F:[AP-5]
     }
 
-    /// @dev Sets address of PriceOracle
-    /// @param _address Address of PriceOracle
-    function setPriceOracle(address _address)
+    /// @dev Sets address of PriceOracleV2
+    /// @param _address Address of PriceOracleV2
+    function setPriceOracleV2(address _address)
         external
         onlyOwner // F:[AP-12]
     {

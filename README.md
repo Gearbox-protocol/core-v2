@@ -44,7 +44,7 @@ This directory contains protocol contracts related to access, contract discovery
 
 1. `AccountFactory.sol` is used to deploy Credit Accounts and managed the existing Credit Account queue. Credit Managers take accounts from the factory when a new account in Gearbox is opened and return them after the account is closed.
 2. `ACL.sol` is the main access control contract in the system. Contracts that inherit `ACLTrait.sol` use `ACL.sol` to determine access to configurator-only functions.
-3. `AddressProvider.sol` is used by other contracts in the system to determine the up-to-date addresses of core contracts, such as `ACL`, `PriceOracle`, `GearToken`, etc.
+3. `AddressProvider.sol` is used by other contracts in the system to determine the up-to-date addresses of core contracts, such as `ACL`, `PriceOracleV2`, `GearToken`, etc.
 4. `ContractsRegister.sol` contains a list of legitimate Gearbox Credit Managers and pools connected to the system.
 5. `DataCompressor.sol` is used to retrieve detailed data on particular Credit Managers and Credit Accounts.
 6. `WETHGateway.sol` is used to convert native ETH into WETH and vice versa.
@@ -63,7 +63,7 @@ This directory contains the contracts responsible for managing Credit Accounts, 
 Contains factory contracts used for deployment and initial configuration of important system contracts.
 
 1. `CreditManagerFactoryBase.sol` deploys a Credit Manager / Credit Facade / Credit Configurator suite. A special `_postInstall()` function can be overridden to additionally configure adapters.
-2. `GenesisFactory.sol` deploys and sets up core contracts, such as `ACL`, `AddressProvider`, `PriceOracle`, etc.
+2. `GenesisFactory.sol` deploys and sets up core contracts, such as `ACL`, `AddressProvider`, `PriceOracleV2`, etc.
 3. `PoolFactory.sol` deploys and configures the borrowing pool.
 
 ### Multicall
@@ -74,7 +74,7 @@ Contains libraries that provide convenience functions to construct multicalls fo
 
 Contains the base contracts Gearbox uses to evaluate assets and convert them to each other.
 
-1. `PriceOracle.sol` is a contract that serves both as a repository for price feeds, as well as the main interface through which other contracts query asset conversions.
+1. `PriceOracleV2.sol` is a contract that serves both as a repository for price feeds, as well as the main interface through which other contracts query asset conversions.
 2. `LPPriceFeed.sol` is an abstract contract that all LP price feeds (such as Curve LP price feeds) derive from. It implements logic for bounding the LP token / share prices, to prevent manipulation.
 3. `ZeroPriceFeed.sol` is a dummy price feed used for assets with no reliable USD feeds. This allows to support operations with these assets (such as receiving them as farming rewards and selling) without exposing the protocol to risk.
 4. `PriceFeedChecker.sol` is a helper contract implementing sanity checks on values returned from price feeds.
@@ -99,7 +99,7 @@ Contains contracts that assist data retrieval and configuration.
 Contains contracts for special tokens used by the system.
 
 1. `DieselToken` implements an LP token for Gearbox borrowing pools.
-2. `DegenNFT` is a special non-transferrable NFT required to open a Credit Account if the system is in Leverage Ninja mode.
+2. `DegenNFTV2` is a special non-transferrable NFT required to open a Credit Account if the system is in Leverage Ninja mode.
 3. `GearToken` is the contract for the Gearbox DAO GEAR token.
 4. `PhantomERC20` is a special pseudo-ERC20 used to collateralize positions that are not represented as ERC20 on the third-party protocol side. Its `balanceOf` function is customized in concrete implementations to report, e.g., an amount staked in a particular farming pool.
 
@@ -108,10 +108,10 @@ Contains contracts for special tokens used by the system.
 Source contracts and their respective interfaces can be imported from an npm package `@gearbox-protocol/core-v2`, e.g.:
 
 ```=solidity
-import {ICreditFacade, MultiCall} from '@gearbox-protocol/core-v2/contracts/interfaces/ICreditFacade.sol';
+import {ICreditFacadeV2, MultiCall} from '@gearbox-protocol/core-v2/contracts/interfaces/ICreditFacadeV2.sol';
 
 contract MyContract {
-  ICreditFacade creditFacade;
+  ICreditFacadeV2 creditFacade;
 
   function foo(MultiCall[] memory calls) {
     creditFacade.multicall(calls);

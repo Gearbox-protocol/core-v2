@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IPriceOracleV2 } from "./IPriceOracle.sol";
+import { IPriceOracleV2 } from "./IPriceOracleV2.sol";
 import { IVersion } from "./IVersion.sol";
 
 enum ClosureAction {
@@ -405,7 +405,7 @@ interface ICreditManagerV2 is
     function creditFacade() external view returns (address);
 
     /// @dev Address of the connected Price Oracle
-    function priceOracle() external view returns (IPriceOracleV2);
+    function PriceOracleV2() external view returns (IPriceOracleV2);
 
     /// @dev Address of the universal adapter
     function universalAdapter() external view returns (address);

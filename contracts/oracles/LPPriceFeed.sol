@@ -3,10 +3,10 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { ILPPriceFeed } from "../interfaces/ILPPriceFeed.sol";
+import { ILPPriceFeedV2 } from "../interfaces/ILPPriceFeedV2.sol";
 import { PriceFeedChecker } from "./PriceFeedChecker.sol";
 import { ACLNonReentrantTrait } from "../core/ACLNonReentrantTrait.sol";
-import { PERCENTAGE_FACTOR } from "../libraries/PercentageMath.sol";
+import { PERCENTAGE_FACTOR } from "../libraries/Constants.sol";
 
 // EXCEPTIONS
 import { NotImplementedException } from "../interfaces/IErrors.sol";
@@ -15,7 +15,7 @@ import { NotImplementedException } from "../interfaces/IErrors.sol";
 /// @notice For most pools/vaults, the LP token price depends on Chainlink prices of pool assets and the pool's
 /// internal exchange rate.
 abstract contract LPPriceFeed is
-    ILPPriceFeed,
+    ILPPriceFeedV2,
     PriceFeedChecker,
     ACLNonReentrantTrait
 {

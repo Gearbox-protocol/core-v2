@@ -3,7 +3,7 @@
 // (c) Gearbox Holdings, 2022
 pragma solidity ^0.8.10;
 
-import { IPriceOracleV2Exceptions } from "../interfaces/IPriceOracle.sol";
+import { IPriceOracleV2Exceptions } from "../interfaces/IPriceOracleV2.sol";
 
 /// @title Sanity checker for Chainlink price feed results
 contract PriceFeedChecker is IPriceOracleV2Exceptions {
