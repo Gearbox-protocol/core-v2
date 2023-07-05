@@ -4,7 +4,6 @@
 pragma solidity ^0.8.10;
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import { IPriceFeedType } from "./IPriceFeedType.sol";
 
 interface ILPPriceFeedV2Events {
     /// @dev Emits on updating the virtual price bounds
@@ -22,7 +21,6 @@ interface ILPPriceFeedV2Exceptions {
 /// @title Interface for LP PriceFeeds with limiter
 interface ILPPriceFeedV2 is
     AggregatorV3Interface,
-    IPriceFeedType,
     ILPPriceFeedV2Events,
     ILPPriceFeedV2Exceptions
 {
