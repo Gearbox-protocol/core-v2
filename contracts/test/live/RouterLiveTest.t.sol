@@ -16,9 +16,9 @@ import { CreditManagerData } from "../../libraries/Types.sol";
 import { Balance, BalanceOps } from "../../libraries/Balances.sol";
 import { MultiCall, MultiCallOps } from "../../libraries/MultiCall.sol";
 import { AddressList } from "../../libraries/AddressList.sol";
+import { Test } from "forge-std/Test.sol";
 
 import "../lib/constants.sol";
-import "forge-std/Vm.sol";
 
 address constant ADDRESS_PROVIDER = 0xcF64698AFF7E5f27A11dff868AF228653ba53be0;
 address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -44,12 +44,10 @@ interface IRouter {
     ) external returns (Balance[] memory, RouterResult memory);
 }
 
-contract RouterLiveTest is DSTest {
+contract RouterLiveTest is Test {
     using BalanceOps for Balance[];
     using MultiCallOps for MultiCall[];
     using AddressList for address[];
-
-    CheatCodes evm = CheatCodes(HEVM_ADDRESS);
 
     IAddressProvider addressProvider;
     IDataCompressor dataCompressor;
@@ -66,7 +64,7 @@ contract RouterLiveTest is DSTest {
         ICreditFacade cf = ICreditFacade(cmData.creditFacade);
 
         IDegenNFT dnft = IDegenNFT(cf.degenNFT());
-        evm.prank(dnft.minter());
+        vm.prank(dnft.minter());
         dnft.mint(USER, 30);
 
         address underlying = cm.underlying();
@@ -81,7 +79,7 @@ contract RouterLiveTest is DSTest {
             ? USDC_ACCOUNT_AMOUNT
             : WETH_ACCOUNT_AMOUNT;
         emit log_named_uint("accountAmount", accountAmount);
-        evm.deal(underlying, USER, accountAmount);
+        deal(underlying, USER, accountAmount);
 
         uint256 tokenCount = cm.collateralTokensCount();
 
@@ -100,7 +98,7 @@ contract RouterLiveTest is DSTest {
         uint256 accountAmount
     ) internal {
         string memory symbol = IERC20Metadata(tokenOut).symbol();
-        emit log_named_string("token out", symbol);
+        emit log_named_string("testing token", symbol);
 
         Balance[] memory expectedBalances = new Balance[](1);
         expectedBalances[0] = Balance({
@@ -130,7 +128,7 @@ contract RouterLiveTest is DSTest {
         });
         calls = calls.concat(res.calls);
 
-        evm.prank(USER);
+        vm.prank(USER);
         IERC20(cm.underlying()).approve(address(cm), type(uint256).max);
 
         ICreditFacade cf = ICreditFacade(cm.creditFacade());
@@ -140,12 +138,12 @@ contract RouterLiveTest is DSTest {
     function test_live_router_can_open_ca() public {
         CreditManagerData[] memory cmList = dataCompressor
             .getCreditManagersList();
-        uint256 snapshot = evm.snapshot();
+        uint256 snapshot = vm.snapshot();
 
         for (uint256 i = 0; i < cmList.length; ++i) {
             if (cmList[i].version == 2) {
                 _testSingleCm(cmList[i]);
-                evm.revertTo(snapshot);
+                vm.revertTo(snapshot);
             }
         }
     }
