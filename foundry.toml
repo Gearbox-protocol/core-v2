@@ -2,7 +2,8 @@
 libs = ['lib']
 out = 'forge-out'
 remappings = [
-  'ds-test/=lib/ds-test/src/',
+  'ds-test/=lib/forge-std/lib/ds-test/src/',
+  'forge-std/=lib/forge-std/src/',
   '@ensdomains/=node_modules/@ensdomains/',
   '@openzeppelin/=node_modules/@openzeppelin/',
   '@chainlink/=node_modules/@chainlink/',
