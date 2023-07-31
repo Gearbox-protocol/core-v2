@@ -29,6 +29,4 @@ interface IPriceOracleBase is IVersion {
     function priceFeeds(
         address token
     ) external view returns (address priceFeed);
-
-    function addPriceFeed(address token, address priceFeed) external;
 }
