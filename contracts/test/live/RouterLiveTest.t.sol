@@ -76,36 +76,38 @@ contract RouterLiveTest is Test {
         (uint128 accountAmount, ) = cf.limits();
         emit log_named_uint("accountAmount", accountAmount);
         deal(underlying, USER, accountAmount);
+        vm.prank(USER);
+        IERC20(cmData.underlying).approve(cmData.addr, type(uint256).max);
 
         uint256 tokenCount = cm.collateralTokensCount();
 
-        uint256 tokenSnapshot = vm.snapshot();
         for (uint256 i = 0; i < tokenCount; ++i) {
             (address tokenOut, ) = cm.collateralTokens(i);
 
             if (tokenOut == underlying) continue;
 
-            _testToken(cm, tokenOut, accountAmount);
-            vm.revertTo(tokenSnapshot);
+            _testToken(cmData, tokenOut, accountAmount);
         }
     }
 
     function _testToken(
-        ICreditManagerV2 cm,
+        CreditManagerData memory cmData,
         address tokenOut,
         uint256 accountAmount
     ) internal {
+        ICreditManagerV2 cm = ICreditManagerV2(cmData.addr);
+        ICreditFacade cf = ICreditFacade(cmData.creditFacade);
+
         string memory symbol = IERC20Metadata(tokenOut).symbol();
         emit log_named_string("testing token", symbol);
-        address underlying = cm.underlying();
 
         Balance[] memory expectedBalances = getBalances(cm);
-        expectedBalances.setBalance(underlying, accountAmount);
+        expectedBalances.setBalance(cmData.underlying, accountAmount);
 
         address[] memory connectors = _getConnectors(cm);
 
         (, RouterResult memory res) = router.findOpenStrategyPath(
-            address(cm),
+            cmData.addr,
             expectedBalances,
             tokenOut,
             connectors,
@@ -114,22 +116,22 @@ contract RouterLiveTest is Test {
 
         MultiCall[] memory calls = new MultiCall[](1);
         calls[0] = MultiCall({
-            target: cm.creditFacade(),
+            target: cmData.creditFacade,
             callData: abi.encodeWithSelector(
                 ICreditFacade.addCollateral.selector,
                 USER,
-                underlying,
+                cmData.underlying,
                 accountAmount
             )
         });
         calls = calls.concat(res.calls);
 
-        vm.prank(USER);
-        IERC20(underlying).approve(address(cm), type(uint256).max);
+        uint256 tokenSnapshot = vm.snapshot();
 
-        ICreditFacade cf = ICreditFacade(cm.creditFacade());
         vm.prank(USER);
         cf.openCreditAccountMulticall(accountAmount, USER, calls, 0);
+
+        vm.revertTo(tokenSnapshot);
     }
 
     function test_live_router_can_open_ca() public {
