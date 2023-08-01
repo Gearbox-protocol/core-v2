@@ -73,22 +73,20 @@ contract RouterLiveTest is Test {
         emit log_named_address("cm underlying", underlying);
         emit log_named_address("cm address", address(cm));
 
-        uint256 accountAmount = (underlying == MAINNET_DAI)
-            ? DAI_ACCOUNT_AMOUNT
-            : (underlying == MAINNET_USDC)
-            ? USDC_ACCOUNT_AMOUNT
-            : WETH_ACCOUNT_AMOUNT;
+        (uint128 accountAmount, ) = cf.limits();
         emit log_named_uint("accountAmount", accountAmount);
         deal(underlying, USER, accountAmount);
 
         uint256 tokenCount = cm.collateralTokensCount();
 
+        uint256 tokenSnapshot = vm.snapshot();
         for (uint256 i = 0; i < tokenCount; ++i) {
             (address tokenOut, ) = cm.collateralTokens(i);
 
-            if (tokenOut == cm.underlying()) continue;
+            if (tokenOut == underlying) continue;
 
             _testToken(cm, tokenOut, accountAmount);
+            vm.revertTo(tokenSnapshot);
         }
     }
 
@@ -99,12 +97,10 @@ contract RouterLiveTest is Test {
     ) internal {
         string memory symbol = IERC20Metadata(tokenOut).symbol();
         emit log_named_string("testing token", symbol);
+        address underlying = cm.underlying();
 
-        Balance[] memory expectedBalances = new Balance[](1);
-        expectedBalances[0] = Balance({
-            token: cm.underlying(),
-            balance: accountAmount
-        });
+        Balance[] memory expectedBalances = getBalances(cm);
+        expectedBalances.setBalance(underlying, accountAmount);
 
         address[] memory connectors = _getConnectors(cm);
 
@@ -122,28 +118,29 @@ contract RouterLiveTest is Test {
             callData: abi.encodeWithSelector(
                 ICreditFacade.addCollateral.selector,
                 USER,
-                cm.underlying(),
+                underlying,
                 accountAmount
             )
         });
         calls = calls.concat(res.calls);
 
         vm.prank(USER);
-        IERC20(cm.underlying()).approve(address(cm), type(uint256).max);
+        IERC20(underlying).approve(address(cm), type(uint256).max);
 
         ICreditFacade cf = ICreditFacade(cm.creditFacade());
+        vm.prank(USER);
         cf.openCreditAccountMulticall(accountAmount, USER, calls, 0);
     }
 
     function test_live_router_can_open_ca() public {
         CreditManagerData[] memory cmList = dataCompressor
             .getCreditManagersList();
-        uint256 snapshot = vm.snapshot();
+        uint256 cmSnapshot = vm.snapshot();
 
         for (uint256 i = 0; i < cmList.length; ++i) {
             if (cmList[i].version == 2) {
                 _testSingleCm(cmList[i]);
-                vm.revertTo(snapshot);
+                vm.revertTo(cmSnapshot);
             }
         }
     }
@@ -170,5 +167,19 @@ contract RouterLiveTest is Test {
         }
 
         connectors = connectors.trim();
+    }
+
+    function getBalances(ICreditManagerV2 cm)
+        public
+        view
+        returns (Balance[] memory balances)
+    {
+        uint256 tokenCount = cm.collateralTokensCount();
+        balances = new Balance[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; ++i) {
+            (address token, ) = cm.collateralTokens(i);
+            balances[i].token = token;
+        }
     }
 }
