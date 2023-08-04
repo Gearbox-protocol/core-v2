@@ -151,7 +151,6 @@ contract RouterLiveTest is Test {
 
         address underlying = cm.underlying();
         string memory underlyingSymbol = IERC20Metadata(underlying).symbol();
-        (uint128 accountAmount, ) = cf.limits();
 
         emit log_named_string(
             "---- testing cm",
@@ -161,7 +160,7 @@ contract RouterLiveTest is Test {
                     " ",
                     Strings.toHexString(address(cm)),
                     " min borrow ",
-                    Strings.toString(accountAmount)
+                    Strings.toString(cmData.minAmount)
                 )
             )
         );
@@ -170,13 +169,15 @@ contract RouterLiveTest is Test {
         _maybeTopUpPool(cmData);
 
         // this is not included in snapshot and not rolled back
-        deal(underlying, USER, 1000 * accountAmount, false);
+        deal(underlying, USER, 1000 * cmData.minAmount, false);
         vm.prank(USER);
         IERC20(cmData.underlying).approve(cmData.addr, type(uint256).max);
 
         uint256 tokenCount = cm.collateralTokensCount();
-        for (uint256 i = 0; i < tokenCount; ++i) {
-            (address tokenOut, uint16 lt) = cm.collateralTokens(i);
+        // for (uint256 i = 0; i < tokenCount; ++i) {
+        // (address collateralToken, ) = cm.collateralTokens(i);
+        for (uint256 j = 0; j < tokenCount; ++j) {
+            (address tokenOut, uint16 lt) = cm.collateralTokens(j);
 
             if (tokenOut == underlying) continue;
             string memory symbol = IERC20Metadata(tokenOut).symbol();
@@ -198,26 +199,48 @@ contract RouterLiveTest is Test {
                 )
             );
 
-            _testToken(cmData, tokenOut, accountAmount, lt);
+            _testToken(cmData, tokenOut, cmData.underlying, lt);
+            // _testToken(cmData, tokenOut, collateralToken, lt);
         }
+        // }
     }
 
     function _testToken(
         CreditManagerData memory cmData,
         address tokenOut,
-        uint256 borrowed,
+        address collateralToken,
         uint16 lt
     ) internal {
+        uint256 snapshot = vm.snapshot();
+
         ICreditManagerV2 cm = ICreditManagerV2(cmData.addr);
         ICreditFacade cf = ICreditFacade(cmData.creditFacade);
 
         // this is assuming lossless conversion
         // x = 1/(lt * (1-slippage)) - 1
         // uint256 collateral = ((PERCENTAGE_FACTOR * borrowed)) / lt - borrowed;
-        uint256 collateral = 5 * borrowed;
+        uint256 collateralAmount = 5 * cmData.minAmount;
 
         Balance[] memory expectedBalances = _getBalances(cm);
-        expectedBalances.setBalance(cmData.underlying, collateral + borrowed);
+        if (collateralToken == cmData.underlying) {
+            expectedBalances.setBalance(
+                collateralToken,
+                collateralAmount + cmData.minAmount
+            );
+        } else {
+            collateralAmount = oracle.convert(
+                collateralAmount,
+                cmData.underlying,
+                collateralToken
+            );
+            // give USER collateral tokens. in case of underlying, this is done in CM-level function
+            deal(collateralToken, USER, collateralAmount, false);
+            vm.prank(USER);
+            IERC20(collateralToken).approve(cmData.addr, type(uint256).max);
+
+            expectedBalances.setBalance(collateralToken, collateralAmount);
+            expectedBalances.setBalance(cmData.underlying, cmData.minAmount);
+        }
 
         address[] memory connectors = _getConnectors(cm);
 
@@ -235,22 +258,20 @@ contract RouterLiveTest is Test {
             callData: abi.encodeWithSelector(
                 ICreditFacade.addCollateral.selector,
                 USER,
-                cmData.underlying,
-                collateral
+                collateralToken,
+                collateralAmount
             )
         });
         calls = calls.concat(res.calls);
-
-        uint256 tokenSnapshot = vm.snapshot();
 
         vm.prank(USER);
         if (expectedReverts[cmData.addr][tokenOut]) {
             vm.expectRevert();
             emit log_string("reverted as expected");
         }
-        cf.openCreditAccountMulticall(borrowed, USER, calls, 0);
+        cf.openCreditAccountMulticall(cmData.minAmount, USER, calls, 0);
 
-        vm.revertTo(tokenSnapshot);
+        vm.revertTo(snapshot);
     }
 
     // check available liquidity in pool for this cm and mock-deposit some if it's low
