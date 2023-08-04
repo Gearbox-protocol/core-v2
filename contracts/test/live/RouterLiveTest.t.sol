@@ -20,9 +20,9 @@ import { Balance, BalanceOps } from "../../libraries/Balances.sol";
 import { MultiCall, MultiCallOps } from "../../libraries/MultiCall.sol";
 import { AddressList } from "../../libraries/AddressList.sol";
 import { PERCENTAGE_FACTOR } from "../../libraries/PercentageMath.sol";
-import { Test } from "forge-std/Test.sol";
+import "forge-std/Test.sol";
 
-import "../lib/constants.sol";
+import { USER, FRIEND } from "../lib/constants.sol";
 
 address constant ADDRESS_PROVIDER = 0xcF64698AFF7E5f27A11dff868AF228653ba53be0;
 address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -174,35 +174,43 @@ contract RouterLiveTest is Test {
         IERC20(cmData.underlying).approve(cmData.addr, type(uint256).max);
 
         uint256 tokenCount = cm.collateralTokensCount();
-        // for (uint256 i = 0; i < tokenCount; ++i) {
-        // (address collateralToken, ) = cm.collateralTokens(i);
-        for (uint256 j = 0; j < tokenCount; ++j) {
-            (address tokenOut, uint16 lt) = cm.collateralTokens(j);
-
-            if (tokenOut == underlying) continue;
-            string memory symbol = IERC20Metadata(tokenOut).symbol();
-
-            if (!cf.isTokenAllowed(tokenOut) || lt <= 1) {
+        for (uint256 i = 0; i < tokenCount; ++i) {
+            (address collateralToken, uint16 lt) = cm.collateralTokens(i);
+            if (!cf.isTokenAllowed(collateralToken) || lt <= 1) {
                 continue;
             }
+            string memory collateralSymbol = IERC20Metadata(collateralToken)
+                .symbol();
 
-            emit log_named_string(
-                "testing token",
-                string(
-                    abi.encodePacked(
-                        symbol,
-                        " ",
-                        Strings.toHexString(tokenOut),
-                        " lt ",
-                        Strings.toString(lt)
+            for (uint256 j = 0; j < tokenCount; ++j) {
+                (address tokenOut, uint16 lt) = cm.collateralTokens(j);
+
+                if (tokenOut == underlying) continue;
+                string memory symbol = IERC20Metadata(tokenOut).symbol();
+
+                if (!cf.isTokenAllowed(tokenOut) || lt <= 1) {
+                    continue;
+                }
+
+                emit log_named_string(
+                    "testing token",
+                    string(
+                        abi.encodePacked(
+                            symbol,
+                            " ",
+                            Strings.toHexString(tokenOut),
+                            " lt ",
+                            Strings.toString(lt),
+                            " with collateral ",
+                            collateralSymbol
+                        )
                     )
-                )
-            );
+                );
 
-            _testToken(cmData, tokenOut, cmData.underlying, lt);
-            // _testToken(cmData, tokenOut, collateralToken, lt);
+                // _testToken(cmData, tokenOut, cmData.underlying, lt);
+                _testToken(cmData, tokenOut, collateralToken, lt);
+            }
         }
-        // }
     }
 
     function _testToken(
@@ -234,6 +242,7 @@ contract RouterLiveTest is Test {
                 collateralToken
             );
             // give USER collateral tokens. in case of underlying, this is done in CM-level function
+            // TODO: this will fail for many tokens
             deal(collateralToken, USER, collateralAmount, false);
             vm.prank(USER);
             IERC20(collateralToken).approve(cmData.addr, type(uint256).max);
