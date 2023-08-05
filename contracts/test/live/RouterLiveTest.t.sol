@@ -13,6 +13,7 @@ import { IDegenNFT } from "../../interfaces/IDegenNFT.sol";
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 import { CreditManagerData, CreditAccountData } from "../../libraries/Types.sol";
@@ -52,6 +53,7 @@ interface IRouter {
 }
 
 contract RouterLiveTest is Test {
+    using Address for address;
     using BalanceOps for Balance[];
     using MultiCallOps for MultiCall[];
     using AddressList for address[];
@@ -174,7 +176,7 @@ contract RouterLiveTest is Test {
         IERC20(cmData.underlying).approve(cmData.addr, type(uint256).max);
 
         // deal does not work for commented tokens
-        address[23] memory normalTokens = [
+        address[26] memory normalTokens = [
             0x111111111117dC0aa78b770fA6A738034120C302,
             0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9,
             0xc00e94Cb662C3520282E6f5717214004A7f26888,
@@ -183,10 +185,10 @@ contract RouterLiveTest is Test {
             0x1494CA1F11D487c2bBe4543E90080AeBa4BA3C2b,
             0x956F47F50A910163D8BF957Cf5846D573E7f87CA,
             0x514910771AF9Ca656af840dff83E8264EcF986CA,
-            // 0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F, // snx
+            // 0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F, // snx (proxy)
             0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984,
             0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
-            // 0xdAC17F958D2ee523a2206206994597C13D831ec7, // usdt
+            0xdAC17F958D2ee523a2206206994597C13D831ec7, // usdt
             0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599,
             0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
             0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e,
@@ -196,22 +198,25 @@ contract RouterLiveTest is Test {
             0xB50721BCf8d664c30412Cfbc6cf7a15145234ad1,
             0xba100000625a3754423978a60c9317c58a424e3D,
             0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE,
-            // 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84, // steth
-            // 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0, // wsteth
+            // 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84, // steth (rebase token)
+            0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0, // wsteth
             0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B,
             0x853d955aCEf822Db058eb8505911ED77F175b99e,
             0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0,
-            // 0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32, // ldo
-            0x5f98805A4E8be255a32880FDeC7F6728C6568bA0
-            // 0x57Ab1ec28D129707052df4dF418D58a2D46d5f51, // susd
-            // 0x056Fd409E1d7A124BD7017459dFEa2F387b6d5Cd, // gusd
-            // 0x6DEA81C8171D0bA574754EF6F8b412F2Ed88c54D // LQTY
+            // 0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32, // ldo (balanceOf -> balanceOfAt)
+            0x5f98805A4E8be255a32880FDeC7F6728C6568bA0,
+            // 0x57Ab1ec28D129707052df4dF418D58a2D46d5f51, // susd (proxy)
+            // 0x056Fd409E1d7A124BD7017459dFEa2F387b6d5Cd, // gusd (proxy)
+            0x6DEA81C8171D0bA574754EF6F8b412F2Ed88c54D // LQTY (has zero price feed, lt = 1)
         ];
 
         uint256 tokenCount = cm.collateralTokensCount();
         for (uint256 i = 0; i < normalTokens.length; ++i) {
             address collateralToken = normalTokens[i];
-            if (!cf.isTokenAllowed(collateralToken)) {
+            if (
+                !cf.isTokenAllowed(collateralToken) ||
+                cm.liquidationThresholds(collateralToken) <= 1
+            ) {
                 continue;
             }
             string memory collateralSymbol = IERC20Metadata(collateralToken)
@@ -280,7 +285,16 @@ contract RouterLiveTest is Test {
             // TODO: this will fail for many tokens
             deal(collateralToken, USER, collateralAmount, false);
             vm.prank(USER);
-            IERC20(collateralToken).approve(cmData.addr, type(uint256).max);
+            // IERC20(collateralToken).approve(cmData.addr, type(uint256).max);
+            // workaround for USDT.approve
+            address(collateralToken).functionCall(
+                abi.encodeWithSelector(
+                    IERC20.approve.selector,
+                    cmData.addr,
+                    collateralAmount
+                ),
+                "approve failed"
+            );
 
             expectedBalances.setBalance(collateralToken, collateralAmount);
             expectedBalances.setBalance(cmData.underlying, cmData.minAmount);
