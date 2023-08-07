@@ -5,11 +5,12 @@ remappings = [
   'ds-test/=lib/forge-std/lib/ds-test/src/',
   'forge-std/=lib/forge-std/src/',
   '@ensdomains/=node_modules/@ensdomains/',
+  '@gearbox-protocol/=node_modules/@gearbox-protocol/',
   '@openzeppelin/=node_modules/@openzeppelin/',
   '@chainlink/=node_modules/@chainlink/',
   'hardhat/=node_modules/hardhat/',
 ]
-solc_version = '0.8.10'
+solc_version = '0.8.17'
 src = 'contracts'
 optimizer_runs = 1000000
 

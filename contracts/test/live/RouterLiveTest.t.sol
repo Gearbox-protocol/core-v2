@@ -11,6 +11,8 @@ import { IPoolService } from "../../interfaces/IPoolService.sol";
 import { IPriceOracleV2 } from "../../interfaces/IPriceOracle.sol";
 import { IDegenNFT } from "../../interfaces/IDegenNFT.sol";
 
+import { TokensDataLive, TokenData } from "@gearbox-protocol/sdk/contracts/TokensData.sol";
+import { Tokens, TokenType } from "@gearbox-protocol/sdk/contracts/Tokens.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -60,6 +62,7 @@ contract RouterLiveTest is Test {
 
     // cm -> tokens
     mapping(address => mapping(address => bool)) expectedReverts;
+    mapping(Tokens => address) whales;
 
     IAddressProvider addressProvider;
     IDataCompressor dataCompressor;
@@ -72,6 +75,13 @@ contract RouterLiveTest is Test {
         router = IRouter(addressProvider.getLeveragedActions());
         oracle = IPriceOracleV2(addressProvider.getPriceOracle());
 
+        // known whales used as donors
+        whales[Tokens.SNX] = 0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8; // binance ;
+        whales[Tokens.STETH] = 0x176F3DAb24a159341c0509bB36B833E7fdd0a132; // justin sun;
+        whales[Tokens.LDO] = 0xF977814e90dA44bFA03b6295A0616a897441aceC; // binance;
+        whales[Tokens.sUSD] = 0xF977814e90dA44bFA03b6295A0616a897441aceC; // binance;
+        whales[Tokens.GUSD] = 0x5f65f7b609678448494De4C87521CdF6cEf1e932; // gemini;
+        whales[Tokens._3Crv] = 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490; // wintermute exploiter;
         // DAI
         expectedReverts[0x672461Bfc20DD783444a830Ad4c38b345aB6E2f7][
             0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B
@@ -175,52 +185,20 @@ contract RouterLiveTest is Test {
         vm.prank(USER);
         IERC20(cmData.underlying).approve(cmData.addr, type(uint256).max);
 
-        // deal does not work for commented tokens
-        address[26] memory normalTokens = [
-            0x111111111117dC0aa78b770fA6A738034120C302,
-            0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9,
-            0xc00e94Cb662C3520282E6f5717214004A7f26888,
-            0xD533a949740bb3306d119CC777fa900bA034cd52,
-            0x6B175474E89094C44Da98b954EedeAC495271d0F,
-            0x1494CA1F11D487c2bBe4543E90080AeBa4BA3C2b,
-            0x956F47F50A910163D8BF957Cf5846D573E7f87CA,
-            0x514910771AF9Ca656af840dff83E8264EcF986CA,
-            // 0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F, // snx (proxy)
-            0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984,
-            0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
-            0xdAC17F958D2ee523a2206206994597C13D831ec7, // usdt
-            0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599,
-            0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-            0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e,
-            0x64aa3364F17a4D01c6f1751Fd97C2BD3D7e7f1D5,
-            0x99D8a9C45b2ecA8864373A26D1459e3Dff1e17F3,
-            0x090185f2135308BaD17527004364eBcC2D37e5F6,
-            0xB50721BCf8d664c30412Cfbc6cf7a15145234ad1,
-            0xba100000625a3754423978a60c9317c58a424e3D,
-            0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE,
-            // 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84, // steth (rebase token)
-            0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0, // wsteth
-            0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B,
-            0x853d955aCEf822Db058eb8505911ED77F175b99e,
-            0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0,
-            // 0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32, // ldo (balanceOf -> balanceOfAt)
-            0x5f98805A4E8be255a32880FDeC7F6728C6568bA0,
-            // 0x57Ab1ec28D129707052df4dF418D58a2D46d5f51, // susd (proxy)
-            // 0x056Fd409E1d7A124BD7017459dFEa2F387b6d5Cd, // gusd (proxy)
-            0x6DEA81C8171D0bA574754EF6F8b412F2Ed88c54D // LQTY (has zero price feed, lt = 1)
-        ];
-
         uint256 tokenCount = cm.collateralTokensCount();
-        for (uint256 i = 0; i < normalTokens.length; ++i) {
-            address collateralToken = normalTokens[i];
+        TokensDataLive tdl = new TokensDataLive();
+        TokenData[] memory tokens = tdl.getTokenData(block.chainid);
+        for (uint256 i = 0; i < tokens.length; ++i) {
+            TokenData memory collateralToken = tokens[i];
+            if (collateralToken.tokenType != TokenType.NORMAL_TOKEN) {
+                continue;
+            }
             if (
-                !cf.isTokenAllowed(collateralToken) ||
-                cm.liquidationThresholds(collateralToken) <= 1
+                !cf.isTokenAllowed(collateralToken.addr) ||
+                cm.liquidationThresholds(collateralToken.addr) <= 1
             ) {
                 continue;
             }
-            string memory collateralSymbol = IERC20Metadata(collateralToken)
-                .symbol();
 
             for (uint256 j = 0; j < tokenCount; ++j) {
                 (address tokenOut, uint16 lt) = cm.collateralTokens(j);
@@ -242,7 +220,7 @@ contract RouterLiveTest is Test {
                             " lt ",
                             Strings.toString(lt),
                             " with collateral ",
-                            collateralSymbol
+                            collateralToken.symbol
                         )
                     )
                 );
@@ -256,7 +234,7 @@ contract RouterLiveTest is Test {
     function _testToken(
         CreditManagerData memory cmData,
         address tokenOut,
-        address collateralToken,
+        TokenData memory collateralToken,
         uint16 lt
     ) internal {
         uint256 snapshot = vm.snapshot();
@@ -270,24 +248,23 @@ contract RouterLiveTest is Test {
         uint256 collateralAmount = 5 * cmData.minAmount;
 
         Balance[] memory expectedBalances = _getBalances(cm);
-        if (collateralToken == cmData.underlying) {
+        if (collateralToken.addr == cmData.underlying) {
             expectedBalances.setBalance(
-                collateralToken,
+                collateralToken.addr,
                 collateralAmount + cmData.minAmount
             );
         } else {
             collateralAmount = oracle.convert(
                 collateralAmount,
                 cmData.underlying,
-                collateralToken
+                collateralToken.addr
             );
             // give USER collateral tokens. in case of underlying, this is done in CM-level function
-            // TODO: this will fail for many tokens
-            deal(collateralToken, USER, collateralAmount, false);
+            _dealCollateralToken(collateralToken, USER, collateralAmount);
             vm.prank(USER);
             // IERC20(collateralToken).approve(cmData.addr, type(uint256).max);
             // workaround for USDT.approve
-            address(collateralToken).functionCall(
+            address(collateralToken.addr).functionCall(
                 abi.encodeWithSelector(
                     IERC20.approve.selector,
                     cmData.addr,
@@ -296,7 +273,7 @@ contract RouterLiveTest is Test {
                 "approve failed"
             );
 
-            expectedBalances.setBalance(collateralToken, collateralAmount);
+            expectedBalances.setBalance(collateralToken.addr, collateralAmount);
             expectedBalances.setBalance(cmData.underlying, cmData.minAmount);
         }
 
@@ -334,6 +311,20 @@ contract RouterLiveTest is Test {
         }
 
         vm.revertTo(snapshot);
+    }
+
+    function _dealCollateralToken(
+        TokenData memory token,
+        address to,
+        uint256 amount
+    ) internal {
+        address whale = whales[token.id];
+        if (whale == address(0)) {
+            deal(token.addr, to, amount, false);
+        } else {
+            vm.prank(whale);
+            IERC20(token.addr).transfer(to, amount);
+        }
     }
 
     // check available liquidity in pool for this cm and mock-deposit some if it's low
