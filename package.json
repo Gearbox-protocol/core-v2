@@ -5,7 +5,8 @@
   "homepage": "https://gearbox.fi",
   "files": [
     "contracts",
-    "scripts"
+    "scripts",
+    "types"
   ],
   "keywords": [
     "gearbox"
