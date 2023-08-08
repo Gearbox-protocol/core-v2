@@ -14,7 +14,6 @@ coverage*
 /security/ClickerAttackSolution.sol
 /security/TickerBombAttackSolution.sol
 /.env.local
-/types/
 out/
 forge-out/
 .mainnet.test.cache
