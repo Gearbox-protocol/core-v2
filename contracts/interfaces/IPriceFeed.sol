@@ -22,3 +22,10 @@ interface IPriceFeed {
         view
         returns (uint80, int256 answer, uint256, uint256 updatedAt, uint80);
 }
+
+/// @title Updatable price feed interface
+interface IUpdatablePriceFeed is IPriceFeed {
+    function updatable() external view returns (bool);
+
+    function updatePrice(bytes calldata data) external;
+}
