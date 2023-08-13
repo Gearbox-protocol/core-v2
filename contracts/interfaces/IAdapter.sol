@@ -7,9 +7,9 @@ import { AdapterType } from "@gearbox-protocol/sdk/contracts/AdapterType.sol";
 
 /// @title Adapter interface
 interface IAdapter {
-    function _gearboxAdapterType() external pure returns (AdapterType);
+    function _gearboxAdapterType() external view returns (AdapterType);
 
-    function _gearboxAdapterVersion() external pure returns (uint16);
+    function _gearboxAdapterVersion() external view returns (uint16);
 
     function creditManager() external view returns (address);
 
