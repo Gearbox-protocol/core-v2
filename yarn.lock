@@ -478,10 +478,10 @@
   resolved "https://registry.yarnpkg.com/@gearbox-protocol/prettier-config/-/prettier-config-1.5.0.tgz#4df8e9fd2305fee6ab8c1417a02e31343836932a"
   integrity sha512-FUoprSsBdZyBjgxXCKL6mTkbeUJytaLzPJqIOoQpDmBRTX0seCc2o5I9PI9tySoRIlNnd/XXnKCXq1xHDEGbxw==
 
-"@gearbox-protocol/sdk@^2.1.17":
-  version "2.1.17"
-  resolved "https://registry.yarnpkg.com/@gearbox-protocol/sdk/-/sdk-2.1.17.tgz#e61cd2b7cd002f549ba80e970d4db1d7e49572dd"
-  integrity sha512-h1VFud073RyQ1b/IWQSnv/GLDVH87agAhKfA+fh9s0iAQjy1rtlwDVUk3kW8O445CtM2Akp79ZiyNfBm7ezF3Q==
+"@gearbox-protocol/sdk@^2.1.18":
+  version "2.1.18"
+  resolved "https://registry.yarnpkg.com/@gearbox-protocol/sdk/-/sdk-2.1.18.tgz#9aacd418ff0675b1aa06176ec5258985792b1348"
+  integrity sha512-KkYSQXaNKK4hFYwDkAu/srNBJzTIIAU4wjp1alyIUO4MyfTfZnHOSJTtcQPUllQOl+ou8fj9uPzAx6+GlUtZLw==
   dependencies:
     "@types/deep-eql" "^4.0.0"
     axios "^1.2.6"
