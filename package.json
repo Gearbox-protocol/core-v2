@@ -3,10 +3,13 @@
   "description": "Core smart contracts of Gearbox V2",
   "version": "1.0.1",
   "homepage": "https://gearbox.fi",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
   "files": [
     "contracts",
     "scripts",
-    "types"
+    "types",
+    "lib"
   ],
   "keywords": [
     "gearbox"
@@ -17,10 +20,11 @@
   },
   "license": "BUSL-1.1",
   "scripts": {
-    "types": "typechain --target ethers-v5 --discriminate-types --out-dir types \"./forge-out/**/!(*.t|test|*Mock).sol/!(*.abi).json\"",
+    "types": "typechain --target ethers-v5 --discriminate-types --out-dir types \"./forge-out/**/!(*.t|test|*Mock).sol/!(*.abi).json && rm -rf ./forge-out/",
     "prepare": "husky install",
     "prettier": "prettier --write .",
-    "prettier:ci": "npx prettier --check ."
+    "prettier:ci": "npx prettier --check .",
+    "build": "tsc --p tsconfig.build.json"
   },
   "devDependencies": {
     "@chainlink/contracts": "^0.4.0",
@@ -29,6 +33,7 @@
     "@gearbox-protocol/integration-types": "^1.2.0",
     "@gearbox-protocol/prettier-config": "^1.5.0",
     "@openzeppelin/contracts": "^4.4.2",
+    "ethers": "v5",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
     "prettier": "^2.7.1",
