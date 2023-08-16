@@ -26,6 +26,14 @@ jobs:
         run: |
           yarn install --frozen-lockfile
 
+      - name: Generate typechain types
+        run: |
+          yarn types
+
+      - name: Build lib
+        run: |
+          yarn build
+
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v3
         env:
