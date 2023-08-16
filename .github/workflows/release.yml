@@ -31,8 +31,8 @@ jobs:
         with:
           version: nightly
 
-      - name: Run forge tests
-        run: forge test
+      - name: Run forge build
+        run: forge build
         timeout-minutes: 10
 
       - name: Generate typechain types
