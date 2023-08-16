@@ -26,6 +26,15 @@ jobs:
         run: |
           yarn install --frozen-lockfile
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run forge tests
+        run: forge test
+        timeout-minutes: 10
+
       - name: Generate typechain types
         run: |
           yarn types
