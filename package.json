@@ -20,7 +20,7 @@
   },
   "license": "BUSL-1.1",
   "scripts": {
-    "types": "typechain --target ethers-v5 --discriminate-types --out-dir types \"./forge-out/**/!(*.t|test|*Mock).sol/!(*.abi).json\" && rm -rf ./forge-out",
+    "types": "rm -rf ./types && typechain --target ethers-v5 --discriminate-types --out-dir types \"./forge-out/**/!(*.t|test|*Mock).sol/!(*.abi).json\" && rm -rf ./forge-out",
     "prepare": "husky install",
     "prettier": "prettier --write .",
     "prettier:ci": "npx prettier --check .",
