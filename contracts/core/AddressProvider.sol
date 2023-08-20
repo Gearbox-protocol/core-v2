@@ -42,7 +42,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of ACL contract
     /// @param _address Address of ACL contract
-    function setACL(address _address)
+    function setACL(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -56,7 +58,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of ContractsRegister
     /// @param _address Address of ContractsRegister
-    function setContractsRegister(address _address)
+    function setContractsRegister(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -64,13 +68,15 @@ contract AddressProvider is Claimable, IAddressProvider {
     }
 
     /// @return Address of PriceOracleV2
-    function getPriceOracleV2() external view override returns (address) {
+    function getPriceOracle() external view override returns (address) {
         return _getAddress(PRICE_ORACLE); // F:[AP-5]
     }
 
     /// @dev Sets address of PriceOracleV2
     /// @param _address Address of PriceOracleV2
-    function setPriceOracleV2(address _address)
+    function setPriceOracle(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -84,7 +90,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of AccountFactory
     /// @param _address Address of AccountFactory
-    function setAccountFactory(address _address)
+    function setAccountFactory(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -98,7 +106,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of AccountFactory
     /// @param _address Address of AccountFactory
-    function setDataCompressor(address _address)
+    function setDataCompressor(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -112,7 +122,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of Treasury Contract
     /// @param _address Address of Treasury Contract
-    function setTreasuryContract(address _address)
+    function setTreasuryContract(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -126,7 +138,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of GEAR token
     /// @param _address Address of GEAR token
-    function setGearToken(address _address)
+    function setGearToken(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -140,7 +154,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of WETH token
     /// @param _address Address of WETH token
-    function setWethToken(address _address)
+    function setWethToken(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -154,7 +170,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of WETH token
     /// @param _address Address of WETH token
-    function setWETHGateway(address _address)
+    function setWETHGateway(
+        address _address
+    )
         external
         onlyOwner // F:[AP-12]
     {
@@ -168,7 +186,9 @@ contract AddressProvider is Claimable, IAddressProvider {
 
     /// @dev Sets address of  PathFinder
     /// @param _address Address of  PathFinder
-    function setLeveragedActions(address _address)
+    function setLeveragedActions(
+        address _address
+    )
         external
         onlyOwner // T:[AP-15]
     {
