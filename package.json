@@ -26,14 +26,14 @@
     "@commitlint/cli": "^17.1.2",
     "@commitlint/config-conventional": "^17.1.0",
     "@gearbox-protocol/prettier-config": "^1.5.0",
-    "@gearbox-protocol/sdk-gov": "^1.4.6",
+    "@gearbox-protocol/sdk-gov": "^1.4.7",
     "@openzeppelin/contracts": "^4.4.2",
+    "@typechain/ethers-v5": "^10.2.1",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
     "prettier": "^2.7.1",
     "prettier-plugin-solidity": "^1.0.0-beta.24",
-    "typechain": "^8.1.1",
-    "@typechain/ethers-v5": "^10.2.1"
+    "typechain": "^8.1.1"
   },
   "prettier": "@gearbox-protocol/prettier-config",
   "lint-staged": {

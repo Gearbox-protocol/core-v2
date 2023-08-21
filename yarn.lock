@@ -1001,10 +1001,10 @@
   resolved "https://registry.yarnpkg.com/@gearbox-protocol/prettier-config/-/prettier-config-1.5.0.tgz#4df8e9fd2305fee6ab8c1417a02e31343836932a"
   integrity sha512-FUoprSsBdZyBjgxXCKL6mTkbeUJytaLzPJqIOoQpDmBRTX0seCc2o5I9PI9tySoRIlNnd/XXnKCXq1xHDEGbxw==
 
-"@gearbox-protocol/sdk-gov@^1.4.6":
-  version "1.4.6"
-  resolved "https://registry.yarnpkg.com/@gearbox-protocol/sdk-gov/-/sdk-gov-1.4.6.tgz#da79f4f1cbd7592f22b8943dd9a122f0d59c96ce"
-  integrity sha512-BIG+MtWv4kBKIooP/N74eJgHyrtMOoViT2Q7xVFIs4n79XoWHLcJ5eHzbQFflb7FI590CBaS8Rumo8ra0qCDzg==
+"@gearbox-protocol/sdk-gov@^1.4.7":
+  version "1.4.7"
+  resolved "https://registry.yarnpkg.com/@gearbox-protocol/sdk-gov/-/sdk-gov-1.4.7.tgz#a6ff58b07d75a50388831126a6e0993ddad95f61"
+  integrity sha512-YLOXtx4AZwLWY+ycjdRpxL2NviFh9FotBRhKSiHT63V14u5PLT5K6AsVJ6PO5xCKnYPQE/huQKvvYE10Yfw76Q==
   dependencies:
     "@gearbox-protocol/core-v2" "^1.21.0"
     "@gearbox-protocol/core-v3" "^1.34.1"
