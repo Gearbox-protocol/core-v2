@@ -22,6 +22,7 @@
     "prettier:ci": "npx prettier --check ."
   },
   "devDependencies": {
+    "@gearbox-protocol/sdk-gov": "^1.4.5",
     "@chainlink/contracts": "^0.4.0",
     "@commitlint/cli": "^17.1.2",
     "@commitlint/config-conventional": "^17.1.0",
@@ -38,7 +39,6 @@
     "*.{sol,json,md}": "prettier --write"
   },
   "dependencies": {
-    "@gearbox-protocol/sdk-gov": "^1.4.5",
     "@typechain/ethers-v5": "^10.2.1"
   }
 }
