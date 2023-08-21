@@ -1001,17 +1001,19 @@
   resolved "https://registry.yarnpkg.com/@gearbox-protocol/prettier-config/-/prettier-config-1.5.0.tgz#4df8e9fd2305fee6ab8c1417a02e31343836932a"
   integrity sha512-FUoprSsBdZyBjgxXCKL6mTkbeUJytaLzPJqIOoQpDmBRTX0seCc2o5I9PI9tySoRIlNnd/XXnKCXq1xHDEGbxw==
 
-"@gearbox-protocol/sdk-gov@^1.4.5":
-  version "1.4.5"
-  resolved "https://registry.yarnpkg.com/@gearbox-protocol/sdk-gov/-/sdk-gov-1.4.5.tgz#735de0d4d0b1dfc208986186a71b169221af12fe"
-  integrity sha512-GXCYG6xrOoqVJgIiKWugB5vygYb5h44MCpW3BW3YUKbGl/xsMcrAwiqQdvBh6U3mj+1vmJqk9dBL3Ztv7Ls5Qw==
+"@gearbox-protocol/sdk-gov@^1.4.6":
+  version "1.4.6"
+  resolved "https://registry.yarnpkg.com/@gearbox-protocol/sdk-gov/-/sdk-gov-1.4.6.tgz#da79f4f1cbd7592f22b8943dd9a122f0d59c96ce"
+  integrity sha512-BIG+MtWv4kBKIooP/N74eJgHyrtMOoViT2Q7xVFIs4n79XoWHLcJ5eHzbQFflb7FI590CBaS8Rumo8ra0qCDzg==
   dependencies:
     "@gearbox-protocol/core-v2" "^1.21.0"
     "@gearbox-protocol/core-v3" "^1.34.1"
     "@gearbox-protocol/eslint-config" "^1.6.1"
     "@gearbox-protocol/integrations-v3" "1.7.0-legacy.7"
     "@gearbox-protocol/prettier-config" "^1.5.0"
+    "@types/chai" "^4.3.5"
     axios "^1.4.0"
+    chai "^4.3.7"
     dotenv "^16.3.1"
     ethers "5.6.9"
     ts-toolbelt "^9.6.0"
@@ -1223,6 +1225,11 @@
   integrity sha512-qNrYbZqMx0uJAfKnKclPh+dTwK33KfLHYqtyODwd5HnXOjnkhc4qgn3BrK6RWyGZm5+sIFE7Q7Vz6QQtJB7w7g==
   dependencies:
     "@types/node" "*"
+
+"@types/chai@^4.3.5":
+  version "4.3.5"
+  resolved "https://registry.yarnpkg.com/@types/chai/-/chai-4.3.5.tgz#ae69bcbb1bebb68c4ac0b11e9d8ed04526b3562b"
+  integrity sha512-mEo1sAde+UCE6b2hxn332f1g1E8WfYRu6p5SvTKr2ZKC1f7gFJXk4h5PyGP9Dt6gCaG8y8XhwnXWC6Iy2cmBng==
 
 "@types/deep-eql@^4.0.0":
   version "4.0.0"
@@ -1720,7 +1727,7 @@ camelcase@^5.3.1:
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-5.3.1.tgz#e3c9b31569e106811df242f715725a1f4c494320"
   integrity sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg==
 
-chai@^4.3.4:
+chai@^4.3.4, chai@^4.3.7:
   version "4.3.7"
   resolved "https://registry.yarnpkg.com/chai/-/chai-4.3.7.tgz#ec63f6df01829088e8bf55fca839bcd464a8ec51"
   integrity sha512-HLnAzZ2iupm25PlN0xFreAlBA5zaBSv3og0DdeGA4Ar6h6rJ3A0rolRUKJhSF2V10GZKDgWF/VmAEsNWjCRB+A==
