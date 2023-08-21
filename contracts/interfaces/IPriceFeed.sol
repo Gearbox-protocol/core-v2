@@ -3,7 +3,7 @@
 // (c) Gearbox Foundation, 2023.
 pragma solidity ^0.8.0;
 
-import { PriceFeedType } from "@gearbox-protocol/sdk/contracts/PriceFeedType.sol";
+import { PriceFeedType } from "@gearbox-protocol/sdk-gov/contracts/PriceFeedType.sol";
 
 /// @title Price feed interface
 interface IPriceFeed {

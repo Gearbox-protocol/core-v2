@@ -3,7 +3,7 @@
 // (c) Gearbox Foundation, 2023.
 pragma solidity ^0.8.0;
 
-import { AdapterType } from "@gearbox-protocol/sdk/contracts/AdapterType.sol";
+import { AdapterType } from "@gearbox-protocol/sdk-gov/contracts/AdapterType.sol";
 
 /// @title Adapter interface
 interface IAdapter {
