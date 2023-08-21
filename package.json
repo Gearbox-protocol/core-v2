@@ -32,13 +32,12 @@
     "lint-staged": "^13.0.3",
     "prettier": "^2.7.1",
     "prettier-plugin-solidity": "^1.0.0-beta.24",
-    "typechain": "^8.1.1"
+    "typechain": "^8.1.1",
+    "@typechain/ethers-v5": "^10.2.1"
   },
   "prettier": "@gearbox-protocol/prettier-config",
   "lint-staged": {
     "*.{sol,json,md}": "prettier --write"
   },
-  "dependencies": {
-    "@typechain/ethers-v5": "^10.2.1"
-  }
+  "dependencies": {}
 }
