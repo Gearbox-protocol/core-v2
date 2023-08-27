@@ -39,7 +39,7 @@ interface IContractsRegister is IContractsRegisterEvents, IVersion {
 
     /// @dev Returns a Credit Manager's address from the list under the passed index
     /// @param i Index of the Credit Manager to retrieve
-    function creditManagers(uint256 i) external returns (address);
+    function creditManagers(uint256 i) external view returns (address);
 
     /// @return Returns the number of registered Credit Managers
     function getCreditManagersCount() external view returns (uint256);
