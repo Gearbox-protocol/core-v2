@@ -22,7 +22,7 @@ interface IContractsRegister is IContractsRegisterEvents, IVersion {
 
     /// @dev Returns a pool address from the list under the passed index
     /// @param i Index of the pool to retrieve
-    function pools(uint256 i) external returns (address);
+    function pools(uint256 i) external view returns (address);
 
     /// @return Returns the number of registered pools
     function getPoolsCount() external view returns (uint256);
