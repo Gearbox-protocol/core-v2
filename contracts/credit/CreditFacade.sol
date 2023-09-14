@@ -120,7 +120,7 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
     uint256 internal totalBorrowedInBlock;
 
     /// @dev Contract version
-    uint256 public constant override version = 2_10;
+    uint256 public constant override version = 2_20;
 
     /// @dev Restricts actions for users with opened credit accounts only
     modifier creditConfiguratorOnly() {
@@ -996,23 +996,16 @@ contract CreditFacade is ICreditFacade, ReentrancyGuard {
         //
         // ADD COLLATERAL
         //
-        else if (method == ICreditFacade.addCollateral.selector) {
+        else if (method == ICreditFacadeExtended.addCollateral.selector) {
             // Parses parameters from calldata
-            (address onBehalfOf, address token, uint256 amount) = abi.decode(
+            (address token, uint256 amount) = abi.decode(
                 callData[4:],
-                (address, address, uint256)
+                (address, uint256)
             ); // F:[FA-26, 27]
 
             // In case onBehalfOf isn't the owner of the currently processed account,
             // retrieves onBehalfOf's account
-            addCollateral(
-                onBehalfOf,
-                onBehalfOf == borrower
-                    ? creditAccount
-                    : creditManager.getCreditAccountOrRevert(onBehalfOf),
-                token,
-                amount
-            ); // F:[FA-26, 27]
+            addCollateral(msg.sender, creditAccount, token, amount); // F:[FA-26, 27]
         }
         //
         // INCREASE DEBT
