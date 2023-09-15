@@ -11,3 +11,4 @@ block_timestamp = 16400000
 gas_limit = 9223372036854775807 # the gas limit in tests
 block_base_fee_per_gas = 100
 fs_permissions = [{ access = "read-write", path = "./"}]
+evm_version="shanghai"
