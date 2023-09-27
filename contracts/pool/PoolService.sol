@@ -141,7 +141,7 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
     /**
      * @dev Adds liquidity to the pool
      * - Transfers the underlying asset from sender to the pool
-     * - Mints diesel (LP) token фе current diesel rate
+     * - Mints diesel (LP) token current diesel rate
      * - Updates expected liquidity
      * - Updates borrow rate
      *
@@ -223,7 +223,10 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
      *      (to != address(this) && amount > 0) ==> borrowAPY_RAY >= old(currentBorrowRate());
      * #limit {:msg "Not more than 1 day since last borrow rate update"} block.timestamp <= _timestampLU + 3600 * 24;
      */
-    function removeLiquidity(uint256 amount, address to)
+    function removeLiquidity(
+        uint256 amount,
+        address to
+    )
         external
         override
         whenNotPaused // T:[PS-4]
@@ -296,7 +299,10 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
     /// #if_succeeds {:msg "After lendCreditAccount() borrow rate increases"}
     ///      borrowedAmount > 0 ==> borrowAPY_RAY >= old(currentBorrowRate());
     /// #limit {:msg "Not more than 1 day since last borrow rate update"} block.timestamp <= _timestampLU + 3600 * 24;
-    function lendCreditAccount(uint256 borrowedAmount, address creditAccount)
+    function lendCreditAccount(
+        uint256 borrowedAmount,
+        address creditAccount
+    )
         external
         override
         whenNotPaused // T:[PS-4]
@@ -478,7 +484,9 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
 
     /// @dev Connects a new Credit manager to pool
     /// @param _creditManager Address of the Credit Manager
-    function connectCreditManager(address _creditManager)
+    function connectCreditManager(
+        address _creditManager
+    )
         external
         configuratorOnly // T:[PS-9]
     {
@@ -500,7 +508,9 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
 
     /// @dev Forbids a Credit Manager to borrow
     /// @param _creditManager Address of the Credit Manager
-    function forbidCreditManagerToBorrow(address _creditManager)
+    function forbidCreditManagerToBorrow(
+        address _creditManager
+    )
         external
         configuratorOnly // T:[PS-9]
     {
@@ -511,7 +521,9 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
     /// @dev Sets the new interest rate model for the pool
     /// @param _interestRateModel Address of the new interest rate model contract
     /// #limit {:msg "Disallow updating the interest rate model after the constructor"} address(interestRateModel) == address(0x0);
-    function updateInterestRateModel(address _interestRateModel)
+    function updateInterestRateModel(
+        address _interestRateModel
+    )
         public
         configuratorOnly // T:[PS-9]
     {
@@ -531,7 +543,9 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
 
     /// @dev Sets a new expected liquidity limit
     /// @param newLimit New expected liquidity limit
-    function setExpectedLiquidityLimit(uint256 newLimit)
+    function setExpectedLiquidityLimit(
+        uint256 newLimit
+    )
         external
         configuratorOnly // T:[PS-9]
     {
@@ -541,7 +555,9 @@ contract PoolService is IPoolService, ACLTrait, ReentrancyGuard {
 
     /// @dev Sets a new withdrawal fee
     /// @param fee The new fee amount, in bp
-    function setWithdrawFee(uint256 fee)
+    function setWithdrawFee(
+        uint256 fee
+    )
         public
         configuratorOnly // T:[PS-9]
     {
