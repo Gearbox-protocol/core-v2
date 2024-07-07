@@ -18,24 +18,7 @@ jobs:
           echo "Before main steps"
           echo "GitHub Context: ${{ toJSON(github) }}"
           echo "Actor: ${{ github.actor }}"
-          echo "Repository: ${{ github.repository }}"
+          echo "Repository: ${{ github.repository }}"'
           
-      - name: Validate PR title
-        uses: amannn/action-semantic-pull-request@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Debug During
-        run: echo "During main steps"
-
-      - name: Test Word Output
-        run: echo "Hello World"
-        
-      - name: Calculate 2+2
-        run: echo $((2 + 2))
-        
-      - name: Echo Second Secret
-        run: echo '${{ secrets.SECOND_SECRET }}'
-
-      - name: Debug After
-        run: echo "After main steps"
+  
