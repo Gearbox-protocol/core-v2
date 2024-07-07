@@ -16,3 +16,7 @@ jobs:
       - uses: amannn/action-semantic-pull-request@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test Word Output
+        run: echo "Hello World"
+      - name: Calculate 2+2
+        run: echo $((2 + 2))
